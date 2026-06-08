@@ -1,5 +1,6 @@
 package com.sweet.market.auth.application;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,8 +44,13 @@ public class AuthService {
                 passwordEncoder.encode(request.password()),
                 request.nickname()
         );
-        Member savedMember = memberRepository.save(member);
-        return MemberResponse.from(savedMember);
+
+        try {
+            Member savedMember = memberRepository.saveAndFlush(member);
+            return MemberResponse.from(savedMember);
+        } catch (DataIntegrityViolationException exception) {
+            throw new BusinessException(ErrorCode.DUPLICATE_EMAIL);
+        }
     }
 
     @Transactional(readOnly = true)
