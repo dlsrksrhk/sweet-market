@@ -1,5 +1,7 @@
 package com.sweet.market.member.domain;
 
+import java.util.Locale;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -43,6 +45,10 @@ public class Member {
     }
 
     public static Member create(String email, String encodedPassword, String nickname) {
-        return new Member(email, encodedPassword, nickname, MemberRole.MEMBER);
+        return new Member(normalizeEmail(email), encodedPassword, nickname, MemberRole.MEMBER);
+    }
+
+    public static String normalizeEmail(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 }
