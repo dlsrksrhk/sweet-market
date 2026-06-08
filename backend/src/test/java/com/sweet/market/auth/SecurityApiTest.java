@@ -23,7 +23,8 @@ class SecurityApiTest extends IntegrationTestSupport {
     @Test
     void cannotAccessMeWithoutJwt() throws Exception {
         mockMvc.perform(get("/api/members/me"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
     }
 
     @Test
@@ -45,7 +46,8 @@ class SecurityApiTest extends IntegrationTestSupport {
     void cannotAccessMeWithInvalidJwt() throws Exception {
         mockMvc.perform(get("/api/members/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer invalid.jwt.token"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
     }
 
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
