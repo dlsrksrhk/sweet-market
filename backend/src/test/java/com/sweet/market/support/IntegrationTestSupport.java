@@ -41,6 +41,8 @@ public abstract class IntegrationTestSupport {
         registry.add("spring.datasource.username", POSTGRESQL::getUsername);
         registry.add("spring.datasource.password", POSTGRESQL::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create");
+        registry.add("jwt.secret", () -> "sweet-market-test-secret-key-32bytes-minimum");
+        registry.add("jwt.access-token-validity-seconds", () -> "3600");
     }
 
     @AfterEach
