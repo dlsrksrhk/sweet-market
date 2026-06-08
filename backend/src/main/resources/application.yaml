@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: market
+  datasource:
+    url: jdbc:postgresql://localhost:${DB_PORT:15432}/${DB_NAME:market}
+    username: ${DB_USERNAME:market}
+    password: ${DB_PASSWORD:market}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        format_sql: true
+        highlight_sql: true
+        default_batch_fetch_size: 100
+    open-in-view: false
+
+logging:
+  level:
+    org.hibernate.SQL: debug
+    org.hibernate.orm.jdbc.bind: trace
