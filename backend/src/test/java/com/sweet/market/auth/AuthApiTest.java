@@ -49,6 +49,27 @@ class AuthApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void duplicateEmailSignupFailsWhenEmailDiffersByCaseAndWhitespace() throws Exception {
+        SignupRequest request = new SignupRequest(EMAIL, PASSWORD, NICKNAME);
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(request)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": " Buyer@Example.COM ",
+                                  "password": "password123",
+                                  "nickname": "buyer2"
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DUPLICATE_EMAIL"));
+    }
+
+    @Test
     void invalidSignupRequestFails() throws Exception {
         SignupRequest request = new SignupRequest("not-email", "short", "");
 
@@ -98,11 +119,15 @@ class AuthApiTest extends IntegrationTestSupport {
 
     @Test
     void signupStoresNormalizedEmail() throws Exception {
-        SignupRequest request = new SignupRequest("Buyer@Example.COM", PASSWORD, NICKNAME);
-
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(request)))
+                        .content("""
+                                {
+                                  "email": " Buyer@Example.COM ",
+                                  "password": "password123",
+                                  "nickname": "buyer"
+                                }
+                                """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.email").value(EMAIL));
     }
@@ -115,10 +140,14 @@ class AuthApiTest extends IntegrationTestSupport {
                         .content(json(signupRequest)))
                 .andExpect(status().isCreated());
 
-        LoginRequest loginRequest = new LoginRequest("Buyer@Example.COM", PASSWORD);
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(loginRequest)))
+                        .content("""
+                                {
+                                  "email": " Buyer@Example.COM ",
+                                  "password": "password123"
+                                }
+                                """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.member.email").value(EMAIL));
     }
@@ -130,6 +159,22 @@ class AuthApiTest extends IntegrationTestSupport {
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void loginWithOverSeventyTwoByteUtf8PasswordFailsValidation() throws Exception {
+        SignupRequest signupRequest = new SignupRequest(EMAIL, PASSWORD, NICKNAME);
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(signupRequest)))
+                .andExpect(status().isCreated());
+
+        LoginRequest loginRequest = new LoginRequest(EMAIL, "가".repeat(25));
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(loginRequest)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
