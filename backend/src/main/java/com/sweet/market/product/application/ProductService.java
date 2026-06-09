@@ -8,6 +8,7 @@ import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.api.ProductCreateRequest;
+import com.sweet.market.product.api.ProductImageAddRequest;
 import com.sweet.market.product.api.ProductResponse;
 import com.sweet.market.product.api.ProductUpdateRequest;
 import com.sweet.market.product.domain.Product;
@@ -47,6 +48,24 @@ public class ProductService {
     public ProductResponse hide(Long sellerId, Long productId) {
         Product product = findProductForOwner(sellerId, productId);
         product.hide();
+        return ProductResponse.from(product);
+    }
+
+    @Transactional
+    public ProductResponse addImage(Long sellerId, Long productId, ProductImageAddRequest request) {
+        Product product = findProductForOwner(sellerId, productId);
+        product.addImage(request.imageUrl());
+        return ProductResponse.from(product);
+    }
+
+    @Transactional
+    public ProductResponse removeImage(Long sellerId, Long productId, Long imageId) {
+        Product product = findProductForOwner(sellerId, productId);
+        try {
+            product.removeImage(imageId);
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_NOT_FOUND);
+        }
         return ProductResponse.from(product);
     }
 

@@ -197,6 +197,65 @@ class ProductApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
     }
 
+    @Test
+    void addProductImageSucceedsForOwner() throws Exception {
+        String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
+        Long productId = createProduct(accessToken);
+
+        mockMvc.perform(post("/api/products/{productId}/images", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "imageUrl": "https://example.com/macbook-2.jpg"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.images", hasSize(2)))
+                .andExpect(jsonPath("$.data.images[1].imageUrl").value("https://example.com/macbook-2.jpg"));
+    }
+
+    @Test
+    void addProductImageFailsForNonOwner() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String otherToken = signupAndLogin("other@example.com", "password123", "other");
+        Long productId = createProduct(sellerToken);
+
+        mockMvc.perform(post("/api/products/{productId}/images", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "imageUrl": "https://example.com/macbook-2.jpg"
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PRODUCT_ACCESS_DENIED"));
+    }
+
+    @Test
+    void removeProductImageSucceedsForOwner() throws Exception {
+        String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
+        Long productId = createProduct(accessToken);
+        Long imageId = getFirstImageId(productId);
+
+        mockMvc.perform(delete("/api/products/{productId}/images/{imageId}", productId, imageId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.images", hasSize(0)));
+    }
+
+    @Test
+    void removeProductImageFailsWhenImageDoesNotBelongToProduct() throws Exception {
+        String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
+        Long productId = createProduct(accessToken);
+
+        mockMvc.perform(delete("/api/products/{productId}/images/{imageId}", productId, 999L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PRODUCT_IMAGE_NOT_FOUND"));
+    }
+
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
         SignupRequest signupRequest = new SignupRequest(email, password, nickname);
         LoginRequest loginRequest = new LoginRequest(email, password);
@@ -240,5 +299,16 @@ class ProductApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("id").asLong();
+    }
+
+    private Long getFirstImageId(Long productId) throws Exception {
+        String response = mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode root = objectMapper.readTree(response);
+        return root.path("data").path("images").get(0).path("id").asLong();
     }
 }
