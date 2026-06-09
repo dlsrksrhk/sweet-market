@@ -47,7 +47,7 @@ public abstract class IntegrationTestSupport {
 
     @AfterEach
     void cleanUp() {
-        jdbcTemplate.execute("TRUNCATE TABLE members RESTART IDENTITY CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE product_images, products, members RESTART IDENTITY CASCADE");
     }
 
     protected String json(Object value) throws JsonProcessingException {
