@@ -21,14 +21,14 @@ import com.sweet.market.support.IntegrationTestSupport;
 class SecurityApiTest extends IntegrationTestSupport {
 
     @Test
-    void cannotAccessMeWithoutJwt() throws Exception {
+    void JWT가_없으면_내_정보_API에_접근할_수_없다() throws Exception {
         mockMvc.perform(get("/api/members/me"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
     }
 
     @Test
-    void canAccessMeWithValidJwt() throws Exception {
+    void 유효한_JWT가_있으면_내_정보_API에_접근할_수_있다() throws Exception {
         String email = "buyer@example.com";
         String password = "password123";
         String nickname = "buyer";
@@ -43,7 +43,7 @@ class SecurityApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void cannotAccessMeWithInvalidJwt() throws Exception {
+    void 유효하지_않은_JWT로는_내_정보_API에_접근할_수_없다() throws Exception {
         mockMvc.perform(get("/api/members/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer invalid.jwt.token"))
                 .andExpect(status().isUnauthorized())

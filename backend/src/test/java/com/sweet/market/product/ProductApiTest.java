@@ -22,7 +22,7 @@ import com.sweet.market.support.IntegrationTestSupport;
 class ProductApiTest extends IntegrationTestSupport {
 
     @Test
-    void createProductSucceeds() throws Exception {
+    void 상품_등록에_성공한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
 
         mockMvc.perform(post("/api/products")
@@ -53,7 +53,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void createProductRequiresJwt() throws Exception {
+    void 상품_등록은_JWT가_필요하다() throws Exception {
         mockMvc.perform(post("/api/products")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -69,7 +69,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void createProductValidationFails() throws Exception {
+    void 잘못된_상품_등록_요청은_검증_오류를_반환한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
 
         mockMvc.perform(post("/api/products")
@@ -89,7 +89,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void updateProductSucceedsForOwner() throws Exception {
+    void 소유자는_상품_수정에_성공한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(accessToken);
 
@@ -111,7 +111,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void updateProductFailsForNonOwner() throws Exception {
+    void 소유자가_아니면_상품_수정에_실패한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String otherToken = signupAndLogin("other@example.com", "password123", "other");
         Long productId = createProduct(sellerToken);
@@ -131,7 +131,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void hideProductSucceedsForOwner() throws Exception {
+    void 소유자는_상품_숨김에_성공한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(accessToken);
 
@@ -143,7 +143,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void hideProductFailsForNonOwner() throws Exception {
+    void 소유자가_아니면_상품_숨김에_실패한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String otherToken = signupAndLogin("other@example.com", "password123", "other");
         Long productId = createProduct(sellerToken);
@@ -155,7 +155,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void listOnSaleProductsWithoutJwt() throws Exception {
+    void JWT_없이_판매중_상품_목록을_조회한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         createProduct(sellerToken);
 
@@ -168,7 +168,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void getOnSaleProductWithoutJwt() throws Exception {
+    void JWT_없이_판매중_상품_상세를_조회한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(sellerToken);
 
@@ -180,7 +180,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void hiddenProductIsExcludedFromPublicListAndDetail() throws Exception {
+    void 숨김_상품은_공개_목록과_상세_조회에서_제외된다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(sellerToken);
 
@@ -198,7 +198,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void addProductImageSucceedsForOwner() throws Exception {
+    void 소유자는_상품_이미지_추가에_성공한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(accessToken);
 
@@ -216,7 +216,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void addProductImageFailsForNonOwner() throws Exception {
+    void 소유자가_아니면_상품_이미지_추가에_실패한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String otherToken = signupAndLogin("other@example.com", "password123", "other");
         Long productId = createProduct(sellerToken);
@@ -234,7 +234,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void removeProductImageSucceedsForOwner() throws Exception {
+    void 소유자는_상품_이미지_삭제에_성공한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(accessToken);
         Long imageId = getFirstImageId(productId);
@@ -246,7 +246,7 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void removeProductImageFailsWhenImageDoesNotBelongToProduct() throws Exception {
+    void 상품에_속하지_않은_이미지를_삭제하면_실패한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(accessToken);
 

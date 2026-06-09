@@ -31,7 +31,7 @@ class CascadeOrphanRemovalTest extends IntegrationTestSupport {
 
     @Test
     @Transactional
-    void cascadePersistSavesProductImagesWithProduct() {
+    void cascade_persist는_상품과_함께_상품_이미지를_저장한다() {
         Member seller = memberRepository.save(Member.create("seller@example.com", "encoded-password", "seller"));
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
         product.addImage("https://example.com/macbook-1.jpg");
@@ -49,7 +49,7 @@ class CascadeOrphanRemovalTest extends IntegrationTestSupport {
 
     @Test
     @Transactional
-    void orphanRemovalDeletesImageWhenRemovedFromProductCollection() {
+    void orphanRemoval은_상품_컬렉션에서_제거된_이미지를_삭제한다() {
         Member seller = memberRepository.save(Member.create("seller@example.com", "encoded-password", "seller"));
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
         product.addImage("https://example.com/macbook-1.jpg");

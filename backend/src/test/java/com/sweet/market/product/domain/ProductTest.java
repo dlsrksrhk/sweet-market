@@ -10,7 +10,7 @@ import com.sweet.market.member.domain.Member;
 class ProductTest {
 
     @Test
-    void createProductWithImages() {
+    void 상품을_이미지와_함께_생성한다() {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
 
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
@@ -28,7 +28,7 @@ class ProductTest {
     }
 
     @Test
-    void updateProduct() {
+    void 상품을_수정한다() {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
 
@@ -40,7 +40,7 @@ class ProductTest {
     }
 
     @Test
-    void hideProduct() {
+    void 상품을_숨김_처리한다() {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
 
@@ -50,7 +50,7 @@ class ProductTest {
     }
 
     @Test
-    void removeImageByIdFailsWhenImageDoesNotExist() {
+    void 존재하지_않는_이미지_ID로_삭제하면_실패한다() {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
         product.addImage("https://example.com/macbook-1.jpg");

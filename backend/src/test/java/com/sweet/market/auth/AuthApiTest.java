@@ -21,7 +21,7 @@ class AuthApiTest extends IntegrationTestSupport {
     private static final String NICKNAME = "buyer";
 
     @Test
-    void signupSucceeds() throws Exception {
+    void 회원가입에_성공한다() throws Exception {
         SignupRequest request = new SignupRequest(EMAIL, PASSWORD, NICKNAME);
 
         mockMvc.perform(post("/api/auth/signup")
@@ -34,7 +34,7 @@ class AuthApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void duplicateEmailSignupFails() throws Exception {
+    void 중복_이메일로_회원가입하면_실패한다() throws Exception {
         SignupRequest request = new SignupRequest(EMAIL, PASSWORD, NICKNAME);
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -49,7 +49,7 @@ class AuthApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void duplicateEmailSignupFailsWhenEmailDiffersByCaseAndWhitespace() throws Exception {
+    void 대소문자와_공백만_다른_중복_이메일로_회원가입하면_실패한다() throws Exception {
         SignupRequest request = new SignupRequest(EMAIL, PASSWORD, NICKNAME);
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -70,7 +70,7 @@ class AuthApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void invalidSignupRequestFails() throws Exception {
+    void 잘못된_회원가입_요청은_검증_오류를_반환한다() throws Exception {
         SignupRequest request = new SignupRequest("not-email", "short", "");
 
         mockMvc.perform(post("/api/auth/signup")
@@ -83,7 +83,7 @@ class AuthApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void loginSucceedsAfterSignup() throws Exception {
+    void 회원가입_후_로그인에_성공한다() throws Exception {
         SignupRequest signupRequest = new SignupRequest(EMAIL, PASSWORD, NICKNAME);
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -102,7 +102,7 @@ class AuthApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void wrongPasswordLoginFails() throws Exception {
+    void 비밀번호가_틀리면_로그인에_실패한다() throws Exception {
         SignupRequest signupRequest = new SignupRequest(EMAIL, PASSWORD, NICKNAME);
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -118,7 +118,7 @@ class AuthApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void signupStoresNormalizedEmail() throws Exception {
+    void 회원가입은_정규화된_이메일을_저장한다() throws Exception {
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -133,7 +133,7 @@ class AuthApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void loginSucceedsWithMixedCaseEmail() throws Exception {
+    void 대소문자가_섞인_이메일로도_로그인에_성공한다() throws Exception {
         SignupRequest signupRequest = new SignupRequest(EMAIL, PASSWORD, NICKNAME);
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -153,7 +153,7 @@ class AuthApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void overSeventyTwoByteUtf8PasswordFailsValidation() throws Exception {
+    void UTF8_기준_72바이트를_초과한_비밀번호는_회원가입_검증에_실패한다() throws Exception {
         SignupRequest request = new SignupRequest(EMAIL, "가".repeat(25), NICKNAME);
 
         mockMvc.perform(post("/api/auth/signup")
@@ -164,7 +164,7 @@ class AuthApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void loginWithOverSeventyTwoByteUtf8PasswordFailsValidation() throws Exception {
+    void UTF8_기준_72바이트를_초과한_비밀번호는_로그인_검증에_실패한다() throws Exception {
         SignupRequest signupRequest = new SignupRequest(EMAIL, PASSWORD, NICKNAME);
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
