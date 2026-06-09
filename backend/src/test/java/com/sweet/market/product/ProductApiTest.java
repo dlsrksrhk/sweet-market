@@ -3,6 +3,8 @@ package com.sweet.market.product;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -85,6 +87,72 @@ class ProductApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.fieldErrors").isArray());
     }
 
+    @Test
+    void updateProductSucceedsForOwner() throws Exception {
+        String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
+        Long productId = createProduct(accessToken);
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "iPhone 15 Pro",
+                                  "description": "Natural titanium",
+                                  "price": 1200000
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(productId))
+                .andExpect(jsonPath("$.data.title").value("iPhone 15 Pro"))
+                .andExpect(jsonPath("$.data.description").value("Natural titanium"))
+                .andExpect(jsonPath("$.data.price").value(1200000));
+    }
+
+    @Test
+    void updateProductFailsForNonOwner() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String otherToken = signupAndLogin("other@example.com", "password123", "other");
+        Long productId = createProduct(sellerToken);
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "iPhone 15 Pro",
+                                  "description": "Natural titanium",
+                                  "price": 1200000
+                                }
+                                """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PRODUCT_ACCESS_DENIED"));
+    }
+
+    @Test
+    void hideProductSucceedsForOwner() throws Exception {
+        String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
+        Long productId = createProduct(accessToken);
+
+        mockMvc.perform(delete("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(productId))
+                .andExpect(jsonPath("$.data.status").value("HIDDEN"));
+    }
+
+    @Test
+    void hideProductFailsForNonOwner() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String otherToken = signupAndLogin("other@example.com", "password123", "other");
+        Long productId = createProduct(sellerToken);
+
+        mockMvc.perform(delete("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PRODUCT_ACCESS_DENIED"));
+    }
+
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
         SignupRequest signupRequest = new SignupRequest(email, password, nickname);
         LoginRequest loginRequest = new LoginRequest(email, password);
@@ -105,5 +173,28 @@ class ProductApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("accessToken").asText();
+    }
+
+    private Long createProduct(String accessToken) throws Exception {
+        String response = mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "imageUrls": [
+                                    "https://example.com/macbook-1.jpg"
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode root = objectMapper.readTree(response);
+        return root.path("data").path("id").asLong();
     }
 }
