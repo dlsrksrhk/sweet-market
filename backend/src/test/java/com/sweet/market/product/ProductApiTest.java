@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -151,6 +152,49 @@ class ProductApiTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("PRODUCT_ACCESS_DENIED"));
+    }
+
+    @Test
+    void listOnSaleProductsWithoutJwt() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        createProduct(sellerToken);
+
+        mockMvc.perform(get("/api/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].title").value("MacBook Pro"))
+                .andExpect(jsonPath("$.data.content[0].sellerNickname").value("seller"))
+                .andExpect(jsonPath("$.data.content[0].thumbnailUrl").value("https://example.com/macbook-1.jpg"));
+    }
+
+    @Test
+    void getOnSaleProductWithoutJwt() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        Long productId = createProduct(sellerToken);
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(productId))
+                .andExpect(jsonPath("$.data.title").value("MacBook Pro"))
+                .andExpect(jsonPath("$.data.images", hasSize(1)));
+    }
+
+    @Test
+    void hiddenProductIsExcludedFromPublicListAndDetail() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        Long productId = createProduct(sellerToken);
+
+        mockMvc.perform(delete("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(0)));
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
     }
 
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
