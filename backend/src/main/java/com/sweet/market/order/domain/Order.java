@@ -68,6 +68,36 @@ public class Order {
         this.canceledAt = LocalDateTime.now();
     }
 
+    public void markPaid() {
+        if (status != OrderStatus.CREATED) {
+            throw new IllegalStateException("Order cannot be paid: " + status);
+        }
+        this.status = OrderStatus.PAID;
+    }
+
+    public void cancelPaidOrder() {
+        if (status != OrderStatus.PAID) {
+            throw new IllegalStateException("Paid order cannot be canceled: " + status);
+        }
+        product.restoreOnSaleFromReservation();
+        this.status = OrderStatus.CANCELED;
+        this.canceledAt = LocalDateTime.now();
+    }
+
+    public void startShipping() {
+        if (status != OrderStatus.PAID) {
+            throw new IllegalStateException("Order cannot start shipping: " + status);
+        }
+        this.status = OrderStatus.SHIPPING;
+    }
+
+    public void completeDelivery() {
+        if (status != OrderStatus.SHIPPING) {
+            throw new IllegalStateException("Order cannot complete delivery: " + status);
+        }
+        this.status = OrderStatus.DELIVERED;
+    }
+
     public boolean isOwnedBy(Long memberId) {
         return buyer.getId().equals(memberId);
     }

@@ -17,7 +17,15 @@ public enum ErrorCode {
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "주문을 찾을 수 없습니다."),
     ORDER_ACCESS_DENIED(HttpStatus.FORBIDDEN, "주문에 대한 권한이 없습니다."),
     ORDER_CANCEL_NOT_ALLOWED(HttpStatus.CONFLICT, "취소할 수 없는 주문 상태입니다."),
-    ORDER_CONFLICT(HttpStatus.CONFLICT, "이미 다른 거래에서 처리된 주문 요청입니다.");
+    ORDER_CONFLICT(HttpStatus.CONFLICT, "이미 다른 거래에서 처리된 주문 요청입니다."),
+    PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "결제를 찾을 수 없습니다."),
+    PAYMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "결제에 대한 권한이 없습니다."),
+    PAYMENT_APPROVE_NOT_ALLOWED(HttpStatus.CONFLICT, "승인할 수 없는 주문 상태입니다."),
+    PAYMENT_CANCEL_NOT_ALLOWED(HttpStatus.CONFLICT, "취소할 수 없는 결제 상태입니다."),
+    DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "배송을 찾을 수 없습니다."),
+    DELIVERY_ACCESS_DENIED(HttpStatus.FORBIDDEN, "배송에 대한 권한이 없습니다."),
+    DELIVERY_START_NOT_ALLOWED(HttpStatus.CONFLICT, "배송을 시작할 수 없는 주문 상태입니다."),
+    DELIVERY_COMPLETE_NOT_ALLOWED(HttpStatus.CONFLICT, "배송을 완료할 수 없는 상태입니다.");
 
     private final HttpStatus status;
     private final String message;
