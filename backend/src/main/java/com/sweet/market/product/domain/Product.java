@@ -71,12 +71,14 @@ public class Product {
     }
 
     public void update(String title, String description, long price) {
+        validateNotReserved();
         this.title = title;
         this.description = description;
         this.price = price;
     }
 
     public void hide() {
+        validateNotReserved();
         this.status = ProductStatus.HIDDEN;
     }
 
@@ -103,6 +105,7 @@ public class Product {
     }
 
     public ProductImage addImage(String imageUrl) {
+        validateNotReserved();
         ProductImage image = ProductImage.create(imageUrl);
         image.assignProduct(this);
         images.add(image);
@@ -110,9 +113,16 @@ public class Product {
     }
 
     public void removeImage(Long imageId) {
+        validateNotReserved();
         boolean removed = images.removeIf(image -> imageId.equals(image.getId()));
         if (!removed) {
             throw new IllegalArgumentException("Product image not found: " + imageId);
+        }
+    }
+
+    private void validateNotReserved() {
+        if (status == ProductStatus.RESERVED) {
+            throw new IllegalStateException("Reserved product cannot be changed");
         }
     }
 }

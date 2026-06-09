@@ -25,6 +25,7 @@
 - 주문 취소 시 대상 `Product`는 `ON_SALE` 상태로 복구된다.
 - dirty checking 실험 테스트가 주문 취소와 상품 상태 복구를 관찰한다.
 - optimistic locking 실험 테스트가 같은 상품 동시 주문 충돌을 관찰한다.
+- 예약된 상품은 판매자 수정, 숨김, 이미지 변경을 막아 주문 취소가 상품을 판매 중 상태로 복구할 수 있게 한다.
 - 전체 backend 테스트가 통과한다.
 - 모든 신규 JUnit `@Test` 메서드명은 Korean_with_underscores 형식을 따른다.
 

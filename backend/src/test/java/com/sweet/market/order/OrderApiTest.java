@@ -2,6 +2,7 @@ package com.sweet.market.order;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -115,6 +116,25 @@ class OrderApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/products/{productId}", productId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ON_SALE"));
+    }
+
+    @Test
+    void 예약_상품은_판매자가_숨길_수_없고_주문자는_취소할_수_있다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+        Long orderId = createOrder(buyerToken, productId);
+
+        mockMvc.perform(delete("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PRODUCT_CHANGE_NOT_ALLOWED"));
+
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.productStatus").value("ON_SALE"));
     }
 
     @Test

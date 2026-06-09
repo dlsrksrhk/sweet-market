@@ -40,21 +40,33 @@ public class ProductService {
     @Transactional
     public ProductResponse update(Long sellerId, Long productId, ProductUpdateRequest request) {
         Product product = findProductForOwner(sellerId, productId);
-        product.update(request.title(), request.description(), request.price());
+        try {
+            product.update(request.title(), request.description(), request.price());
+        } catch (IllegalStateException exception) {
+            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED);
+        }
         return ProductResponse.from(product);
     }
 
     @Transactional
     public ProductResponse hide(Long sellerId, Long productId) {
         Product product = findProductForOwner(sellerId, productId);
-        product.hide();
+        try {
+            product.hide();
+        } catch (IllegalStateException exception) {
+            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED);
+        }
         return ProductResponse.from(product);
     }
 
     @Transactional
     public ProductResponse addImage(Long sellerId, Long productId, ProductImageAddRequest request) {
         Product product = findProductForOwner(sellerId, productId);
-        product.addImage(request.imageUrl());
+        try {
+            product.addImage(request.imageUrl());
+        } catch (IllegalStateException exception) {
+            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED);
+        }
         return ProductResponse.from(product);
     }
 
@@ -63,6 +75,8 @@ public class ProductService {
         Product product = findProductForOwner(sellerId, productId);
         try {
             product.removeImage(imageId);
+        } catch (IllegalStateException exception) {
+            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED);
         } catch (IllegalArgumentException exception) {
             throw new BusinessException(ErrorCode.PRODUCT_IMAGE_NOT_FOUND);
         }

@@ -101,4 +101,26 @@ class ProductTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Product is not reserved: ON_SALE");
     }
+
+    @Test
+    void 예약_상품은_숨김_처리할_수_없다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+        product.reserve();
+
+        assertThatThrownBy(product::hide)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Reserved product cannot be changed");
+    }
+
+    @Test
+    void 예약_상품은_수정할_수_없다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+        product.reserve();
+
+        assertThatThrownBy(() -> product.update("iPhone", "15 Pro", 1_200_000L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Reserved product cannot be changed");
+    }
 }
