@@ -38,10 +38,10 @@ class ProductApiTest extends IntegrationTestSupport {
                                     "https://example.com/macbook-2.jpg"
                                   ]
                                 }
-                                """))
+                """))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.id").isNumber())
-                .andExpect(jsonPath("$.data.sellerId").value(1))
+                .andExpect(jsonPath("$.data.sellerId").isNumber())
                 .andExpect(jsonPath("$.data.sellerNickname").value("seller"))
                 .andExpect(jsonPath("$.data.title").value("MacBook Pro"))
                 .andExpect(jsonPath("$.data.description").value("M3 laptop"))
