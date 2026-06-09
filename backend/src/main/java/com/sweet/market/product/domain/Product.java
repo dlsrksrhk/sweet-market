@@ -19,6 +19,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -32,6 +33,10 @@ public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "seller_id", nullable = false)
@@ -73,6 +78,20 @@ public class Product {
 
     public void hide() {
         this.status = ProductStatus.HIDDEN;
+    }
+
+    public void reserve() {
+        if (status != ProductStatus.ON_SALE) {
+            throw new IllegalStateException("Product is not on sale: " + status);
+        }
+        this.status = ProductStatus.RESERVED;
+    }
+
+    public void restoreOnSaleFromReservation() {
+        if (status != ProductStatus.RESERVED) {
+            throw new IllegalStateException("Product is not reserved: " + status);
+        }
+        this.status = ProductStatus.ON_SALE;
     }
 
     public boolean isOwnedBy(Long memberId) {

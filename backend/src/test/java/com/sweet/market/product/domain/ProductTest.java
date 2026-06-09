@@ -59,4 +59,46 @@ class ProductTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Product image not found: 999");
     }
+
+    @Test
+    void 판매중_상품을_예약한다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+
+        product.reserve();
+
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.RESERVED);
+    }
+
+    @Test
+    void 예약_상품을_판매중으로_복구한다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+        product.reserve();
+
+        product.restoreOnSaleFromReservation();
+
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
+    }
+
+    @Test
+    void 판매중이_아닌_상품은_예약할_수_없다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+        product.hide();
+
+        assertThatThrownBy(product::reserve)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Product is not on sale: HIDDEN");
+    }
+
+    @Test
+    void 예약_상태가_아닌_상품은_판매중으로_복구할_수_없다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+
+        assertThatThrownBy(product::restoreOnSaleFromReservation)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Product is not reserved: ON_SALE");
+    }
 }
