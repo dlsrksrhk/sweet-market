@@ -43,4 +43,13 @@ public class OrderController {
         AuthenticatedMember member = (AuthenticatedMember) authentication.getPrincipal();
         return ApiResponse.ok(orderService.cancel(member.id(), orderId));
     }
+
+    @PostMapping("/{orderId}/confirm")
+    public ApiResponse<OrderResponse> confirm(
+            Authentication authentication,
+            @PathVariable Long orderId
+    ) {
+        AuthenticatedMember member = (AuthenticatedMember) authentication.getPrincipal();
+        return ApiResponse.ok(orderService.confirm(member.id(), orderId));
+    }
 }

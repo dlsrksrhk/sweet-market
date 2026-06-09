@@ -96,6 +96,29 @@ class OrderTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.DELIVERED);
     }
 
+    @Test
+    void 배송완료_주문을_구매확정한다() {
+        Order order = createOrder();
+        order.markPaid();
+        order.startShipping();
+        order.completeDelivery();
+
+        order.confirm();
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(order.getProduct().getStatus()).isEqualTo(ProductStatus.SOLD_OUT);
+    }
+
+    @Test
+    void 배송완료가_아닌_주문은_구매확정할_수_없다() {
+        Order order = createOrder();
+        order.markPaid();
+
+        assertThatThrownBy(order::confirm)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Order cannot be confirmed: PAID");
+    }
+
     private Order createOrder() {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Member buyer = Member.create("buyer@example.com", "encoded-password", "buyer");

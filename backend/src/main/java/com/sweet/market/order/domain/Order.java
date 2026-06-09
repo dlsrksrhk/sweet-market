@@ -98,6 +98,14 @@ public class Order {
         this.status = OrderStatus.DELIVERED;
     }
 
+    public void confirm() {
+        if (status != OrderStatus.DELIVERED) {
+            throw new IllegalStateException("Order cannot be confirmed: " + status);
+        }
+        product.markSoldOutFromReservation();
+        this.status = OrderStatus.CONFIRMED;
+    }
+
     public boolean isOwnedBy(Long memberId) {
         return buyer.getId().equals(memberId);
     }

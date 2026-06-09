@@ -103,6 +103,27 @@ class ProductTest {
     }
 
     @Test
+    void 예약_상품을_판매완료로_바꾼다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+        product.reserve();
+
+        product.markSoldOutFromReservation();
+
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.SOLD_OUT);
+    }
+
+    @Test
+    void 예약_상태가_아닌_상품은_판매완료로_바꿀_수_없다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+
+        assertThatThrownBy(product::markSoldOutFromReservation)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Product is not reserved: ON_SALE");
+    }
+
+    @Test
     void 예약_상품은_숨김_처리할_수_없다() {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
