@@ -3,6 +3,7 @@ package com.sweet.market.jpalab;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,10 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
-import com.sweet.market.product.api.ProductSummaryResponse;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductStatus;
-import com.sweet.market.product.query.ProductQueryService;
 import com.sweet.market.product.repository.ProductRepository;
 
 import jakarta.persistence.PersistenceUnitUtil;
@@ -27,9 +26,6 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
     @Autowired
     private ProductRepository productRepository;
 
-    @Autowired
-    private ProductQueryService productQueryService;
-
     @Test
     @Transactional
     void 상품_목록_naive_조회는_seller_N_plus_1이_발생한다() {
@@ -37,16 +33,19 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
         flushAndClear();
         resetStatistics();
 
-        List<ProductSummaryResponse> responses = entityManager.createQuery(
+        List<String> sellerNicknames;
+        try (Stream<Product> products = entityManager.createQuery(
                         "select p from Product p where p.status = :status order by p.id desc",
                         Product.class
                 )
                 .setParameter("status", ProductStatus.ON_SALE)
-                .getResultStream()
-                .map(ProductSummaryResponse::from)
-                .toList();
+                .getResultStream()) {
+            sellerNicknames = products
+                    .map(product -> product.getSeller().getNickname())
+                    .toList();
+        }
 
-        assertThat(responses).hasSize(3);
+        assertThat(sellerNicknames).hasSize(3);
         assertThat(queryCount()).isGreaterThanOrEqualTo(4);
     }
 
@@ -57,10 +56,16 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
         flushAndClear();
         resetStatistics();
 
-        List<ProductSummaryResponse> responses = productQueryService.findOnSaleProducts(PageRequest.of(0, 10))
-                .getContent();
+        List<String> sellerNicknames = productRepository.findByStatusOrderByIdDesc(
+                        ProductStatus.ON_SALE,
+                        PageRequest.of(0, 10)
+                )
+                .getContent()
+                .stream()
+                .map(product -> product.getSeller().getNickname())
+                .toList();
 
-        assertThat(responses).hasSize(3);
+        assertThat(sellerNicknames).hasSize(3);
         assertThat(queryCount()).isLessThanOrEqualTo(2);
     }
 
