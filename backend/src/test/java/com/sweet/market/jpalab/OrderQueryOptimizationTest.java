@@ -19,6 +19,8 @@ import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
 
+import jakarta.persistence.PersistenceUnitUtil;
+
 class OrderQueryOptimizationTest extends QueryOptimizationTestSupport {
 
     @Autowired
@@ -71,6 +73,26 @@ class OrderQueryOptimizationTest extends QueryOptimizationTestSupport {
                 .getContent();
 
         assertThat(summaries).hasSize(3);
+        assertThat(queryCount()).isLessThanOrEqualTo(2);
+    }
+
+    @Test
+    @Transactional
+    void 주문_목록_최적화_조회는_product_seller가_로딩되어_있다() {
+        Member buyer = saveOrdersWithDifferentSellers();
+        flushAndClear();
+        resetStatistics();
+
+        List<Order> orders = orderRepository.findByBuyerIdOrderByIdDesc(buyer.getId(), PageRequest.of(0, 10))
+                .getContent();
+
+        PersistenceUnitUtil persistenceUnitUtil = entityManagerFactory.getPersistenceUnitUtil();
+        assertThat(orders).hasSize(3);
+        assertThat(orders)
+                .allSatisfy(order -> {
+                    assertThat(persistenceUnitUtil.isLoaded(order, "product")).isTrue();
+                    assertThat(persistenceUnitUtil.isLoaded(order.getProduct(), "seller")).isTrue();
+                });
         assertThat(queryCount()).isLessThanOrEqualTo(2);
     }
 
