@@ -1650,46 +1650,55 @@ Modify the `settlementOrderIdReader` and query provider in `backend/src/main/jav
             @Value("#{jobParameters['limit']}") Long limit,
             @Value("#{jobParameters['chunkSize']}") Long chunkSize,
             @Value("#{jobParameters['forcedOrderId']}") Long forcedOrderId
-    ) {
+    ) throws Exception {
         JdbcPagingItemReader<Long> reader = new JdbcPagingItemReader<>();
         reader.setName("settlementOrderIdReader");
         reader.setDataSource(dataSource);
-        reader.setQueryProvider(settlementOrderIdQueryProvider(forcedOrderId != null));
-        reader.setParameterValues(parameterValues(confirmedBefore, forcedOrderId));
-        reader.setPageSize(chunkSize.intValue());
-        reader.setMaxItemCount(limit.intValue());
+        reader.setQueryProvider(settlementOrderIdQueryProvider(forcedOrderId));
+        reader.setParameterValues(settlementOrderIdParameters(confirmedBefore, forcedOrderId));
         reader.setRowMapper((resultSet, rowNum) -> resultSet.getLong("id"));
+        reader.setPageSize(toPositiveInt(chunkSize, DEFAULT_CHUNK_SIZE));
+        reader.setMaxItemCount(toNonNegativeInt(limit, DEFAULT_LIMIT));
+        reader.setSaveState(false);
+        reader.afterPropertiesSet();
         return reader;
     }
 
-    private Map<String, Object> parameterValues(String confirmedBefore, Long forcedOrderId) {
+    private Map<String, Object> settlementOrderIdParameters(String confirmedBefore, Long forcedOrderId) {
+        Map<String, Object> parameters = new LinkedHashMap<>();
+        parameters.put("confirmedBefore", parseConfirmedBefore(confirmedBefore));
         if (forcedOrderId != null) {
-            return Map.of("forcedOrderId", forcedOrderId);
+            parameters.put("forcedOrderId", forcedOrderId);
         }
-        return Map.of(
-                "status", "CONFIRMED",
-                "confirmedBefore", Timestamp.valueOf(LocalDateTime.parse(confirmedBefore))
-        );
+        return parameters;
     }
 
-    private PagingQueryProvider settlementOrderIdQueryProvider(boolean forced) {
+    private PagingQueryProvider settlementOrderIdQueryProvider(Long forcedOrderId) {
         PostgresPagingQueryProvider queryProvider = new PostgresPagingQueryProvider();
-        queryProvider.setSelectClause("select o.id");
+        queryProvider.setSelectClause("select o.id as id");
         queryProvider.setFromClause("from orders o");
-        if (forced) {
-            queryProvider.setWhereClause("where o.id = :forcedOrderId");
+        if (forcedOrderId == null) {
+            queryProvider.setWhereClause("""
+                    o.status = 'CONFIRMED'
+                    and o.confirmed_at < :confirmedBefore
+                    and not exists (
+                        select 1
+                        from settlements s
+                        where s.order_id = o.id
+                    )
+                    """);
         } else {
             queryProvider.setWhereClause("""
-                    where o.status = :status
-                      and o.confirmed_at < :confirmedBefore
-                      and not exists (
-                          select 1
-                          from settlements s
-                          where s.order_id = o.id
-                      )
+                    o.status = 'CONFIRMED'
+                    and o.confirmed_at < :confirmedBefore
+                    and o.id = :forcedOrderId
                     """);
         }
-        queryProvider.setSortKeys(Map.of("o.id", Order.ASCENDING));
+
+        Map<String, Order> sortKeys = new LinkedHashMap<>();
+        sortKeys.put("id", Order.ASCENDING);
+        queryProvider.setSortKeys(sortKeys);
+
         return queryProvider;
     }
 ```
