@@ -174,7 +174,7 @@ $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 5: 커밋한다**
+- [x] **Step 5: 커밋한다**
 
 ```powershell
 git add backend/build.gradle backend/src/main/resources/application.yaml backend/src/test/java/com/sweet/market/support/IntegrationTestSupport.java
@@ -1590,7 +1590,7 @@ git commit -m "feat: add admin settlement batch api"
 
 - Modify: `backend/src/test/java/com/sweet/market/settlement/batch/SettlementBatchJobTest.java`
 
-- [ ] **Step 1: processor skip 동작 테스트를 추가한다**
+- [x] **Step 1: processor skip 동작 테스트를 추가한다**
 
 Append this test to `backend/src/test/java/com/sweet/market/settlement/batch/SettlementBatchJobTest.java`:
 
@@ -1625,7 +1625,7 @@ Append this test to `backend/src/test/java/com/sweet/market/settlement/batch/Set
     }
 ```
 
-- [ ] **Step 2: skip 테스트 실패를 확인한다**
+- [x] **Step 2: skip 테스트 실패를 확인한다**
 
 Run:
 
@@ -1637,7 +1637,7 @@ $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 
 Expected: FAIL because `forcedOrderId` is not used by the reader.
 
-- [ ] **Step 3: reader에 테스트 전용 forcedOrderId job parameter를 지원한다**
+- [x] **Step 3: reader에 테스트 전용 forcedOrderId job parameter를 지원한다**
 
 Modify the `settlementOrderIdReader` and query provider in `backend/src/main/java/com/sweet/market/settlement/batch/SettlementBatchConfig.java`:
 
@@ -1696,7 +1696,7 @@ Modify the `settlementOrderIdReader` and query provider in `backend/src/main/jav
 
 This parameter is only used by tests to make a race-like skip deterministic. Do not expose it through the admin API request.
 
-- [ ] **Step 4: retry/skip 테스트를 통과시킨다**
+- [x] **Step 4: retry/skip 테스트를 통과시킨다**
 
 Run:
 

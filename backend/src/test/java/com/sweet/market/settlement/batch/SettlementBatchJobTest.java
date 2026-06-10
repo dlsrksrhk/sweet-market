@@ -98,13 +98,47 @@ class SettlementBatchJobTest extends IntegrationTestSupport {
         assertThat(secondResult.writeCount()).isZero();
     }
 
+    @Test
+    void reader_이후_이미_정산된_주문은_skip된다() throws Exception {
+        Order settledOrder = createConfirmedOrder("skip");
+        transactionTemplate.executeWithoutResult(status -> {
+            Order order = entityManager.find(Order.class, settledOrder.getId());
+            settlementRepository.save(Settlement.create(order));
+        });
+
+        BatchRunResult result = launchSettlementJob(
+                LocalDateTime.now().plusDays(1),
+                100,
+                10,
+                settledOrder.getId()
+        );
+
+        assertThat(result.status()).isEqualTo(BatchStatus.COMPLETED);
+        assertThat(settlementRepository.count()).isEqualTo(1);
+        assertThat(result.readCount()).isEqualTo(1);
+        assertThat(result.writeCount()).isZero();
+        assertThat(result.skipCount()).isEqualTo(1);
+    }
+
     private BatchRunResult launchSettlementJob(LocalDateTime confirmedBefore, int limit, int chunkSize) throws Exception {
-        JobParameters jobParameters = new JobParametersBuilder()
+        return launchSettlementJob(confirmedBefore, limit, chunkSize, null);
+    }
+
+    private BatchRunResult launchSettlementJob(
+            LocalDateTime confirmedBefore,
+            int limit,
+            int chunkSize,
+            Long forcedOrderId
+    ) throws Exception {
+        JobParametersBuilder jobParametersBuilder = new JobParametersBuilder()
                 .addString("confirmedBefore", confirmedBefore.toString())
                 .addLong("limit", (long) limit)
                 .addLong("chunkSize", (long) chunkSize)
-                .addLong("requestedAt", System.nanoTime())
-                .toJobParameters();
+                .addLong("requestedAt", System.nanoTime());
+        if (forcedOrderId != null) {
+            jobParametersBuilder.addLong("forcedOrderId", forcedOrderId);
+        }
+        JobParameters jobParameters = jobParametersBuilder.toJobParameters();
 
         JobExecution jobExecution = jobLauncherTestUtils.launchJob(jobParameters);
         Collection<StepExecution> stepExecutions = jobExecution.getStepExecutions();
