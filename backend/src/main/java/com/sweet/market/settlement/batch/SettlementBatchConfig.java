@@ -63,7 +63,6 @@ public class SettlementBatchConfig {
                 .retry(DataAccessException.class)
                 .retryLimit(3)
                 .skip(SettlementBatchSkippableException.class)
-                .skip(DataAccessException.class)
                 .skipLimit(SKIP_LIMIT)
                 .build();
     }
