@@ -28,12 +28,13 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
 
     @Test
     @Transactional
-    void 상품_목록_naive_조회는_seller_N_plus_1이_발생한다() {
+    void 상품_목록_단순_조회는_seller_N_plus_1이_발생한다() {
         seedProductsWithDifferentSellers();
         flushAndClear();
         resetStatistics();
 
         List<String> sellerNicknames;
+        // Streaming keeps lazy seller loads observable; getResultList can be masked by default_batch_fetch_size.
         try (Stream<Product> products = entityManager.createQuery(
                         "select p from Product p where p.status = :status order by p.id desc",
                         Product.class
