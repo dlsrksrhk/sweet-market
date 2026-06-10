@@ -75,7 +75,7 @@ class AdminSettlementBatchApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void chunkSize가_limit보다_크면_검증에_실패한다() throws Exception {
+    void 청크_크기가_제한_건수보다_크면_검증에_실패한다() throws Exception {
         String adminToken = createAdminAndLogin("admin-validation@example.com");
 
         mockMvc.perform(post("/api/admin/batches/settlements")
