@@ -33,7 +33,7 @@ class SettlementQueryOptimizationTest extends QueryOptimizationTestSupport {
 
     @Test
     @Transactional
-    void 정산_목록_단순_조회는_order_product_N_plus_1이_발생한다() {
+    void 정산_목록_단순_조회는_주문_상품_N_plus_1이_발생한다() {
         Member seller = saveSettlements();
         flushAndClear();
         resetStatistics();
@@ -70,7 +70,7 @@ class SettlementQueryOptimizationTest extends QueryOptimizationTestSupport {
 
     @Test
     @Transactional
-    void 정산_목록_최적화_조회는_order_product를_함께_로딩한다() {
+    void 정산_목록_최적화_조회는_주문과_상품을_함께_로딩한다() {
         Member seller = saveSettlements();
         flushAndClear();
         resetStatistics();
