@@ -1732,7 +1732,7 @@ git commit -m "test: cover settlement batch skip behavior"
 
 - Verify all milestone files listed in File Structure.
 
-- [ ] **Step 1: focused 테스트를 실행한다**
+- [x] **Step 1: focused 테스트를 실행한다**
 
 Run:
 
@@ -1744,7 +1744,7 @@ $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 2: 전체 backend 테스트를 실행한다**
+- [x] **Step 2: 전체 backend 테스트를 실행한다**
 
 Run:
 
@@ -1756,7 +1756,7 @@ $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 
 Expected: `BUILD SUCCESSFUL`.
 
-- [ ] **Step 3: 테스트 이름 규칙을 확인한다**
+- [x] **Step 3: 테스트 이름 규칙을 확인한다**
 
 Run:
 
@@ -1766,7 +1766,7 @@ rg -n "void [a-zA-Z0-9]+\(" backend\src\test\java
 
 Expected: only helper or lifecycle methods are reported, not new `@Test` methods.
 
-- [ ] **Step 4: 작업트리 상태를 확인한다**
+- [x] **Step 4: 작업트리 상태를 확인한다**
 
 Run:
 
@@ -1784,7 +1784,7 @@ Expected shape:
 
 `backend/src/main/resources/application.yaml` already has local development changes. Stage it only if the diff contains the intentional Spring Batch schema addition and no accidental local secret/DDL churn.
 
-- [ ] **Step 5: 마무리 커밋이 필요한지 확인한다**
+- [x] **Step 5: 마무리 커밋이 필요한지 확인한다**
 
 If task-by-task commits already contain all milestone changes, no extra commit is needed. If any milestone files are still modified, commit only those files:
 
