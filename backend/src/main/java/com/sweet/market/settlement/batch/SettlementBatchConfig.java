@@ -27,7 +27,6 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import com.sweet.market.settlement.domain.Settlement;
-import com.sweet.market.settlement.repository.SettlementRepository;
 
 @Configuration
 public class SettlementBatchConfig {
@@ -87,11 +86,6 @@ public class SettlementBatchConfig {
         reader.setSaveState(false);
         reader.afterPropertiesSet();
         return reader;
-    }
-
-    @Bean
-    public ItemWriter<Settlement> settlementItemWriter(SettlementRepository settlementRepository) {
-        return chunk -> settlementRepository.saveAll(chunk.getItems());
     }
 
     private PagingQueryProvider settlementOrderIdQueryProvider(Long forcedOrderId) {

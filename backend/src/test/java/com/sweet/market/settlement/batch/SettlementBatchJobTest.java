@@ -1,6 +1,7 @@
 package com.sweet.market.settlement.batch;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -13,6 +14,7 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.StepExecution;
+import org.springframework.batch.item.Chunk;
 import org.springframework.batch.test.JobLauncherTestUtils;
 import org.springframework.batch.test.context.SpringBatchTest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +45,9 @@ class SettlementBatchJobTest extends IntegrationTestSupport {
 
     @Autowired
     private SettlementRepository settlementRepository;
+
+    @Autowired
+    private SettlementItemWriter settlementItemWriter;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -118,6 +123,21 @@ class SettlementBatchJobTest extends IntegrationTestSupport {
         assertThat(result.readCount()).isEqualTo(1);
         assertThat(result.writeCount()).isZero();
         assertThat(result.skipCount()).isEqualTo(1);
+    }
+
+    @Test
+    void writer_시점_중복_정산은_skippable_예외로_분류된다() {
+        Order settledOrder = createConfirmedOrder("writer-skip");
+        Settlement duplicateSettlement = Settlement.create(settledOrder);
+        transactionTemplate.executeWithoutResult(status -> {
+            Order order = entityManager.find(Order.class, settledOrder.getId());
+            settlementRepository.save(Settlement.create(order));
+        });
+
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status ->
+                settlementItemWriter.write(new Chunk<>(duplicateSettlement))))
+                .isInstanceOf(SettlementBatchSkippableException.class);
+        assertThat(settlementRepository.count()).isEqualTo(1);
     }
 
     private BatchRunResult launchSettlementJob(LocalDateTime confirmedBefore, int limit, int chunkSize) throws Exception {
