@@ -48,6 +48,10 @@ public class Member {
         return new Member(normalizeEmail(email), encodedPassword, nickname, MemberRole.MEMBER);
     }
 
+    public static Member createAdmin(String email, String encodedPassword, String nickname) {
+        return new Member(normalizeEmail(email), encodedPassword, nickname, MemberRole.ADMIN);
+    }
+
     public static String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
     }

@@ -8,6 +8,8 @@ import javax.crypto.SecretKey;
 
 import org.springframework.stereotype.Component;
 
+import com.sweet.market.member.domain.MemberRole;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -24,13 +26,14 @@ public class JwtProvider {
         this.accessTokenValiditySeconds = properties.accessTokenValiditySeconds();
     }
 
-    public String createAccessToken(Long memberId, String email) {
+    public String createAccessToken(Long memberId, String email, MemberRole role) {
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(accessTokenValiditySeconds);
 
         return Jwts.builder()
                 .subject(String.valueOf(memberId))
                 .claim("email", email)
+                .claim("role", role.name())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiresAt))
                 .signWith(key)
@@ -47,7 +50,8 @@ public class JwtProvider {
 
             Long memberId = Long.valueOf(claims.getSubject());
             String email = claims.get("email", String.class);
-            return new AuthenticatedMember(memberId, email);
+            MemberRole role = MemberRole.valueOf(claims.get("role", String.class));
+            return new AuthenticatedMember(memberId, email, role);
         } catch (JwtException | IllegalArgumentException exception) {
             throw new InvalidJwtException();
         }
