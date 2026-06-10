@@ -7,6 +7,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Date;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -17,8 +21,13 @@ import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
 import com.sweet.market.support.IntegrationTestSupport;
 
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class SecurityApiTest extends IntegrationTestSupport {
+
+    private static final String TEST_JWT_SECRET = "sweet-market-test-secret-key-32bytes-minimum";
 
     @Test
     void JWT가_없으면_내_정보_API에_접근할_수_없다() throws Exception {
@@ -50,6 +59,16 @@ class SecurityApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
     }
 
+    @Test
+    void 역할_claim이_없는_JWT로는_내_정보_API에_접근할_수_없다() throws Exception {
+        String legacyToken = createLegacyAccessTokenWithoutRole();
+
+        mockMvc.perform(get("/api/members/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + legacyToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
+    }
+
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
         SignupRequest signupRequest = new SignupRequest(email, password, nickname);
         LoginRequest loginRequest = new LoginRequest(email, password);
@@ -70,5 +89,17 @@ class SecurityApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("accessToken").asText();
+    }
+
+    private String createLegacyAccessTokenWithoutRole() {
+        Instant now = Instant.now();
+
+        return Jwts.builder()
+                .subject("1")
+                .claim("email", "legacy@example.com")
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(3600)))
+                .signWith(Keys.hmacShaKeyFor(TEST_JWT_SECRET.getBytes(StandardCharsets.UTF_8)))
+                .compact();
     }
 }

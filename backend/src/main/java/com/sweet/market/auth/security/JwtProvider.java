@@ -50,9 +50,22 @@ public class JwtProvider {
 
             Long memberId = Long.valueOf(claims.getSubject());
             String email = claims.get("email", String.class);
-            MemberRole role = MemberRole.valueOf(claims.get("role", String.class));
+            MemberRole role = parseRole(claims);
             return new AuthenticatedMember(memberId, email, role);
         } catch (JwtException | IllegalArgumentException exception) {
+            throw new InvalidJwtException();
+        }
+    }
+
+    private MemberRole parseRole(Claims claims) {
+        String role = claims.get("role", String.class);
+        if (role == null) {
+            throw new InvalidJwtException();
+        }
+
+        try {
+            return MemberRole.valueOf(role);
+        } catch (IllegalArgumentException exception) {
             throw new InvalidJwtException();
         }
     }
