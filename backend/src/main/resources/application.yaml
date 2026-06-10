@@ -1,6 +1,9 @@
 spring:
   application:
     name: market
+  batch:
+    jdbc:
+      initialize-schema: always
   datasource:
     url: jdbc:postgresql://localhost:${DB_PORT:15432}/${DB_NAME:market}
     username: ${DB_USERNAME:market}
