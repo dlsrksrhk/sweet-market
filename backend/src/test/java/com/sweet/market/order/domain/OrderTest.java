@@ -110,6 +110,33 @@ class OrderTest {
     }
 
     @Test
+    void 구매_확정하면_확정_시각을_기록한다() {
+        Member seller = Member.create("seller-confirmed-at@example.com", "encoded-password", "seller");
+        Member buyer = Member.create("buyer-confirmed-at@example.com", "encoded-password", "buyer");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+        Order order = Order.create(buyer, product);
+        order.markPaid();
+        order.startShipping();
+        order.completeDelivery();
+
+        order.confirm();
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(order.getConfirmedAt()).isNotNull();
+    }
+
+    @Test
+    void 구매_확정하지_않은_주문은_확정_시각이_없다() {
+        Member seller = Member.create("seller-no-confirmed-at@example.com", "encoded-password", "seller");
+        Member buyer = Member.create("buyer-no-confirmed-at@example.com", "encoded-password", "buyer");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+
+        Order order = Order.create(buyer, product);
+
+        assertThat(order.getConfirmedAt()).isNull();
+    }
+
+    @Test
     void 배송완료가_아닌_주문은_구매확정할_수_없다() {
         Order order = createOrder();
         order.markPaid();

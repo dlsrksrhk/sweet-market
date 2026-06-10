@@ -47,6 +47,8 @@ public class Order {
 
     private LocalDateTime canceledAt;
 
+    private LocalDateTime confirmedAt;
+
     private Order(Member buyer, Product product, OrderStatus status, LocalDateTime orderedAt) {
         this.buyer = buyer;
         this.product = product;
@@ -104,6 +106,7 @@ public class Order {
         }
         product.markSoldOutFromReservation();
         this.status = OrderStatus.CONFIRMED;
+        this.confirmedAt = LocalDateTime.now();
     }
 
     public boolean isOwnedBy(Long memberId) {
