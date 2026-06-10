@@ -20,7 +20,8 @@ public abstract class IntegrationTestSupport {
     static final PostgreSQLContainer<?> POSTGRESQL = new PostgreSQLContainer<>("postgres:17-alpine")
             .withDatabaseName("market_test")
             .withUsername("market")
-            .withPassword("market");
+            .withPassword("market")
+            .withInitScript("org/springframework/batch/core/schema-postgresql.sql");
 
     static {
         POSTGRESQL.start();
@@ -41,7 +42,7 @@ public abstract class IntegrationTestSupport {
         registry.add("spring.datasource.username", POSTGRESQL::getUsername);
         registry.add("spring.datasource.password", POSTGRESQL::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create");
-        registry.add("spring.batch.jdbc.initialize-schema", () -> "always");
+        registry.add("spring.batch.jdbc.initialize-schema", () -> "never");
         registry.add("jwt.secret", () -> "sweet-market-test-secret-key-32bytes-minimum");
         registry.add("jwt.access-token-validity-seconds", () -> "3600");
     }

@@ -15,7 +15,7 @@
 완료 기준:
 
 - `spring-boot-starter-batch`와 `spring-batch-test`를 추가한다.
-- Spring Batch metadata schema가 테스트와 로컬 런타임에서 초기화된다.
+- Spring Batch metadata schema가 테스트에서 초기화되고, 로컬 PostgreSQL 런타임에서는 반복 실행 시 non-idempotent schema script가 재실행되지 않는다.
 - `MemberRole.ADMIN`이 추가된다.
 - JWT access token에 role claim이 포함된다.
 - 인증 principal이 `id`, `email`, `role`을 가진다.
@@ -122,7 +122,7 @@ dependencies {
 }
 ```
 
-- [ ] **Step 2: 로컬 runtime에서 Spring Batch schema를 초기화하도록 설정한다**
+- [ ] **Step 2: 로컬 runtime에서는 embedded DB에서만 Spring Batch schema를 자동 초기화하도록 설정한다**
 
 Modify `backend/src/main/resources/application.yaml`. Keep the existing local `ddl-auto` and `jwt.secret` values if they differ in the working tree; only add the `spring.batch.jdbc.initialize-schema` section:
 
@@ -130,7 +130,7 @@ Modify `backend/src/main/resources/application.yaml`. Keep the existing local `d
 spring:
   batch:
     jdbc:
-      initialize-schema: always
+      initialize-schema: embedded
 ```
 
 The file already has a top-level `spring:` block. Merge this under the existing `spring:` key instead of creating a second duplicate key.
@@ -140,17 +140,25 @@ The file already has a top-level `spring:` block. Merge this under the existing 
 Modify `backend/src/test/java/com/sweet/market/support/IntegrationTestSupport.java` dynamic properties:
 
 ```java
+    static final PostgreSQLContainer<?> POSTGRESQL = new PostgreSQLContainer<>("postgres:17-alpine")
+            .withDatabaseName("market_test")
+            .withUsername("market")
+            .withPassword("market")
+            .withInitScript("org/springframework/batch/core/schema-postgresql.sql");
+
     @DynamicPropertySource
     static void overrideProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRESQL::getUsername);
         registry.add("spring.datasource.password", POSTGRESQL::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create");
-        registry.add("spring.batch.jdbc.initialize-schema", () -> "always");
+        registry.add("spring.batch.jdbc.initialize-schema", () -> "never");
         registry.add("jwt.secret", () -> "sweet-market-test-secret-key-32bytes-minimum");
         registry.add("jwt.access-token-validity-seconds", () -> "3600");
     }
 ```
+
+The Testcontainers PostgreSQL init script runs once when the shared test container starts. Boot's Batch JDBC initializer stays disabled in tests so repeated Spring contexts do not rerun PostgreSQL's non-idempotent Batch schema script against the same container database.
 
 - [ ] **Step 4: 의존성 해석과 context compile을 확인한다**
 
