@@ -42,8 +42,7 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
                         Product.class
                 )
                 .setParameter("status", ProductStatus.ON_SALE)
-                .getResultList()
-                .stream()
+                .getResultStream()
                 .map(ProductSummaryResponse::from)
                 .toList();
 

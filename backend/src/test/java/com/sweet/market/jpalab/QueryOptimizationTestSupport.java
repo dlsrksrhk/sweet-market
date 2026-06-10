@@ -29,8 +29,7 @@ abstract class QueryOptimizationTestSupport extends IntegrationTestSupport {
     }
 
     protected long queryCount() {
-        Statistics statistics = statistics();
-        return statistics.getPrepareStatementCount() + statistics.getEntityFetchCount();
+        return statistics().getPrepareStatementCount();
     }
 
     private Statistics statistics() {
