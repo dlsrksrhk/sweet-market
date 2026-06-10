@@ -80,7 +80,7 @@ class AdminSecurityApiTest extends IntegrationTestSupport {
                                   "chunkSize": 20
                                 }
                                 """))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isOk());
     }
 
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
