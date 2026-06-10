@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -11,10 +13,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.JobParametersInvalidException;
+import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -46,6 +53,9 @@ class AdminSettlementBatchApiTest extends IntegrationTestSupport {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @MockitoSpyBean
+    private JobLauncher jobLauncher;
 
     @Test
     void 관리자는_정산_배치를_실행한다() throws Exception {
@@ -90,6 +100,63 @@ class AdminSettlementBatchApiTest extends IntegrationTestSupport {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 제한_건수가_최대값보다_크면_검증에_실패한다() throws Exception {
+        String adminToken = createAdminAndLogin("admin-limit@example.com");
+
+        mockMvc.perform(post("/api/admin/batches/settlements")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "confirmedBefore": "2026-06-10T00:00:00",
+                                  "limit": 1001,
+                                  "chunkSize": 100
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 청크_크기가_최대값보다_크면_검증에_실패한다() throws Exception {
+        String adminToken = createAdminAndLogin("admin-chunk@example.com");
+
+        mockMvc.perform(post("/api/admin/batches/settlements")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "confirmedBefore": "2026-06-10T00:00:00",
+                                  "limit": 1000,
+                                  "chunkSize": 101
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 배치_실행_실패는_오류_응답을_반환한다() throws Exception {
+        String adminToken = createAdminAndLogin("admin-launch-failure@example.com");
+        doThrow(new JobParametersInvalidException("invalid parameters"))
+                .when(jobLauncher)
+                .run(any(Job.class), any(JobParameters.class));
+
+        mockMvc.perform(post("/api/admin/batches/settlements")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "confirmedBefore": "2026-06-10T00:00:00",
+                                  "limit": 100,
+                                  "chunkSize": 20
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BATCH_LAUNCH_FAILED"));
     }
 
     private String createAdminAndLogin(String email) throws Exception {

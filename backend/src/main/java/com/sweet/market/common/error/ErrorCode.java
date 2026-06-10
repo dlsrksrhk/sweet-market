@@ -30,7 +30,8 @@ public enum ErrorCode {
     SETTLEMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "정산을 찾을 수 없습니다."),
     SETTLEMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "정산에 대한 권한이 없습니다."),
     SETTLEMENT_CREATE_NOT_ALLOWED(HttpStatus.CONFLICT, "정산할 수 없는 주문 상태입니다."),
-    DUPLICATE_SETTLEMENT(HttpStatus.CONFLICT, "이미 정산된 주문입니다.");
+    DUPLICATE_SETTLEMENT(HttpStatus.CONFLICT, "이미 정산된 주문입니다."),
+    BATCH_LAUNCH_FAILED(HttpStatus.CONFLICT, "배치 실행에 실패했습니다.");
 
     private final HttpStatus status;
     private final String message;

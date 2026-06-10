@@ -124,11 +124,13 @@ dependencies {
 
 - [ ] **Step 2: 로컬 runtime에서는 embedded DB에서만 Spring Batch schema를 자동 초기화하도록 설정한다**
 
-Modify `backend/src/main/resources/application.yaml`. Keep the existing local `ddl-auto` and `jwt.secret` values if they differ in the working tree; only add the `spring.batch.jdbc.initialize-schema` section:
+Modify `backend/src/main/resources/application.yaml`. Keep the existing local `ddl-auto` and `jwt.secret` values if they differ in the working tree; only add the Spring Batch settings below:
 
 ```yaml
 spring:
   batch:
+    job:
+      enabled: false
     jdbc:
       initialize-schema: embedded
 ```
@@ -1326,7 +1328,7 @@ class AdminSettlementBatchApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void chunkSize가_limit보다_크면_검증에_실패한다() throws Exception {
+    void 청크_크기가_제한_건수보다_크면_검증에_실패한다() throws Exception {
         String adminToken = createAdminAndLogin();
 
         mockMvc.perform(post("/api/admin/batches/settlements")
@@ -1413,13 +1415,14 @@ package com.sweet.market.settlement.batch;
 import java.time.LocalDateTime;
 
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
 public record AdminSettlementBatchRequest(
         @NotNull LocalDateTime confirmedBefore,
-        @NotNull @Positive Integer limit,
-        @NotNull @Positive Integer chunkSize
+        @NotNull @Positive @Max(1000) Integer limit,
+        @NotNull @Positive @Max(100) Integer chunkSize
 ) {
 
     @AssertTrue(message = "chunkSize must not be greater than limit")
@@ -1480,13 +1483,19 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
+import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
+import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
+import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sweet.market.common.api.ApiResponse;
+import com.sweet.market.common.error.BusinessException;
+import com.sweet.market.common.error.ErrorCode;
 
 import jakarta.validation.Valid;
 
@@ -1505,9 +1514,22 @@ public class AdminSettlementBatchController {
     @PostMapping
     public ApiResponse<AdminSettlementBatchResponse> launch(
             @Valid @RequestBody AdminSettlementBatchRequest request
-    ) throws Exception {
-        JobExecution jobExecution = jobLauncher.run(settlementJob, jobParameters(request));
+    ) {
+        JobExecution jobExecution = launch(jobParameters(request));
         return ApiResponse.ok(AdminSettlementBatchResponse.from(jobExecution, request));
+    }
+
+    private JobExecution launch(JobParameters jobParameters) {
+        try {
+            return jobLauncher.run(settlementJob, jobParameters);
+        } catch (
+                JobExecutionAlreadyRunningException
+                | JobRestartException
+                | JobInstanceAlreadyCompleteException
+                | JobParametersInvalidException exception
+        ) {
+            throw new BusinessException(ErrorCode.BATCH_LAUNCH_FAILED);
+        }
     }
 
     private JobParameters jobParameters(AdminSettlementBatchRequest request) {
