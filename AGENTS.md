@@ -22,3 +22,16 @@ $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
 $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 .\gradlew.bat test
 ```
+
+## Web Execution
+
+- The web app lives in `web`.
+- Use Node.js from the local environment.
+- Recommended commands:
+
+```powershell
+cd web
+npm install
+npm run build
+npm run dev
+```
