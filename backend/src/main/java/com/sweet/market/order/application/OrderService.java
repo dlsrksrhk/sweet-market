@@ -64,4 +64,21 @@ public class OrderService {
 
         return OrderResponse.from(order);
     }
+
+    @Transactional
+    public OrderResponse confirm(Long buyerId, Long orderId) {
+        Order order = orderRepository.findWithBuyerAndProductById(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+        if (!order.isOwnedBy(buyerId)) {
+            throw new BusinessException(ErrorCode.ORDER_ACCESS_DENIED);
+        }
+
+        try {
+            order.confirm();
+        } catch (IllegalStateException exception) {
+            throw new BusinessException(ErrorCode.ORDER_CONFIRM_NOT_ALLOWED);
+        }
+
+        return OrderResponse.from(order);
+    }
 }

@@ -63,7 +63,7 @@ public class AuthService {
             throw new BusinessException(ErrorCode.INVALID_LOGIN);
         }
 
-        String accessToken = jwtProvider.createAccessToken(member.getId(), member.getEmail());
+        String accessToken = jwtProvider.createAccessToken(member.getId(), member.getEmail(), member.getRole());
         return AuthResponse.bearer(
                 accessToken,
                 jwtProvider.accessTokenValiditySeconds(),

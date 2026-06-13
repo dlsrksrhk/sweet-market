@@ -18,6 +18,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @EntityGraph(attributePaths = {"seller", "images"})
     Optional<Product> findWithSellerAndImagesByIdAndStatus(Long id, ProductStatus status);
 
-    @EntityGraph(attributePaths = {"seller", "images"})
+    @EntityGraph(attributePaths = "seller")
     Page<Product> findByStatusOrderByIdDesc(ProductStatus status, Pageable pageable);
 }

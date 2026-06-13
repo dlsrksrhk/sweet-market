@@ -1,6 +1,15 @@
 spring:
   application:
     name: market
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-batch-postgresql.sql
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
   datasource:
     url: jdbc:postgresql://localhost:${DB_PORT:15432}/${DB_NAME:market}
     username: ${DB_USERNAME:market}

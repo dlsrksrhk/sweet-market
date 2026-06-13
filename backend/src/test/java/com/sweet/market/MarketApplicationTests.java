@@ -3,11 +3,10 @@ package com.sweet.market;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sweet.market.auth.security.JwtProperties;
+import com.sweet.market.support.IntegrationTestSupport;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest(properties = "jwt.secret=sweet-market-test-secret-key-32bytes-minimum")
-class MarketApplicationTests {
+class MarketApplicationTests extends IntegrationTestSupport {
 
     @Test
     void 애플리케이션_컨텍스트가_로딩된다() {

@@ -96,6 +96,13 @@ public class Product {
         this.status = ProductStatus.ON_SALE;
     }
 
+    public void markSoldOutFromReservation() {
+        if (status != ProductStatus.RESERVED) {
+            throw new IllegalStateException("Product is not reserved: " + status);
+        }
+        this.status = ProductStatus.SOLD_OUT;
+    }
+
     public boolean isOwnedBy(Long memberId) {
         return seller.getId().equals(memberId);
     }
