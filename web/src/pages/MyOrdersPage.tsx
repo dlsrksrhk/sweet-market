@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
 import { completeDelivery, startDelivery } from '../features/deliveries/deliveryApi';
 import { useAuth } from '../features/auth/AuthProvider';
 import { cancelOrder, confirmOrder, getMyOrders, type OrderSummary } from '../features/orders/orderApi';
@@ -12,14 +13,14 @@ const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
   timeStyle: 'short',
 });
 
-type OrderMutation = {
-  isPending: boolean;
-};
+type OrderAction = 'approve-payment' | 'cancel-order' | 'cancel-payment' | 'start-delivery' | 'complete-delivery' | 'confirm-order';
 
 export function MyOrdersPage() {
   const { member } = useAuth();
   const memberId = member?.id;
   const queryClient = useQueryClient();
+  const pendingOrderActionIdsRef = useRef(new Set<string>());
+  const [pendingOrderActionIds, setPendingOrderActionIds] = useState(() => new Set<string>());
   const { data, error, isLoading } = useQuery({
     queryKey: ['my-orders', memberId],
     queryFn: getMyOrders,
@@ -69,49 +70,109 @@ export function MyOrdersPage() {
 
   const orders = data?.content ?? [];
 
-  function renderOrderActions(order: OrderSummary, pending: boolean) {
+  function setOrderActionPending(actionId: string, pending: boolean) {
+    const nextPendingOrderActionIds = new Set(pendingOrderActionIdsRef.current);
+
+    if (pending) {
+      nextPendingOrderActionIds.add(actionId);
+    } else {
+      nextPendingOrderActionIds.delete(actionId);
+    }
+
+    pendingOrderActionIdsRef.current = nextPendingOrderActionIds;
+    setPendingOrderActionIds(nextPendingOrderActionIds);
+  }
+
+  function runOrderAction(order: OrderSummary, action: OrderAction, mutateAsync: (order: OrderSummary) => Promise<unknown>) {
+    const actionId = getOrderActionId(order.id, action);
+
+    if (pendingOrderActionIdsRef.current.has(actionId)) {
+      return;
+    }
+
+    setOrderActionPending(actionId, true);
+    void mutateAsync(order)
+      .catch(() => undefined)
+      .finally(() => setOrderActionPending(actionId, false));
+  }
+
+  function isOrderActionPending(orderId: number, action: OrderAction) {
+    return pendingOrderActionIds.has(getOrderActionId(orderId, action));
+  }
+
+  function renderOrderActions(order: OrderSummary) {
     switch (order.status) {
       case 'CREATED':
+        const approvePending = isOrderActionPending(order.id, 'approve-payment');
+        const cancelOrderPending = isOrderActionPending(order.id, 'cancel-order');
+
         return (
           <>
-            <button type="button" className="text-button" disabled={pending} onClick={() => approveMutation.mutate(order)}>
+            <button
+              type="button"
+              className="text-button"
+              disabled={approvePending}
+              onClick={() => runOrderAction(order, 'approve-payment', approveMutation.mutateAsync)}
+            >
               결제 승인
             </button>
             <button
               type="button"
               className="text-button danger-button"
-              disabled={pending}
-              onClick={() => cancelOrderMutation.mutate(order)}
+              disabled={cancelOrderPending}
+              onClick={() => runOrderAction(order, 'cancel-order', cancelOrderMutation.mutateAsync)}
             >
               주문 취소
             </button>
           </>
         );
       case 'PAID':
+        const startDeliveryPending = isOrderActionPending(order.id, 'start-delivery');
+        const cancelPaymentPending = isOrderActionPending(order.id, 'cancel-payment');
+
         return (
           <>
-            <button type="button" className="text-button" disabled={pending} onClick={() => startDeliveryMutation.mutate(order)}>
+            <button
+              type="button"
+              className="text-button"
+              disabled={startDeliveryPending}
+              onClick={() => runOrderAction(order, 'start-delivery', startDeliveryMutation.mutateAsync)}
+            >
               배송 시작
             </button>
             <button
               type="button"
               className="text-button danger-button"
-              disabled={pending}
-              onClick={() => cancelPaymentMutation.mutate(order)}
+              disabled={cancelPaymentPending}
+              onClick={() => runOrderAction(order, 'cancel-payment', cancelPaymentMutation.mutateAsync)}
             >
               결제 취소
             </button>
           </>
         );
       case 'SHIPPING':
+        const completeDeliveryPending = isOrderActionPending(order.id, 'complete-delivery');
+
         return (
-          <button type="button" className="text-button" disabled={pending} onClick={() => completeDeliveryMutation.mutate(order)}>
+          <button
+            type="button"
+            className="text-button"
+            disabled={completeDeliveryPending}
+            onClick={() => runOrderAction(order, 'complete-delivery', completeDeliveryMutation.mutateAsync)}
+          >
             배송 완료
           </button>
         );
       case 'DELIVERED':
+        const confirmPending = isOrderActionPending(order.id, 'confirm-order');
+
         return (
-          <button type="button" className="text-button" disabled={pending} onClick={() => confirmMutation.mutate(order)}>
+          <button
+            type="button"
+            className="text-button"
+            disabled={confirmPending}
+            onClick={() => runOrderAction(order, 'confirm-order', confirmMutation.mutateAsync)}
+          >
             구매 확정
           </button>
         );
@@ -133,15 +194,6 @@ export function MyOrdersPage() {
       ) : (
         <div className="record-list" aria-label="내 주문 목록">
           {orders.map((order) => {
-            const pending = hasPendingOrderAction([
-              approveMutation,
-              cancelOrderMutation,
-              cancelPaymentMutation,
-              startDeliveryMutation,
-              completeDeliveryMutation,
-              confirmMutation,
-            ]);
-
             return (
               <article className="record-card" key={order.id}>
                 <div className="record-main">
@@ -165,7 +217,7 @@ export function MyOrdersPage() {
                     <dd>{formatDate(order.orderedAt)}</dd>
                   </div>
                 </dl>
-                <div className="record-actions">{renderOrderActions(order, pending)}</div>
+                <div className="record-actions">{renderOrderActions(order)}</div>
               </article>
             );
           })}
@@ -183,8 +235,8 @@ async function invalidateOrderResources(queryClient: QueryClient, productId: num
   ]);
 }
 
-function hasPendingOrderAction(mutations: OrderMutation[]) {
-  return mutations.some((mutation) => mutation.isPending);
+function getOrderActionId(orderId: number, action: OrderAction) {
+  return `${orderId}:${action}`;
 }
 
 function StatusPill({ status }: { status: string }) {

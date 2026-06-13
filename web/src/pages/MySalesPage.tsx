@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthProvider';
 import { getMyProducts, hideProduct, type ProductSummary } from '../features/products/productApi';
@@ -11,6 +12,8 @@ export function MySalesPage() {
   const { member } = useAuth();
   const memberId = member?.id;
   const queryClient = useQueryClient();
+  const pendingHideProductIdsRef = useRef(new Set<number>());
+  const [pendingHideProductIds, setPendingHideProductIds] = useState(() => new Set<number>());
   const { data, error, isLoading } = useQuery({
     queryKey: ['my-products', memberId],
     queryFn: getMyProducts,
@@ -32,6 +35,31 @@ export function MySalesPage() {
 
   const products = data?.content ?? [];
 
+  function setProductHidePending(productId: number, pending: boolean) {
+    const nextPendingHideProductIds = new Set(pendingHideProductIdsRef.current);
+
+    if (pending) {
+      nextPendingHideProductIds.add(productId);
+    } else {
+      nextPendingHideProductIds.delete(productId);
+    }
+
+    pendingHideProductIdsRef.current = nextPendingHideProductIds;
+    setPendingHideProductIds(nextPendingHideProductIds);
+  }
+
+  function hideProductOnce(product: ProductSummary) {
+    if (pendingHideProductIdsRef.current.has(product.id)) {
+      return;
+    }
+
+    setProductHidePending(product.id, true);
+    void hideMutation
+      .mutateAsync(product)
+      .catch(() => undefined)
+      .finally(() => setProductHidePending(product.id, false));
+  }
+
   return (
     <section className="list-page">
       <div className="list-page-header">
@@ -44,7 +72,7 @@ export function MySalesPage() {
       ) : (
         <div className="record-list" aria-label="내 판매 상품 목록">
           {products.map((product) => {
-            const isHiding = hideMutation.isPending;
+            const isHiding = pendingHideProductIds.has(product.id);
 
             return (
               <article className="record-card" key={product.id}>
@@ -74,7 +102,7 @@ export function MySalesPage() {
                       type="button"
                       className="text-button danger-button"
                       disabled={isHiding}
-                      onClick={() => hideMutation.mutate(product)}
+                      onClick={() => hideProductOnce(product)}
                     >
                       {isHiding ? '숨기는 중' : '숨기기'}
                     </button>

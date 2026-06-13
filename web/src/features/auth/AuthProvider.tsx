@@ -55,7 +55,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     const requestId = ++requestSeq.current;
