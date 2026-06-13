@@ -5,10 +5,16 @@ import com.sweet.market.member.domain.Member;
 public record MemberMeResponse(
         Long id,
         String email,
-        String nickname
+        String nickname,
+        String role
 ) {
 
     public static MemberMeResponse from(Member member) {
-        return new MemberMeResponse(member.getId(), member.getEmail(), member.getNickname());
+        return new MemberMeResponse(
+                member.getId(),
+                member.getEmail(),
+                member.getNickname(),
+                member.getRole().name()
+        );
     }
 }
