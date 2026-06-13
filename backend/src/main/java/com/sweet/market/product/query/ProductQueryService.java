@@ -29,6 +29,12 @@ public class ProductQueryService {
     }
 
     @Transactional(readOnly = true)
+    public Page<ProductSummaryResponse> findMine(Long sellerId, Pageable pageable) {
+        return productRepository.findBySellerIdOrderByIdDesc(sellerId, pageable)
+                .map(ProductSummaryResponse::from);
+    }
+
+    @Transactional(readOnly = true)
     public ProductResponse findOnSaleProduct(Long productId) {
         Product product = productRepository.findWithSellerAndImagesByIdAndStatus(productId, ProductStatus.ON_SALE)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));

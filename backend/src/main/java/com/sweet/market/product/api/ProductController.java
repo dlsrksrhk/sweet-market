@@ -51,6 +51,15 @@ public class ProductController {
         return ApiResponse.ok(productQueryService.findOnSaleProducts(pageable));
     }
 
+    @GetMapping("/me")
+    public ApiResponse<Page<ProductSummaryResponse>> listMine(
+            Authentication authentication,
+            @PageableDefault(size = 20) Pageable pageable
+    ) {
+        AuthenticatedMember member = (AuthenticatedMember) authentication.getPrincipal();
+        return ApiResponse.ok(productQueryService.findMine(member.id(), pageable));
+    }
+
     @GetMapping("/{productId}")
     public ApiResponse<ProductResponse> get(@PathVariable Long productId) {
         return ApiResponse.ok(productQueryService.findOnSaleProduct(productId));
