@@ -34,6 +34,13 @@ class ProductSellerApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].title").value("Seller Product"));
     }
 
+    @Test
+    void 내_판매_상품_조회는_JWT가_필요하다() throws Exception {
+        mockMvc.perform(get("/api/products/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
+    }
+
     private void createProduct(String token, String title, long price) throws Exception {
         mockMvc.perform(post("/api/products")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
