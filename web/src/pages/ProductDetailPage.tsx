@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthProvider';
 import { getProduct, hideProduct } from '../features/products/productApi';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
+import { parsePositiveIntegerParam } from '../shared/utils/parseId';
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR');
 
@@ -11,17 +12,17 @@ export function ProductDetailPage() {
   const { productId } = useParams();
   const { member } = useAuth();
   const queryClient = useQueryClient();
-  const parsedProductId = Number(productId);
-  const hasValidProductId = Number.isInteger(parsedProductId) && parsedProductId > 0;
+  const parsedProductId = parsePositiveIntegerParam(productId);
+  const hasValidProductId = parsedProductId !== null;
 
   const { data: product, error, isLoading } = useQuery({
     queryKey: ['products', parsedProductId],
-    queryFn: () => getProduct(parsedProductId),
+    queryFn: () => getProduct(parsedProductId ?? 0),
     enabled: hasValidProductId,
   });
 
   const hideMutation = useMutation({
-    mutationFn: () => hideProduct(parsedProductId),
+    mutationFn: () => hideProduct(parsedProductId ?? 0),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['products'] });
       navigate('/');

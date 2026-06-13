@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../features/auth/AuthProvider';
 import {
   createProduct,
   getProduct,
@@ -11,6 +12,7 @@ import {
 } from '../features/products/productApi';
 import { type ApiError } from '../shared/api/http';
 import { ErrorState } from '../shared/ui/ResourceStates';
+import { parsePositiveIntegerParam } from '../shared/utils/parseId';
 
 type ProductFormValues = {
   title: string;
@@ -22,15 +24,16 @@ type ProductFormValues = {
 export function ProductFormPage() {
   const navigate = useNavigate();
   const { productId } = useParams();
+  const { member } = useAuth();
   const queryClient = useQueryClient();
-  const parsedProductId = Number(productId);
+  const parsedProductId = parsePositiveIntegerParam(productId);
   const isEditMode = productId !== undefined;
-  const hasValidProductId = Number.isInteger(parsedProductId) && parsedProductId > 0;
+  const hasValidProductId = parsedProductId !== null;
   const [apiError, setApiError] = useState<string | null>(null);
 
   const { data: product, error, isLoading } = useQuery({
     queryKey: ['products', parsedProductId],
-    queryFn: () => getProduct(parsedProductId),
+    queryFn: () => getProduct(parsedProductId ?? 0),
     enabled: isEditMode && hasValidProductId,
   });
 
@@ -68,7 +71,7 @@ export function ProductFormPage() {
     mutationFn: (input: ProductCreateInput) => createProduct(input),
   });
   const updateMutation = useMutation({
-    mutationFn: (input: ProductUpdateInput) => updateProduct(parsedProductId, input),
+    mutationFn: (input: ProductUpdateInput) => updateProduct(parsedProductId ?? 0, input),
   });
 
   if (isEditMode && !hasValidProductId) {
@@ -81,6 +84,10 @@ export function ProductFormPage() {
 
   if (isEditMode && error) {
     return <ErrorState message="상품 정보를 불러오지 못했습니다." />;
+  }
+
+  if (isEditMode && product && member?.id !== product.sellerId) {
+    return <ErrorState title="접근할 수 없습니다" message="본인이 등록한 상품만 수정할 수 있습니다." />;
   }
 
   const onSubmit = handleSubmit(async (values) => {
