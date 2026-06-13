@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../features/auth/AuthProvider';
 import { getMyProducts, hideProduct, type ProductSummary } from '../features/products/productApi';
 import { type ApiError } from '../shared/api/http';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
@@ -7,10 +8,13 @@ import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates
 const currencyFormatter = new Intl.NumberFormat('ko-KR');
 
 export function MySalesPage() {
+  const { member } = useAuth();
+  const memberId = member?.id;
   const queryClient = useQueryClient();
   const { data, error, isLoading } = useQuery({
-    queryKey: ['my-products'],
+    queryKey: ['my-products', memberId],
     queryFn: getMyProducts,
+    enabled: memberId !== undefined,
   });
 
   const hideMutation = useMutation({
@@ -40,7 +44,7 @@ export function MySalesPage() {
       ) : (
         <div className="record-list" aria-label="내 판매 상품 목록">
           {products.map((product) => {
-            const isHiding = hideMutation.isPending && hideMutation.variables?.id === product.id;
+            const isHiding = hideMutation.isPending;
 
             return (
               <article className="record-card" key={product.id}>

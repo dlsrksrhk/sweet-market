@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '../features/auth/AuthProvider';
 import { getMySettlements } from '../features/settlements/settlementApi';
 import { EmptyState, ErrorState } from '../shared/ui/ResourceStates';
 
@@ -9,9 +10,12 @@ const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
 });
 
 export function MySettlementsPage() {
+  const { member } = useAuth();
+  const memberId = member?.id;
   const { data: settlements = [], error, isLoading } = useQuery({
-    queryKey: ['my-settlements'],
+    queryKey: ['my-settlements', memberId],
     queryFn: getMySettlements,
+    enabled: memberId !== undefined,
   });
 
   if (isLoading) {

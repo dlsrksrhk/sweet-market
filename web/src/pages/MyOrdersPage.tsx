@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { completeDelivery, startDelivery } from '../features/deliveries/deliveryApi';
+import { useAuth } from '../features/auth/AuthProvider';
 import { cancelOrder, confirmOrder, getMyOrders, type OrderSummary } from '../features/orders/orderApi';
 import { approvePayment, cancelPayment } from '../features/payments/paymentApi';
 import { type ApiError } from '../shared/api/http';
@@ -13,14 +14,16 @@ const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
 
 type OrderMutation = {
   isPending: boolean;
-  variables?: OrderSummary;
 };
 
 export function MyOrdersPage() {
+  const { member } = useAuth();
+  const memberId = member?.id;
   const queryClient = useQueryClient();
   const { data, error, isLoading } = useQuery({
-    queryKey: ['my-orders'],
+    queryKey: ['my-orders', memberId],
     queryFn: getMyOrders,
+    enabled: memberId !== undefined,
   });
 
   const approveMutation = useMutation({
@@ -130,7 +133,7 @@ export function MyOrdersPage() {
       ) : (
         <div className="record-list" aria-label="내 주문 목록">
           {orders.map((order) => {
-            const pending = isPendingForOrder(order, [
+            const pending = hasPendingOrderAction([
               approveMutation,
               cancelOrderMutation,
               cancelPaymentMutation,
@@ -180,8 +183,8 @@ async function invalidateOrderResources(queryClient: QueryClient, productId: num
   ]);
 }
 
-function isPendingForOrder(order: OrderSummary, mutations: OrderMutation[]) {
-  return mutations.some((mutation) => mutation.isPending && mutation.variables?.id === order.id);
+function hasPendingOrderAction(mutations: OrderMutation[]) {
+  return mutations.some((mutation) => mutation.isPending);
 }
 
 function StatusPill({ status }: { status: string }) {

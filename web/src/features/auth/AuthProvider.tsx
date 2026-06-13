@@ -1,3 +1,4 @@
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { getAccessToken, setAccessToken } from '../../shared/api/http';
 import {
@@ -22,7 +23,10 @@ type AuthProviderProps = {
   children: ReactNode;
 };
 
+const authenticatedPrivateQueryKeys = [['my-orders'], ['my-products'], ['my-settlements']] as const;
+
 export function AuthProvider({ children }: AuthProviderProps) {
+  const queryClient = useQueryClient();
   const [member, setMember] = useState<CurrentMember | null>(null);
   const [loading, setLoading] = useState(true);
   const requestSeq = useRef(0);
@@ -42,6 +46,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (requestId === requestSeq.current) {
         setAccessToken(null);
         setMember(null);
+        clearAuthenticatedPrivateQueries(queryClient);
       }
 
       throw error;
@@ -74,6 +79,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (requestId === requestSeq.current) {
           setAccessToken(null);
           setMember(null);
+          clearAuthenticatedPrivateQueries(queryClient);
         }
       } finally {
         if (requestId === requestSeq.current) {
@@ -87,7 +93,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       requestSeq.current += 1;
     };
-  }, []);
+  }, [queryClient]);
 
   const login = useCallback(async (email: string, password: string) => {
     const requestId = ++requestSeq.current;
@@ -99,6 +105,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
 
+      setMember(null);
+      clearAuthenticatedPrivateQueries(queryClient);
       setAccessToken(response.accessToken);
       const currentMember = await getCurrentMember();
 
@@ -109,6 +117,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (requestId === requestSeq.current) {
         setAccessToken(null);
         setMember(null);
+        clearAuthenticatedPrivateQueries(queryClient);
       }
 
       throw error;
@@ -117,7 +126,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [queryClient]);
 
   const signup = useCallback(
     async (email: string, password: string, nickname: string) => {
@@ -131,8 +140,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     requestSeq.current += 1;
     setAccessToken(null);
     setMember(null);
+    clearAuthenticatedPrivateQueries(queryClient);
     setLoading(false);
-  }, []);
+  }, [queryClient]);
 
   const value = useMemo(
     () => ({
@@ -147,6 +157,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+function clearAuthenticatedPrivateQueries(queryClient: QueryClient) {
+  authenticatedPrivateQueryKeys.forEach((queryKey) => {
+    queryClient.removeQueries({ queryKey, exact: false });
+  });
 }
 
 export function useAuth() {
