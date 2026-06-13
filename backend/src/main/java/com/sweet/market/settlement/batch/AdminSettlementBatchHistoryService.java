@@ -114,7 +114,11 @@ public class AdminSettlementBatchHistoryService {
                         select
                             coalesce(sum(read_count), 0) as read_count,
                             coalesce(sum(write_count), 0) as write_count,
-                            coalesce(sum(read_skip_count + process_skip_count + write_skip_count), 0) as skip_count,
+                            coalesce(sum(
+                                coalesce(read_skip_count, 0)
+                                + coalesce(process_skip_count, 0)
+                                + coalesce(write_skip_count, 0)
+                            ), 0) as skip_count,
                             coalesce(sum(rollback_count), 0) as rollback_count
                         from batch_step_execution
                         where job_execution_id = ?
@@ -132,14 +136,18 @@ public class AdminSettlementBatchHistoryService {
     private List<String> findFailureMessages(Long executionId) {
         return jdbcTemplate.queryForList("""
                         select exit_message
-                        from batch_job_execution
-                        where job_execution_id = ?
-                          and nullif(trim(exit_message), '') is not null
-                        union all
-                        select exit_message
-                        from batch_step_execution
-                        where job_execution_id = ?
-                          and nullif(trim(exit_message), '') is not null
+                        from (
+                            select 0 as source_order, job_execution_id as id, exit_message
+                            from batch_job_execution
+                            where job_execution_id = ?
+                              and nullif(trim(exit_message), '') is not null
+                            union all
+                            select 1 as source_order, step_execution_id as id, exit_message
+                            from batch_step_execution
+                            where job_execution_id = ?
+                              and nullif(trim(exit_message), '') is not null
+                        ) failure_messages
+                        order by source_order, id
                         """,
                 String.class,
                 executionId,
