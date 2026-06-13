@@ -106,6 +106,26 @@ textarea {
   padding: 48px 0;
 }
 
+.home-copy,
+.product-card-body,
+.product-detail-info,
+.record-main,
+.record-meta dd,
+.list-page-header,
+.admin-tool-panel,
+.admin-result-panel {
+  min-width: 0;
+}
+
+.product-card h2,
+.product-detail-heading h1,
+.product-detail-info p,
+.record-main h2,
+.list-page-header p,
+.admin-failure-list li {
+  overflow-wrap: anywhere;
+}
+
 .home-page {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
