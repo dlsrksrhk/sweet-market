@@ -73,6 +73,7 @@ export function MySalesPage() {
         <div className="record-list" aria-label="내 판매 상품 목록">
           {products.map((product) => {
             const isHiding = pendingHideProductIds.has(product.id);
+            const canOpenEditScreen = product.status === 'ON_SALE';
 
             return (
               <article className="record-card" key={product.id}>
@@ -92,12 +93,16 @@ export function MySalesPage() {
                   </div>
                 </dl>
                 <div className="record-actions">
-                  <Link className="primary-link" to={`/products/${product.id}/edit`}>
-                    수정
-                  </Link>
-                  {product.status === 'HIDDEN' ? (
-                    <span className="muted-text">숨겨진 상품입니다.</span>
+                  {canOpenEditScreen ? (
+                    <Link className="primary-link" to={`/products/${product.id}/edit`}>
+                      수정
+                    </Link>
+                  ) : product.status === 'HIDDEN' ? (
+                    <span className="muted-text">숨긴 상품은 데모 수정 화면에서 수정할 수 없습니다.</span>
                   ) : (
+                    <span className="muted-text">판매 중인 상품만 수정할 수 있습니다.</span>
+                  )}
+                  {product.status !== 'HIDDEN' ? (
                     <button
                       type="button"
                       className="text-button danger-button"
@@ -106,7 +111,7 @@ export function MySalesPage() {
                     >
                       {isHiding ? '숨기는 중' : '숨기기'}
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </article>
             );
