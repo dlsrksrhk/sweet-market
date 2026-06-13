@@ -3,6 +3,8 @@ import { RequireAdmin } from '../features/auth/RequireAdmin';
 import { RequireAuth } from '../features/auth/RequireAuth';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
+import { ProductDetailPage } from '../pages/ProductDetailPage';
+import { ProductFormPage } from '../pages/ProductFormPage';
 import { SignupPage } from '../pages/SignupPage';
 import { Shell } from '../shared/layout/Shell';
 
@@ -13,6 +15,23 @@ export function AppRouter() {
         <Route index element={<HomePage />} />
         <Route path="login" element={<LoginPage />} />
         <Route path="signup" element={<SignupPage />} />
+        <Route path="products/:productId" element={<ProductDetailPage />} />
+        <Route
+          path="products/new"
+          element={
+            <RequireAuth>
+              <ProductFormPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="products/:productId/edit"
+          element={
+            <RequireAuth>
+              <ProductFormPage />
+            </RequireAuth>
+          }
+        />
         <Route
           path="me/orders"
           element={
