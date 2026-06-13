@@ -529,6 +529,186 @@ textarea {
   color: #172026;
 }
 
+.admin-batch-page {
+  display: grid;
+  gap: 24px;
+}
+
+.admin-batch-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-tool-panel,
+.admin-result-panel {
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.admin-tool-panel {
+  display: grid;
+  gap: 18px;
+  padding: 20px;
+  box-shadow: 0 8px 22px rgb(20 38 58 / 7%);
+}
+
+.admin-tool-panel h2,
+.admin-result-panel h3,
+.admin-failure-list h3 {
+  margin: 0;
+}
+
+.admin-tool-panel h2 {
+  font-size: 20px;
+}
+
+.admin-batch-form {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-batch-form label {
+  display: grid;
+  gap: 7px;
+  color: #52616f;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.admin-batch-form input {
+  width: 100%;
+  border: 1px solid #cfd9e3;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  color: #172026;
+}
+
+.admin-result-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: #f9fbfd;
+}
+
+.admin-result-panel h3,
+.admin-failure-list h3 {
+  font-size: 16px;
+}
+
+.compact-definition-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.compact-definition-list div {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.compact-definition-list dt,
+.admin-count-grid dt {
+  color: #637282;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.compact-definition-list dd,
+.admin-count-grid dd {
+  min-width: 0;
+  margin: 0;
+  color: #172026;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.admin-execution-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-execution-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) minmax(86px, 0.6fr) repeat(4, minmax(120px, 1fr));
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+  color: #172026;
+  cursor: pointer;
+  text-align: left;
+}
+
+.admin-execution-row:hover,
+.admin-execution-row-selected {
+  border-color: #0f7b78;
+  background: #f0fbfa;
+}
+
+.admin-execution-title {
+  font-weight: 900;
+}
+
+.admin-execution-meta {
+  color: #637282;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.admin-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.admin-count-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  grid-column: 1 / -1;
+}
+
+.admin-count-grid div {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  padding: 14px;
+  background: #f9fbfd;
+}
+
+.admin-count-grid dd {
+  font-size: 22px;
+}
+
+.admin-failure-list {
+  display: grid;
+  gap: 10px;
+  grid-column: 1 / -1;
+  border: 1px solid #f4b4ad;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff8f7;
+}
+
+.admin-failure-list ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: #b42318;
+  line-height: 1.5;
+}
+
 @media (max-width: 760px) {
   .top-nav {
     align-items: flex-start;
@@ -557,7 +737,15 @@ textarea {
 
   .product-grid,
   .product-detail,
-  .record-meta {
+  .record-meta,
+  .admin-batch-layout,
+  .admin-detail-grid,
+  .admin-count-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-execution-row,
+  .compact-definition-list div {
     grid-template-columns: 1fr;
   }
 }

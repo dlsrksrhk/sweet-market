@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import { RequireAdmin } from '../features/auth/RequireAdmin';
 import { RequireAuth } from '../features/auth/RequireAuth';
+import { AdminSettlementBatchPage } from '../pages/AdminSettlementBatchPage';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MyOrdersPage } from '../pages/MyOrdersPage';
@@ -63,27 +64,13 @@ export function AppRouter() {
           path="admin/batches/settlements"
           element={
             <RequireAdmin>
-              <PlaceholderPage title="정산 배치" description="관리자 정산 배치 화면을 준비 중입니다." />
+              <AdminSettlementBatchPage />
             </RequireAdmin>
           }
         />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
-  );
-}
-
-type PlaceholderPageProps = {
-  title: string;
-  description: string;
-};
-
-function PlaceholderPage({ title, description }: PlaceholderPageProps) {
-  return (
-    <section className="page-panel">
-      <h1>{title}</h1>
-      <p>{description}</p>
-    </section>
   );
 }
 
