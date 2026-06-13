@@ -1,20 +1,20 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { completeDelivery, startDelivery } from '../features/deliveries/deliveryApi';
-import {
-  cancelOrder,
-  confirmOrder,
-  getMyOrders,
-  type OrderStatus,
-  type OrderSummary,
-} from '../features/orders/orderApi';
+import { cancelOrder, confirmOrder, getMyOrders, type OrderSummary } from '../features/orders/orderApi';
 import { approvePayment, cancelPayment } from '../features/payments/paymentApi';
 import { type ApiError } from '../shared/api/http';
-import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
+import { EmptyState, ErrorState } from '../shared/ui/ResourceStates';
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR');
+const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
 
-type OrderAction = 'approve-payment' | 'cancel-order' | 'start-delivery' | 'cancel-payment' | 'complete-delivery' | 'confirm-order';
+type OrderMutation = {
+  isPending: boolean;
+  variables?: OrderSummary;
+};
 
 export function MyOrdersPage() {
   const queryClient = useQueryClient();
@@ -23,160 +23,209 @@ export function MyOrdersPage() {
     queryFn: getMyOrders,
   });
 
-  const actionMutation = useMutation({
-    mutationFn: ({ action, orderId }: { action: OrderAction; orderId: number }) => runOrderAction(action, orderId),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
-        queryClient.invalidateQueries({ queryKey: ['products'] }),
-      ]);
-    },
+  const approveMutation = useMutation({
+    mutationFn: (order: OrderSummary) => approvePayment(order.id),
+    onSuccess: (_payment, order) => invalidateOrderResources(queryClient, order.productId),
+  });
+  const cancelOrderMutation = useMutation({
+    mutationFn: (order: OrderSummary) => cancelOrder(order.id),
+    onSuccess: (_canceledOrder, order) => invalidateOrderResources(queryClient, order.productId),
+  });
+  const cancelPaymentMutation = useMutation({
+    mutationFn: (order: OrderSummary) => cancelPayment(order.id),
+    onSuccess: (_payment, order) => invalidateOrderResources(queryClient, order.productId),
+  });
+  const startDeliveryMutation = useMutation({
+    mutationFn: (order: OrderSummary) => startDelivery(order.id),
+    onSuccess: (_delivery, order) => invalidateOrderResources(queryClient, order.productId),
+  });
+  const completeDeliveryMutation = useMutation({
+    mutationFn: (order: OrderSummary) => completeDelivery(order.id),
+    onSuccess: (_delivery, order) => invalidateOrderResources(queryClient, order.productId),
+  });
+  const confirmMutation = useMutation({
+    mutationFn: (order: OrderSummary) => confirmOrder(order.id),
+    onSuccess: (_confirmedOrder, order) => invalidateOrderResources(queryClient, order.productId),
   });
 
+  const actionError =
+    approveMutation.error ??
+    cancelOrderMutation.error ??
+    cancelPaymentMutation.error ??
+    startDeliveryMutation.error ??
+    completeDeliveryMutation.error ??
+    confirmMutation.error;
+
   if (isLoading) {
-    return <p className="status-text">주문 내역을 불러오고 있습니다.</p>;
+    return <p className="status-text">주문 목록을 불러오고 있습니다.</p>;
   }
 
   if (error) {
-    return <ErrorState message="주문 내역을 불러오지 못했습니다." />;
+    return <ErrorState message="주문 목록을 불러오지 못했습니다." />;
   }
 
   const orders = data?.content ?? [];
 
+  function renderOrderActions(order: OrderSummary, pending: boolean) {
+    switch (order.status) {
+      case 'CREATED':
+        return (
+          <>
+            <button type="button" className="text-button" disabled={pending} onClick={() => approveMutation.mutate(order)}>
+              결제 승인
+            </button>
+            <button
+              type="button"
+              className="text-button danger-button"
+              disabled={pending}
+              onClick={() => cancelOrderMutation.mutate(order)}
+            >
+              주문 취소
+            </button>
+          </>
+        );
+      case 'PAID':
+        return (
+          <>
+            <button type="button" className="text-button" disabled={pending} onClick={() => startDeliveryMutation.mutate(order)}>
+              배송 시작
+            </button>
+            <button
+              type="button"
+              className="text-button danger-button"
+              disabled={pending}
+              onClick={() => cancelPaymentMutation.mutate(order)}
+            >
+              결제 취소
+            </button>
+          </>
+        );
+      case 'SHIPPING':
+        return (
+          <button type="button" className="text-button" disabled={pending} onClick={() => completeDeliveryMutation.mutate(order)}>
+            배송 완료
+          </button>
+        );
+      case 'DELIVERED':
+        return (
+          <button type="button" className="text-button" disabled={pending} onClick={() => confirmMutation.mutate(order)}>
+            구매 확정
+          </button>
+        );
+      case 'CONFIRMED':
+      case 'CANCELED':
+        return <span className="muted-text">진행 가능한 작업이 없습니다.</span>;
+    }
+  }
+
   return (
     <section className="list-page">
-      <header className="list-page-header">
+      <div className="list-page-header">
         <h1>내 주문</h1>
-        <p>구매한 상품의 결제, 배송, 구매 확정을 진행할 수 있습니다.</p>
-      </header>
+        <p>구매 거래의 결제, 배송, 구매 확정을 진행합니다.</p>
+      </div>
+      {actionError ? <p className="error-text">{toErrorMessage(actionError)}</p> : null}
       {orders.length === 0 ? (
-        <EmptyState title="아직 주문이 없습니다" description="마음에 드는 상품을 주문하면 이곳에서 진행 상태를 볼 수 있습니다." />
+        <EmptyState title="아직 주문한 상품이 없습니다" description="마음에 드는 상품을 주문하면 이곳에서 거래를 진행할 수 있습니다." />
       ) : (
         <div className="record-list" aria-label="내 주문 목록">
-          {orders.map((order) => (
-            <article className="record-card" key={order.id}>
-              <div className="record-main">
-                <StatusBadge status={order.status} />
-                <h2>
-                  <Link to={`/products/${order.productId}`}>{order.productTitle}</Link>
-                </h2>
-                <strong>{currencyFormatter.format(order.productPrice)}원</strong>
-              </div>
-              <dl className="record-meta">
-                <div>
-                  <dt>판매자</dt>
-                  <dd>{order.sellerNickname}</dd>
+          {orders.map((order) => {
+            const pending = isPendingForOrder(order, [
+              approveMutation,
+              cancelOrderMutation,
+              cancelPaymentMutation,
+              startDeliveryMutation,
+              completeDeliveryMutation,
+              confirmMutation,
+            ]);
+
+            return (
+              <article className="record-card" key={order.id}>
+                <div className="record-main">
+                  <StatusPill status={order.status} />
+                  <h2>{order.productTitle}</h2>
+                  <strong>{currencyFormatter.format(order.productPrice)}원</strong>
                 </div>
-                <div>
-                  <dt>상품 상태</dt>
-                  <dd>
-                    <StatusBadge status={order.productStatus} />
-                  </dd>
-                </div>
-                <div>
-                  <dt>주문일</dt>
-                  <dd>{formatDateTime(order.orderedAt)}</dd>
-                </div>
-              </dl>
-              <OrderActions
-                disabled={actionMutation.isPending}
-                order={order}
-                onAction={(action) => actionMutation.mutate({ action, orderId: order.id })}
-              />
-            </article>
-          ))}
+                <dl className="record-meta">
+                  <div>
+                    <dt>판매자</dt>
+                    <dd>{order.sellerNickname}</dd>
+                  </div>
+                  <div>
+                    <dt>상품 상태</dt>
+                    <dd>
+                      <StatusPill status={order.productStatus} />
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>주문일시</dt>
+                    <dd>{formatDate(order.orderedAt)}</dd>
+                  </div>
+                </dl>
+                <div className="record-actions">{renderOrderActions(order, pending)}</div>
+              </article>
+            );
+          })}
         </div>
       )}
-      {actionMutation.isError ? <p className="error-text">{toErrorMessage(actionMutation.error)}</p> : null}
     </section>
   );
 }
 
-type OrderActionsProps = {
-  disabled: boolean;
-  order: OrderSummary;
-  onAction: (action: OrderAction) => void;
-};
-
-function OrderActions({ disabled, order, onAction }: OrderActionsProps) {
-  const actions = getActions(order.status);
-
-  if (actions.length === 0) {
-    return <p className="status-text">추가로 진행할 작업이 없습니다.</p>;
-  }
-
-  return (
-    <div className="record-actions">
-      {actions.map((action) => (
-        <button
-          key={action.type}
-          type="button"
-          className={`text-button${action.danger ? ' danger-button' : ''}`}
-          disabled={disabled}
-          onClick={() => onAction(action.type)}
-        >
-          {action.label}
-        </button>
-      ))}
-    </div>
-  );
+async function invalidateOrderResources(queryClient: QueryClient, productId: number) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
+    queryClient.invalidateQueries({ queryKey: ['products'] }),
+    queryClient.invalidateQueries({ queryKey: ['products', productId] }),
+  ]);
 }
 
-function getActions(status: OrderStatus): { type: OrderAction; label: string; danger?: boolean }[] {
+function isPendingForOrder(order: OrderSummary, mutations: OrderMutation[]) {
+  return mutations.some((mutation) => mutation.isPending && mutation.variables?.id === order.id);
+}
+
+function StatusPill({ status }: { status: string }) {
+  return <span className={`status-badge status-badge-${status.toLowerCase()}`}>{formatStatus(status)}</span>;
+}
+
+function formatStatus(status: string) {
   switch (status) {
     case 'CREATED':
-      return [
-        { type: 'approve-payment', label: '결제 승인' },
-        { type: 'cancel-order', label: '주문 취소', danger: true },
-      ];
+      return '주문 생성';
     case 'PAID':
-      return [
-        { type: 'start-delivery', label: '배송 시작' },
-        { type: 'cancel-payment', label: '결제 취소', danger: true },
-      ];
+      return '결제 완료';
     case 'SHIPPING':
-      return [{ type: 'complete-delivery', label: '배송 완료' }];
+      return '배송 중';
     case 'DELIVERED':
-      return [{ type: 'confirm-order', label: '구매 확정' }];
+      return '배송 완료';
     case 'CONFIRMED':
+      return '구매 확정';
     case 'CANCELED':
-      return [];
+      return '취소';
+    case 'ON_SALE':
+      return '판매중';
+    case 'RESERVED':
+      return '예약중';
+    case 'SOLD_OUT':
+      return '판매완료';
+    case 'HIDDEN':
+      return '숨김';
+    default:
+      return status;
   }
 }
 
-async function runOrderAction(action: OrderAction, orderId: number) {
-  switch (action) {
-    case 'approve-payment':
-      await approvePayment(orderId);
-      return;
-    case 'cancel-order':
-      await cancelOrder(orderId);
-      return;
-    case 'start-delivery':
-      await startDelivery(orderId);
-      return;
-    case 'cancel-payment':
-      await cancelPayment(orderId);
-      return;
-    case 'complete-delivery':
-      await completeDelivery(orderId);
-      return;
-    case 'confirm-order':
-      await confirmOrder(orderId);
-      return;
-  }
-}
-
-function formatDateTime(value: string | null) {
+function formatDate(value: string | null) {
   if (!value) {
     return '-';
   }
 
-  return new Date(value).toLocaleString('ko-KR');
+  return dateFormatter.format(new Date(value));
 }
 
 function toErrorMessage(error: unknown) {
   const apiError = error as Partial<ApiError>;
+  const fieldMessage = apiError.fieldErrors?.[0]?.message;
 
-  return apiError.message ?? '주문 작업을 처리하지 못했습니다.';
+  return fieldMessage ?? apiError.message ?? '거래 요청을 처리하지 못했습니다.';
 }

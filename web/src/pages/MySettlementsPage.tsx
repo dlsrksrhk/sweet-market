@@ -1,9 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
 import { getMySettlements } from '../features/settlements/settlementApi';
-import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
+import { EmptyState, ErrorState } from '../shared/ui/ResourceStates';
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR');
+const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+});
 
 export function MySettlementsPage() {
   const { data: settlements = [], error, isLoading } = useQuery({
@@ -21,21 +24,19 @@ export function MySettlementsPage() {
 
   return (
     <section className="list-page">
-      <header className="list-page-header">
+      <div className="list-page-header">
         <h1>정산</h1>
-        <p>확정된 거래의 정산 상태와 금액을 확인할 수 있습니다.</p>
-      </header>
+        <p>판매 확정 후 생성된 정산 내역을 확인합니다.</p>
+      </div>
       {settlements.length === 0 ? (
-        <EmptyState title="정산 내역이 없습니다" description="구매 확정된 판매 거래가 정산되면 이곳에 표시됩니다." />
+        <EmptyState title="정산 내역이 없습니다" description="구매 확정된 판매 건의 정산이 생성되면 이곳에 표시됩니다." />
       ) : (
         <div className="record-list" aria-label="내 정산 목록">
           {settlements.map((settlement) => (
             <article className="record-card" key={settlement.id}>
               <div className="record-main">
-                <StatusBadge status={settlement.status} />
-                <h2>
-                  <Link to={`/products/${settlement.productId}`}>{settlement.productTitle}</Link>
-                </h2>
+                <StatusPill status={settlement.status} />
+                <h2>{settlement.productTitle}</h2>
                 <strong>{currencyFormatter.format(settlement.amount)}원</strong>
               </div>
               <dl className="record-meta">
@@ -44,8 +45,8 @@ export function MySettlementsPage() {
                   <dd>{settlement.orderId}</dd>
                 </div>
                 <div>
-                  <dt>정산일</dt>
-                  <dd>{formatDateTime(settlement.settledAt)}</dd>
+                  <dt>정산일시</dt>
+                  <dd>{formatDate(settlement.settledAt)}</dd>
                 </div>
               </dl>
             </article>
@@ -56,10 +57,27 @@ export function MySettlementsPage() {
   );
 }
 
-function formatDateTime(value: string | null) {
+function StatusPill({ status }: { status: string }) {
+  return <span className={`status-badge status-badge-${status.toLowerCase()}`}>{formatStatus(status)}</span>;
+}
+
+function formatStatus(status: string) {
+  switch (status) {
+    case 'READY':
+      return '대기';
+    case 'COMPLETED':
+      return '완료';
+    case 'FAILED':
+      return '실패';
+    default:
+      return status;
+  }
+}
+
+function formatDate(value: string | null) {
   if (!value) {
     return '-';
   }
 
-  return new Date(value).toLocaleString('ko-KR');
+  return dateFormatter.format(new Date(value));
 }

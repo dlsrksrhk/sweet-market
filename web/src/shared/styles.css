@@ -89,6 +89,7 @@ textarea {
   font-size: 14px;
 }
 
+.text-button:disabled,
 .auth-form button:disabled {
   cursor: wait;
   opacity: 0.7;
