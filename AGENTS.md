@@ -11,11 +11,14 @@
 ## Backend Execution
 
 - The backend lives in `backend`.
+- Backend Gradle work should run with JDK 21, matching `java.toolchain.languageVersion`.
 - Local `bootRun` requires `JWT_SECRET` unless `application.yaml` provides a local default.
 - Recommended test command:
 
 ```powershell
 cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
 $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 .\gradlew.bat test
 ```
