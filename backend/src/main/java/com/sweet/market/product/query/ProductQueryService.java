@@ -30,8 +30,7 @@ public class ProductQueryService {
 
     @Transactional(readOnly = true)
     public Page<ProductSummaryResponse> findMine(Long sellerId, Pageable pageable) {
-        return productRepository.findBySellerIdOrderByIdDesc(sellerId, pageable)
-                .map(ProductSummaryResponse::from);
+        return productRepository.findSummariesBySellerIdOrderByIdDesc(sellerId, pageable);
     }
 
     @Transactional(readOnly = true)

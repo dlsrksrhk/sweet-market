@@ -1,5 +1,6 @@
 package com.sweet.market.product;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -7,7 +8,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 
@@ -17,7 +21,12 @@ import com.sweet.market.auth.api.SignupRequest;
 import com.sweet.market.product.api.ProductCreateRequest;
 import com.sweet.market.support.IntegrationTestSupport;
 
+import jakarta.persistence.EntityManagerFactory;
+
 class ProductSellerApiTest extends IntegrationTestSupport {
+
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
 
     @Test
     void 판매자는_내_판매_상품을_조회할_수_있다() throws Exception {
@@ -27,11 +36,17 @@ class ProductSellerApiTest extends IntegrationTestSupport {
         createProduct(sellerToken, "Seller Product", 10_000L);
         createProduct(buyerToken, "Buyer Product", 20_000L);
 
+        Statistics statistics = statistics();
+        statistics.clear();
+
         mockMvc.perform(get("/api/products/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1))
-                .andExpect(jsonPath("$.data.content[0].title").value("Seller Product"));
+                .andExpect(jsonPath("$.data.content[0].title").value("Seller Product"))
+                .andExpect(jsonPath("$.data.content[0].thumbnailUrl").value(imageUrl("Seller Product")));
+
+        assertEquals(0L, statistics.getCollectionFetchCount());
     }
 
     @Test
@@ -49,9 +64,19 @@ class ProductSellerApiTest extends IntegrationTestSupport {
                                 title,
                                 title + " description",
                                 price,
-                                List.of("https://example.com/" + title.replace(" ", "-").toLowerCase() + ".jpg")
+                                List.of(imageUrl(title))
                         ))))
                 .andExpect(status().isCreated());
+    }
+
+    private Statistics statistics() {
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.setStatisticsEnabled(true);
+        return statistics;
+    }
+
+    private String imageUrl(String title) {
+        return "https://example.com/" + title.replace(" ", "-").toLowerCase() + ".jpg";
     }
 
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
