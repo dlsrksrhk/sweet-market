@@ -15,7 +15,7 @@ export function RequireAdmin({ children }: RequireAdminProps) {
   }
 
   if (!member) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}${location.hash}` }} />;
   }
 
   if (member.role !== 'ADMIN') {

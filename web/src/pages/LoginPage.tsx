@@ -4,9 +4,7 @@ import { useAuth } from '../features/auth/AuthProvider';
 import { type ApiError } from '../shared/api/http';
 
 type LocationState = {
-  from?: {
-    pathname?: string;
-  };
+  from?: string;
 };
 
 export function LoginPage() {
@@ -18,7 +16,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const from = (location.state as LocationState | null)?.from?.pathname ?? '/';
+  const from = (location.state as LocationState | null)?.from ?? '/';
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

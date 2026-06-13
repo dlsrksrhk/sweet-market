@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { getAccessToken, setAccessToken } from '../../shared/api/http';
 import {
   getCurrentMember,
@@ -25,36 +25,58 @@ type AuthProviderProps = {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [member, setMember] = useState<CurrentMember | null>(null);
   const [loading, setLoading] = useState(true);
+  const requestSeq = useRef(0);
 
   const refreshMember = useCallback(async () => {
-    const currentMember = await getCurrentMember();
-    setMember(currentMember);
-    return currentMember;
+    const requestId = ++requestSeq.current;
+
+    try {
+      const currentMember = await getCurrentMember();
+
+      if (requestId === requestSeq.current) {
+        setMember(currentMember);
+      }
+
+      return currentMember;
+    } catch (error) {
+      if (requestId === requestSeq.current) {
+        setAccessToken(null);
+        setMember(null);
+      }
+
+      throw error;
+    } finally {
+      if (requestId === requestSeq.current) {
+        setLoading(false);
+      }
+    }
   }, []);
 
   useEffect(() => {
-    let ignore = false;
+    const requestId = ++requestSeq.current;
 
     async function loadMember() {
       if (!getAccessToken()) {
-        setLoading(false);
+        if (requestId === requestSeq.current) {
+          setLoading(false);
+        }
+
         return;
       }
 
       try {
         const currentMember = await getCurrentMember();
 
-        if (!ignore) {
+        if (requestId === requestSeq.current) {
           setMember(currentMember);
         }
       } catch {
-        setAccessToken(null);
-
-        if (!ignore) {
+        if (requestId === requestSeq.current) {
+          setAccessToken(null);
           setMember(null);
         }
       } finally {
-        if (!ignore) {
+        if (requestId === requestSeq.current) {
           setLoading(false);
         }
       }
@@ -63,18 +85,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
     void loadMember();
 
     return () => {
-      ignore = true;
+      requestSeq.current += 1;
     };
   }, []);
 
-  const login = useCallback(
-    async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
+    const requestId = ++requestSeq.current;
+
+    try {
       const response = await loginRequest(email, password);
+
+      if (requestId !== requestSeq.current) {
+        return;
+      }
+
       setAccessToken(response.accessToken);
-      await refreshMember();
-    },
-    [refreshMember],
-  );
+      const currentMember = await getCurrentMember();
+
+      if (requestId === requestSeq.current) {
+        setMember(currentMember);
+      }
+    } catch (error) {
+      if (requestId === requestSeq.current) {
+        setAccessToken(null);
+        setMember(null);
+      }
+
+      throw error;
+    } finally {
+      if (requestId === requestSeq.current) {
+        setLoading(false);
+      }
+    }
+  }, []);
 
   const signup = useCallback(
     async (email: string, password: string, nickname: string) => {
@@ -85,8 +128,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 
   const logout = useCallback(() => {
+    requestSeq.current += 1;
     setAccessToken(null);
     setMember(null);
+    setLoading(false);
   }, []);
 
   const value = useMemo(

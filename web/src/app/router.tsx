@@ -45,6 +45,7 @@ export function AppRouter() {
             </RequireAdmin>
           }
         />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );
@@ -60,6 +61,15 @@ function PlaceholderPage({ title, description }: PlaceholderPageProps) {
     <section className="page-panel">
       <h1>{title}</h1>
       <p>{description}</p>
+    </section>
+  );
+}
+
+function NotFoundPage() {
+  return (
+    <section className="page-panel">
+      <h1>페이지를 찾을 수 없습니다</h1>
+      <p>요청하신 주소에 해당하는 화면이 없습니다.</p>
     </section>
   );
 }
