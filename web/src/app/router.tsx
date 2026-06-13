@@ -3,6 +3,9 @@ import { RequireAdmin } from '../features/auth/RequireAdmin';
 import { RequireAuth } from '../features/auth/RequireAuth';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
+import { MyOrdersPage } from '../pages/MyOrdersPage';
+import { MySalesPage } from '../pages/MySalesPage';
+import { MySettlementsPage } from '../pages/MySettlementsPage';
 import { ProductDetailPage } from '../pages/ProductDetailPage';
 import { ProductFormPage } from '../pages/ProductFormPage';
 import { SignupPage } from '../pages/SignupPage';
@@ -36,7 +39,7 @@ export function AppRouter() {
           path="me/orders"
           element={
             <RequireAuth>
-              <PlaceholderPage title="내 주문" description="주문 목록 화면을 준비 중입니다." />
+              <MyOrdersPage />
             </RequireAuth>
           }
         />
@@ -44,7 +47,7 @@ export function AppRouter() {
           path="me/sales"
           element={
             <RequireAuth>
-              <PlaceholderPage title="내 판매" description="판매 상품 관리 화면을 준비 중입니다." />
+              <MySalesPage />
             </RequireAuth>
           }
         />
@@ -52,7 +55,7 @@ export function AppRouter() {
           path="me/settlements"
           element={
             <RequireAuth>
-              <PlaceholderPage title="정산" description="정산 내역 화면을 준비 중입니다." />
+              <MySettlementsPage />
             </RequireAuth>
           }
         />

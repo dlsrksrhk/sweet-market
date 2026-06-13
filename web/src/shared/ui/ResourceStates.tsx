@@ -44,6 +44,26 @@ function formatStatus(status: string) {
       return '예약중';
     case 'HIDDEN':
       return '숨김';
+    case 'CREATED':
+      return '주문 생성';
+    case 'PAID':
+      return '결제 완료';
+    case 'SHIPPING':
+      return '배송 중';
+    case 'DELIVERED':
+      return '배송 완료';
+    case 'CONFIRMED':
+      return '구매 확정';
+    case 'CANCELED':
+      return '취소';
+    case 'READY':
+      return '대기';
+    case 'APPROVED':
+      return '승인';
+    case 'COMPLETED':
+      return '완료';
+    case 'FAILED':
+      return '실패';
     default:
       return status;
   }

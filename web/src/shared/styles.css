@@ -345,6 +345,32 @@ textarea {
   color: #8a5b00;
 }
 
+.status-badge-created,
+.status-badge-ready {
+  background: #eef2f6;
+  color: #52616f;
+}
+
+.status-badge-paid,
+.status-badge-approved,
+.status-badge-completed,
+.status-badge-confirmed {
+  background: #e7f5f4;
+  color: #0f7b78;
+}
+
+.status-badge-shipping,
+.status-badge-delivered {
+  background: #e8f1ff;
+  color: #1f5fbf;
+}
+
+.status-badge-canceled,
+.status-badge-failed {
+  background: #ffe8e5;
+  color: #b42318;
+}
+
 .product-detail {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
@@ -407,6 +433,86 @@ textarea {
   background: #b42318;
 }
 
+.list-page {
+  display: grid;
+  gap: 24px;
+}
+
+.list-page-header {
+  display: grid;
+  gap: 8px;
+}
+
+.list-page-header h1,
+.record-main h2 {
+  margin: 0;
+}
+
+.list-page-header p {
+  margin: 0;
+  color: #637282;
+  line-height: 1.6;
+}
+
+.record-list {
+  display: grid;
+  gap: 14px;
+}
+
+.record-card {
+  display: grid;
+  gap: 18px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  padding: 20px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgb(20 38 58 / 7%);
+}
+
+.record-main {
+  display: grid;
+  gap: 8px;
+}
+
+.record-main h2 {
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.record-main strong {
+  font-size: 22px;
+}
+
+.record-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+}
+
+.record-meta div {
+  display: grid;
+  gap: 6px;
+}
+
+.record-meta dt {
+  color: #637282;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.record-meta dd {
+  margin: 0;
+  color: #172026;
+  font-weight: 700;
+}
+
+.record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .product-form-page {
   width: min(100%, 720px);
   margin: 0 auto;
@@ -449,7 +555,8 @@ textarea {
   }
 
   .product-grid,
-  .product-detail {
+  .product-detail,
+  .record-meta {
     grid-template-columns: 1fr;
   }
 }

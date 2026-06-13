@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthProvider';
+import { createOrder } from '../features/orders/orderApi';
 import { getProduct, hideProduct } from '../features/products/productApi';
+import { type ApiError } from '../shared/api/http';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
 import { parsePositiveIntegerParam } from '../shared/utils/parseId';
 
@@ -26,6 +28,16 @@ export function ProductDetailPage() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['products'] });
       navigate('/');
+    },
+  });
+  const orderMutation = useMutation({
+    mutationFn: () => createOrder(parsedProductId ?? 0),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
+      ]);
+      navigate('/me/orders');
     },
   });
 
@@ -84,15 +96,28 @@ export function ProductDetailPage() {
               </button>
             </>
           ) : product.status === 'ON_SALE' ? (
-            <button type="button" className="text-button" disabled>
-              주문 기능은 다음 거래 마일스톤에서 제공됩니다
+            <button
+              type="button"
+              className="text-button"
+              disabled={orderMutation.isPending}
+              onClick={() => orderMutation.mutate()}
+            >
+              {orderMutation.isPending ? '주문 중' : '주문하기'}
             </button>
           ) : (
             <p className="status-text">현재 구매할 수 없는 상품입니다.</p>
           )}
         </div>
         {hideMutation.isError ? <p className="error-text">상품을 숨기지 못했습니다.</p> : null}
+        {orderMutation.isError ? <p className="error-text">{toErrorMessage(orderMutation.error)}</p> : null}
       </article>
     </section>
   );
+}
+
+function toErrorMessage(error: unknown) {
+  const apiError = error as Partial<ApiError>;
+  const fieldMessage = apiError.fieldErrors?.[0]?.message;
+
+  return fieldMessage ?? apiError.message ?? '주문을 생성하지 못했습니다.';
 }
