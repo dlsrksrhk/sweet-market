@@ -536,7 +536,7 @@ textarea {
 
 .admin-batch-layout {
   display: grid;
-  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr);
   gap: 18px;
   align-items: start;
 }
@@ -634,7 +634,7 @@ textarea {
 
 .admin-execution-row {
   display: grid;
-  grid-template-columns: minmax(160px, 1.4fr) minmax(86px, 0.6fr) repeat(4, minmax(120px, 1fr));
+  grid-template-columns: minmax(120px, 1.2fr) minmax(76px, auto) repeat(4, minmax(82px, 1fr));
   gap: 10px;
   align-items: center;
   width: 100%;
@@ -655,12 +655,19 @@ textarea {
 
 .admin-execution-title {
   font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.admin-execution-title,
+.admin-execution-meta {
+  min-width: 0;
 }
 
 .admin-execution-meta {
   color: #637282;
   font-size: 13px;
   font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .admin-detail-grid {
@@ -707,6 +714,12 @@ textarea {
   padding-left: 20px;
   color: #b42318;
   line-height: 1.5;
+}
+
+@media (max-width: 980px) {
+  .admin-batch-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {

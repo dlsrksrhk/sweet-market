@@ -139,6 +139,10 @@ export function AdminSettlementBatchPage() {
                       return '청크 크기는 정수로 입력해주세요.';
                     }
 
+                    if (!isValidBatchInteger(value, MAX_CHUNK_SIZE) || !isValidBatchInteger(limitValue, MAX_LIMIT)) {
+                      return true;
+                    }
+
                     return value <= limitValue || '청크 크기는 처리 한도보다 클 수 없습니다.';
                   },
                 })}
@@ -314,6 +318,10 @@ function toLocalDateTimeInputValue(date: Date) {
 
 function normalizeLocalDateTime(value: string) {
   return value.length === 16 ? `${value}:00` : value;
+}
+
+function isValidBatchInteger(value: number, max: number) {
+  return Number.isInteger(value) && value >= 1 && value <= max;
 }
 
 function formatDate(value: string | null) {
