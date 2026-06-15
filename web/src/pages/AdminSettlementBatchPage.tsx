@@ -4,7 +4,9 @@ import { useForm } from 'react-hook-form';
 import {
   getSettlementBatchExecution,
   getSettlementBatchExecutions,
+  runOrderAutoConfirm,
   runSettlementBatch,
+  type OrderAutoConfirmResult,
   type RunSettlementBatchInput,
   type SettlementBatchRunResult,
 } from '../features/admin/adminBatchApi';
@@ -30,7 +32,9 @@ export function AdminSettlementBatchPage() {
   const queryClient = useQueryClient();
   const [selectedExecutionId, setSelectedExecutionId] = useState<number | null>(null);
   const [lastRunResult, setLastRunResult] = useState<SettlementBatchRunResult | null>(null);
+  const [lastAutoConfirmResult, setLastAutoConfirmResult] = useState<OrderAutoConfirmResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [autoConfirmError, setAutoConfirmError] = useState<string | null>(null);
 
   const defaultValues = useMemo<BatchFormValues>(
     () => ({
@@ -66,6 +70,16 @@ export function AdminSettlementBatchPage() {
       await queryClient.invalidateQueries({ queryKey: ['admin-settlement-batch-executions'] });
     },
   });
+  const autoConfirmMutation = useMutation({
+    mutationFn: runOrderAutoConfirm,
+    onSuccess: async (result) => {
+      setLastAutoConfirmResult(result);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+      ]);
+    },
+  });
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitError(null);
@@ -80,6 +94,16 @@ export function AdminSettlementBatchPage() {
       setSubmitError(toErrorMessage(caughtError));
     }
   });
+
+  const handleAutoConfirm = async () => {
+    setAutoConfirmError(null);
+
+    try {
+      await autoConfirmMutation.mutateAsync();
+    } catch (caughtError) {
+      setAutoConfirmError(toErrorMessage(caughtError));
+    }
+  };
 
   const isRunning = isSubmitting || runMutation.isPending;
   const executions = executionListQuery.data ?? [];
@@ -182,6 +206,44 @@ export function AdminSettlementBatchPage() {
                   <dd>
                     {lastRunResult.parameters.limit} / {lastRunResult.parameters.chunkSize}
                   </dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="admin-tool-panel" aria-labelledby="order-auto-confirm-title">
+          <h2 id="order-auto-confirm-title">자동 구매 확정</h2>
+          <p className="status-text">배송 완료 후 7일이 지난 거래를 구매 확정 상태로 전환합니다.</p>
+          {autoConfirmError ? <p className="error-text">{autoConfirmError}</p> : null}
+          <button
+            type="button"
+            className="text-button"
+            disabled={autoConfirmMutation.isPending}
+            onClick={handleAutoConfirm}
+          >
+            {autoConfirmMutation.isPending ? '실행 중' : '자동 구매 확정 실행'}
+          </button>
+
+          {lastAutoConfirmResult ? (
+            <div className="admin-result-panel" aria-live="polite">
+              <h3>최근 자동 확정 결과</h3>
+              <dl className="compact-definition-list">
+                <div>
+                  <dt>확정 건수</dt>
+                  <dd>{lastAutoConfirmResult.confirmedCount}</dd>
+                </div>
+                <div>
+                  <dt>기준 기간</dt>
+                  <dd>{lastAutoConfirmResult.thresholdDays}일</dd>
+                </div>
+                <div>
+                  <dt>배송 완료 기준</dt>
+                  <dd>{formatParameterDate(lastAutoConfirmResult.deliveredBefore)}</dd>
+                </div>
+                <div>
+                  <dt>실행 일시</dt>
+                  <dd>{formatParameterDate(lastAutoConfirmResult.executedAt)}</dd>
                 </div>
               </dl>
             </div>

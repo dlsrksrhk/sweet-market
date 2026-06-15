@@ -42,10 +42,23 @@ export type SettlementBatchExecutionDetail = SettlementBatchExecutionSummary & {
   failureMessages: string[];
 };
 
+export type OrderAutoConfirmResult = {
+  confirmedCount: number;
+  deliveredBefore: string;
+  thresholdDays: number;
+  executedAt: string;
+};
+
 export function runSettlementBatch(input: RunSettlementBatchInput) {
   return api<SettlementBatchRunResult>('/api/admin/batches/settlements', {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+}
+
+export function runOrderAutoConfirm() {
+  return api<OrderAutoConfirmResult>('/api/admin/orders/auto-confirm', {
+    method: 'POST',
   });
 }
 
