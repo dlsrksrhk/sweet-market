@@ -116,139 +116,141 @@ export function AdminSettlementBatchPage() {
       </div>
 
       <div className="admin-batch-layout">
-        <section className="admin-tool-panel" aria-labelledby="settlement-batch-run-title">
-          <h2 id="settlement-batch-run-title">배치 실행</h2>
-          <form className="admin-batch-form" onSubmit={onSubmit}>
-            <label>
-              확정 기준 일시
-              <input
-                type="datetime-local"
-                {...register('confirmedBefore', {
-                  required: '확정 기준 일시를 입력해주세요.',
-                })}
-              />
-              {errors.confirmedBefore ? <span className="error-text">{errors.confirmedBefore.message}</span> : null}
-            </label>
-            <label>
-              처리 한도
-              <input
-                type="number"
-                min="1"
-                max={MAX_LIMIT}
-                step="1"
-                {...register('limit', {
-                  required: '처리 한도를 입력해주세요.',
-                  min: { value: 1, message: '처리 한도는 1 이상이어야 합니다.' },
-                  max: { value: MAX_LIMIT, message: `처리 한도는 ${MAX_LIMIT} 이하여야 합니다.` },
-                  valueAsNumber: true,
-                  validate: (value) => Number.isInteger(value) || '처리 한도는 정수로 입력해주세요.',
-                })}
-              />
-              {errors.limit ? <span className="error-text">{errors.limit.message}</span> : null}
-            </label>
-            <label>
-              청크 크기
-              <input
-                type="number"
-                min="1"
-                max={MAX_CHUNK_SIZE}
-                step="1"
-                {...register('chunkSize', {
-                  required: '청크 크기를 입력해주세요.',
-                  min: { value: 1, message: '청크 크기는 1 이상이어야 합니다.' },
-                  max: { value: MAX_CHUNK_SIZE, message: `청크 크기는 ${MAX_CHUNK_SIZE} 이하여야 합니다.` },
-                  valueAsNumber: true,
-                  validate: (value) => {
-                    if (!Number.isInteger(value)) {
-                      return '청크 크기는 정수로 입력해주세요.';
-                    }
+        <div className="admin-batch-sidebar">
+          <section className="admin-tool-panel" aria-labelledby="settlement-batch-run-title">
+            <h2 id="settlement-batch-run-title">배치 실행</h2>
+            <form className="admin-batch-form" onSubmit={onSubmit}>
+              <label>
+                확정 기준 일시
+                <input
+                  type="datetime-local"
+                  {...register('confirmedBefore', {
+                    required: '확정 기준 일시를 입력해주세요.',
+                  })}
+                />
+                {errors.confirmedBefore ? <span className="error-text">{errors.confirmedBefore.message}</span> : null}
+              </label>
+              <label>
+                처리 한도
+                <input
+                  type="number"
+                  min="1"
+                  max={MAX_LIMIT}
+                  step="1"
+                  {...register('limit', {
+                    required: '처리 한도를 입력해주세요.',
+                    min: { value: 1, message: '처리 한도는 1 이상이어야 합니다.' },
+                    max: { value: MAX_LIMIT, message: `처리 한도는 ${MAX_LIMIT} 이하여야 합니다.` },
+                    valueAsNumber: true,
+                    validate: (value) => Number.isInteger(value) || '처리 한도는 정수로 입력해주세요.',
+                  })}
+                />
+                {errors.limit ? <span className="error-text">{errors.limit.message}</span> : null}
+              </label>
+              <label>
+                청크 크기
+                <input
+                  type="number"
+                  min="1"
+                  max={MAX_CHUNK_SIZE}
+                  step="1"
+                  {...register('chunkSize', {
+                    required: '청크 크기를 입력해주세요.',
+                    min: { value: 1, message: '청크 크기는 1 이상이어야 합니다.' },
+                    max: { value: MAX_CHUNK_SIZE, message: `청크 크기는 ${MAX_CHUNK_SIZE} 이하여야 합니다.` },
+                    valueAsNumber: true,
+                    validate: (value) => {
+                      if (!Number.isInteger(value)) {
+                        return '청크 크기는 정수로 입력해주세요.';
+                      }
 
-                    if (!isValidBatchInteger(value, MAX_CHUNK_SIZE) || !isValidBatchInteger(limitValue, MAX_LIMIT)) {
-                      return true;
-                    }
+                      if (!isValidBatchInteger(value, MAX_CHUNK_SIZE) || !isValidBatchInteger(limitValue, MAX_LIMIT)) {
+                        return true;
+                      }
 
-                    return value <= limitValue || '청크 크기는 처리 한도보다 클 수 없습니다.';
-                  },
-                })}
-              />
-              {errors.chunkSize ? <span className="error-text">{errors.chunkSize.message}</span> : null}
-            </label>
-            {submitError ? <p className="error-text">{submitError}</p> : null}
-            <button type="submit" className="text-button" disabled={isRunning}>
-              {isRunning ? '실행 중' : '정산 배치 실행'}
+                      return value <= limitValue || '청크 크기는 처리 한도보다 클 수 없습니다.';
+                    },
+                  })}
+                />
+                {errors.chunkSize ? <span className="error-text">{errors.chunkSize.message}</span> : null}
+              </label>
+              {submitError ? <p className="error-text">{submitError}</p> : null}
+              <button type="submit" className="text-button" disabled={isRunning}>
+                {isRunning ? '실행 중' : '정산 배치 실행'}
+              </button>
+            </form>
+
+            {lastRunResult ? (
+              <div className="admin-result-panel" aria-live="polite">
+                <h3>최근 실행 요청</h3>
+                <dl className="compact-definition-list">
+                  <div>
+                    <dt>실행 ID</dt>
+                    <dd>{lastRunResult.jobExecutionId}</dd>
+                  </div>
+                  <div>
+                    <dt>작업명</dt>
+                    <dd>{lastRunResult.jobName}</dd>
+                  </div>
+                  <div>
+                    <dt>상태</dt>
+                    <dd>
+                      <StatusBadge status={lastRunResult.status} />
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>기준 일시</dt>
+                    <dd>{formatParameterDate(lastRunResult.parameters.confirmedBefore)}</dd>
+                  </div>
+                  <div>
+                    <dt>한도 / 청크</dt>
+                    <dd>
+                      {lastRunResult.parameters.limit} / {lastRunResult.parameters.chunkSize}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            ) : null}
+          </section>
+
+          <section className="admin-tool-panel" aria-labelledby="order-auto-confirm-title">
+            <h2 id="order-auto-confirm-title">자동 구매 확정</h2>
+            <p className="status-text">배송 완료 후 7일이 지난 거래를 구매 확정 상태로 전환합니다.</p>
+            {autoConfirmError ? <p className="error-text">{autoConfirmError}</p> : null}
+            <button
+              type="button"
+              className="text-button"
+              disabled={autoConfirmMutation.isPending}
+              onClick={handleAutoConfirm}
+            >
+              {autoConfirmMutation.isPending ? '실행 중' : '자동 구매 확정 실행'}
             </button>
-          </form>
 
-          {lastRunResult ? (
-            <div className="admin-result-panel" aria-live="polite">
-              <h3>최근 실행 요청</h3>
-              <dl className="compact-definition-list">
-                <div>
-                  <dt>실행 ID</dt>
-                  <dd>{lastRunResult.jobExecutionId}</dd>
-                </div>
-                <div>
-                  <dt>작업명</dt>
-                  <dd>{lastRunResult.jobName}</dd>
-                </div>
-                <div>
-                  <dt>상태</dt>
-                  <dd>
-                    <StatusBadge status={lastRunResult.status} />
-                  </dd>
-                </div>
-                <div>
-                  <dt>기준 일시</dt>
-                  <dd>{formatParameterDate(lastRunResult.parameters.confirmedBefore)}</dd>
-                </div>
-                <div>
-                  <dt>한도 / 청크</dt>
-                  <dd>
-                    {lastRunResult.parameters.limit} / {lastRunResult.parameters.chunkSize}
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          ) : null}
-        </section>
-
-        <section className="admin-tool-panel" aria-labelledby="order-auto-confirm-title">
-          <h2 id="order-auto-confirm-title">자동 구매 확정</h2>
-          <p className="status-text">배송 완료 후 7일이 지난 거래를 구매 확정 상태로 전환합니다.</p>
-          {autoConfirmError ? <p className="error-text">{autoConfirmError}</p> : null}
-          <button
-            type="button"
-            className="text-button"
-            disabled={autoConfirmMutation.isPending}
-            onClick={handleAutoConfirm}
-          >
-            {autoConfirmMutation.isPending ? '실행 중' : '자동 구매 확정 실행'}
-          </button>
-
-          {lastAutoConfirmResult ? (
-            <div className="admin-result-panel" aria-live="polite">
-              <h3>최근 자동 확정 결과</h3>
-              <dl className="compact-definition-list">
-                <div>
-                  <dt>확정 건수</dt>
-                  <dd>{lastAutoConfirmResult.confirmedCount}</dd>
-                </div>
-                <div>
-                  <dt>기준 기간</dt>
-                  <dd>{lastAutoConfirmResult.thresholdDays}일</dd>
-                </div>
-                <div>
-                  <dt>배송 완료 기준</dt>
-                  <dd>{formatParameterDate(lastAutoConfirmResult.deliveredBefore)}</dd>
-                </div>
-                <div>
-                  <dt>실행 일시</dt>
-                  <dd>{formatParameterDate(lastAutoConfirmResult.executedAt)}</dd>
-                </div>
-              </dl>
-            </div>
-          ) : null}
-        </section>
+            {lastAutoConfirmResult ? (
+              <div className="admin-result-panel" aria-live="polite">
+                <h3>최근 자동 확정 결과</h3>
+                <dl className="compact-definition-list">
+                  <div>
+                    <dt>확정 건수</dt>
+                    <dd>{lastAutoConfirmResult.confirmedCount}</dd>
+                  </div>
+                  <div>
+                    <dt>기준 기간</dt>
+                    <dd>{lastAutoConfirmResult.thresholdDays}일</dd>
+                  </div>
+                  <div>
+                    <dt>배송 완료 기준</dt>
+                    <dd>{formatParameterDate(lastAutoConfirmResult.deliveredBefore)}</dd>
+                  </div>
+                  <div>
+                    <dt>실행 일시</dt>
+                    <dd>{formatParameterDate(lastAutoConfirmResult.executedAt)}</dd>
+                  </div>
+                </dl>
+              </div>
+            ) : null}
+          </section>
+        </div>
 
         <section className="admin-tool-panel" aria-labelledby="settlement-batch-history-title">
           <h2 id="settlement-batch-history-title">최근 실행 내역</h2>

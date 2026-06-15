@@ -561,6 +561,12 @@ textarea {
   align-items: start;
 }
 
+.admin-batch-sidebar {
+  display: grid;
+  gap: 18px;
+  align-items: start;
+}
+
 .admin-tool-panel,
 .admin-result-panel {
   border: 1px solid #dfe6ee;
