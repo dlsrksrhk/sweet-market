@@ -101,7 +101,7 @@ export function AdminSettlementBatchPage() {
     try {
       await autoConfirmMutation.mutateAsync();
     } catch (caughtError) {
-      setAutoConfirmError(toErrorMessage(caughtError));
+      setAutoConfirmError(toErrorMessage(caughtError, '자동 구매 확정 요청을 처리하지 못했습니다.'));
     }
   };
 
@@ -404,9 +404,9 @@ function formatNullableNumber(value: number | null) {
   return value === null ? '-' : value;
 }
 
-function toErrorMessage(error: unknown) {
+function toErrorMessage(error: unknown, fallbackMessage = '정산 배치 요청을 처리하지 못했습니다.') {
   const apiError = error as Partial<ApiError>;
   const fieldMessage = apiError.fieldErrors?.[0]?.message;
 
-  return fieldMessage ?? apiError.message ?? '정산 배치 요청을 처리하지 못했습니다.';
+  return fieldMessage ?? apiError.message ?? fallbackMessage;
 }

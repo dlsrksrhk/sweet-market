@@ -1,19 +1,33 @@
 package com.sweet.market.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sweet.market.delivery.domain.Delivery;
+import com.sweet.market.delivery.domain.DeliveryStatus;
 import com.sweet.market.delivery.repository.DeliveryRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.order.application.OrderAutoConfirmProperties;
 import com.sweet.market.order.application.OrderAutoConfirmResult;
 import com.sweet.market.order.application.OrderAutoConfirmService;
 import com.sweet.market.order.domain.Order;
@@ -161,6 +175,57 @@ class OrderAutoConfirmServiceTest extends IntegrationTestSupport {
         assertThat(foundSecondOrder.getStatus()).isEqualTo(OrderStatus.DELIVERED);
     }
 
+    @Test
+    void 자동_구매확정은_동시_실행을_단일_인스턴스에서_직렬화한다() throws Exception {
+        DeliveryRepository repository = mock(DeliveryRepository.class);
+        OrderAutoConfirmService service = new OrderAutoConfirmService(
+                repository,
+                new OrderAutoConfirmProperties(7, 100)
+        );
+        Delivery delivery = createDeliveredDelivery("concurrent");
+        LocalDateTime executedAt = LocalDateTime.of(2026, 6, 15, 10, 0);
+        CountDownLatch firstQueryEntered = new CountDownLatch(1);
+        CountDownLatch secondQueryEntered = new CountDownLatch(1);
+        CountDownLatch releaseFirstQuery = new CountDownLatch(1);
+        AtomicInteger queryCount = new AtomicInteger();
+
+        when(repository.findAutoConfirmCandidates(
+                any(LocalDateTime.class),
+                eq(DeliveryStatus.DELIVERED),
+                eq(OrderStatus.DELIVERED),
+                any(Pageable.class)
+        )).thenAnswer(invocation -> {
+            int currentQuery = queryCount.incrementAndGet();
+            if (currentQuery == 1) {
+                firstQueryEntered.countDown();
+                assertThat(releaseFirstQuery.await(2, TimeUnit.SECONDS)).isTrue();
+            } else if (currentQuery == 2) {
+                secondQueryEntered.countDown();
+            }
+
+            return delivery.getOrder().getStatus() == OrderStatus.DELIVERED
+                    ? List.of(delivery)
+                    : List.of();
+        });
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<OrderAutoConfirmResult> firstRun = executor.submit(() -> service.confirmDeliveredOrders(executedAt));
+            assertThat(firstQueryEntered.await(2, TimeUnit.SECONDS)).isTrue();
+            Future<OrderAutoConfirmResult> secondRun = executor.submit(
+                    () -> service.confirmDeliveredOrders(executedAt.plusSeconds(1))
+            );
+
+            assertThat(secondQueryEntered.await(200, TimeUnit.MILLISECONDS)).isFalse();
+            releaseFirstQuery.countDown();
+
+            assertThat(firstRun.get(2, TimeUnit.SECONDS).confirmedCount()).isEqualTo(1);
+            assertThat(secondRun.get(2, TimeUnit.SECONDS).confirmedCount()).isZero();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private Order savePaidOrder(String key) {
         Member seller = memberRepository.save(Member.create("seller-" + key + "@example.com", "encoded-password", "seller-" + key));
         Member buyer = memberRepository.save(Member.create("buyer-" + key + "@example.com", "encoded-password", "buyer-" + key));
@@ -211,6 +276,17 @@ class OrderAutoConfirmServiceTest extends IntegrationTestSupport {
         );
         entityManager.clear();
         return foundOrder;
+    }
+
+    private Delivery createDeliveredDelivery(String key) {
+        Member seller = Member.create("seller-" + key + "@example.com", "encoded-password", "seller-" + key);
+        Member buyer = Member.create("buyer-" + key + "@example.com", "encoded-password", "buyer-" + key);
+        Product product = Product.create(seller, "MacBook Pro " + key, "M3 laptop", 2_000_000L);
+        Order order = Order.create(buyer, product);
+        order.markPaid();
+        Delivery delivery = Delivery.start(order, "tracking-" + key);
+        delivery.complete();
+        return delivery;
     }
 
     private Order findOrder(Order order) {
