@@ -121,6 +121,18 @@ class OrderAutoConfirmServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 취소된_주문은_자동_구매확정에서_제외한다() {
+        LocalDateTime executedAt = LocalDateTime.of(2026, 6, 15, 10, 0);
+        Order order = saveCanceledOrder("canceled");
+
+        OrderAutoConfirmResult result = orderAutoConfirmService.confirmDeliveredOrders(executedAt);
+
+        Order foundOrder = findOrder(order);
+        assertThat(result.confirmedCount()).isZero();
+        assertThat(foundOrder.getStatus()).isEqualTo(OrderStatus.CANCELED);
+    }
+
+    @Test
     void 자동_구매확정은_반복_실행해도_중복_처리하지_않는다() {
         LocalDateTime executedAt = LocalDateTime.of(2026, 6, 15, 10, 0);
         Order order = saveDeliveredOrder("repeat", executedAt.minusDays(8));
@@ -155,6 +167,17 @@ class OrderAutoConfirmServiceTest extends IntegrationTestSupport {
         Product product = productRepository.save(Product.create(seller, "MacBook Pro " + key, "M3 laptop", 2_000_000L));
         Order order = orderRepository.save(Order.create(buyer, product));
         order.markPaid();
+        entityManager.flush();
+        entityManager.clear();
+        return order;
+    }
+
+    private Order saveCanceledOrder(String key) {
+        Member seller = memberRepository.save(Member.create("seller-" + key + "@example.com", "encoded-password", "seller-" + key));
+        Member buyer = memberRepository.save(Member.create("buyer-" + key + "@example.com", "encoded-password", "buyer-" + key));
+        Product product = productRepository.save(Product.create(seller, "MacBook Pro " + key, "M3 laptop", 2_000_000L));
+        Order order = orderRepository.save(Order.create(buyer, product));
+        order.cancel();
         entityManager.flush();
         entityManager.clear();
         return order;
