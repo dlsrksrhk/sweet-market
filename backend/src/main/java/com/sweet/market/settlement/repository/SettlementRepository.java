@@ -4,13 +4,18 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.sweet.market.settlement.admin.AdminSettlementDetailResponse;
+import com.sweet.market.settlement.admin.AdminSettlementSummaryResponse;
 import com.sweet.market.settlement.domain.Settlement;
+import com.sweet.market.settlement.domain.SettlementStatus;
 
 public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 
@@ -21,6 +26,75 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 
     @EntityGraph(attributePaths = {"order", "order.product", "seller"})
     List<Settlement> findBySellerIdOrderByIdDesc(Long sellerId);
+
+    @Query(
+            value = """
+                    select new com.sweet.market.settlement.admin.AdminSettlementSummaryResponse(
+                        s.id,
+                        o.id,
+                        seller.id,
+                        seller.nickname,
+                        p.id,
+                        p.title,
+                        s.amount,
+                        s.status,
+                        s.settledAt
+                    )
+                    from Settlement s
+                    join s.order o
+                    join s.seller seller
+                    join o.product p
+                    where (:orderId is null or o.id = :orderId)
+                      and (:sellerId is null or seller.id = :sellerId)
+                      and (:status is null or s.status = :status)
+                      and s.settledAt >= :settledFrom
+                      and s.settledAt <= :settledTo
+                    """,
+            countQuery = """
+                    select count(s)
+                    from Settlement s
+                    join s.order o
+                    join s.seller seller
+                    where (:orderId is null or o.id = :orderId)
+                      and (:sellerId is null or seller.id = :sellerId)
+                      and (:status is null or s.status = :status)
+                      and s.settledAt >= :settledFrom
+                      and s.settledAt <= :settledTo
+                    """
+    )
+    Page<AdminSettlementSummaryResponse> searchAdminSettlements(
+            @Param("orderId") Long orderId,
+            @Param("sellerId") Long sellerId,
+            @Param("status") SettlementStatus status,
+            @Param("settledFrom") LocalDateTime settledFrom,
+            @Param("settledTo") LocalDateTime settledTo,
+            Pageable pageable
+    );
+
+    @Query("""
+            select new com.sweet.market.settlement.admin.AdminSettlementDetailResponse(
+                s.id,
+                o.id,
+                o.status,
+                o.confirmedAt,
+                buyer.id,
+                buyer.nickname,
+                seller.id,
+                seller.nickname,
+                p.id,
+                p.title,
+                s.amount,
+                s.status,
+                s.settledAt
+            )
+            from Settlement s
+            join s.order o
+            join o.buyer buyer
+            join s.seller seller
+            join o.product p
+            where s.id = :settlementId
+            """)
+    Optional<AdminSettlementDetailResponse> findAdminSettlementDetail(@Param("settlementId") Long settlementId);
 
     @Modifying
     @Query(value = """
