@@ -8,6 +8,7 @@ import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
 import org.springframework.batch.core.JobParametersBuilder;
 import org.springframework.batch.core.JobParametersInvalidException;
+import org.springframework.batch.core.StepExecution;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
@@ -81,7 +82,16 @@ public class AdminSettlementRetryService {
         Settlement createdSettlement = settlementRepository.findWithOrderByOrderId(orderId)
                 .orElse(null);
 
-        if (jobExecution.getStatus() == BatchStatus.COMPLETED && createdSettlement != null) {
+        if (jobExecution.getStatus() != BatchStatus.COMPLETED) {
+            return AdminSettlementRetryResponse.of(
+                    AdminSettlementRetryResultCode.BATCH_FAILED,
+                    orderId,
+                    null,
+                    jobExecutionId
+            );
+        }
+
+        if (writeCount(jobExecution) == 1 && createdSettlement != null) {
             return AdminSettlementRetryResponse.of(
                     AdminSettlementRetryResultCode.CREATED,
                     orderId,
@@ -90,12 +100,27 @@ public class AdminSettlementRetryService {
             );
         }
 
+        if (createdSettlement != null) {
+            return AdminSettlementRetryResponse.of(
+                    AdminSettlementRetryResultCode.ALREADY_SETTLED,
+                    orderId,
+                    createdSettlement.getId(),
+                    null
+            );
+        }
+
         return AdminSettlementRetryResponse.of(
                 AdminSettlementRetryResultCode.BATCH_FAILED,
                 orderId,
-                createdSettlement == null ? null : createdSettlement.getId(),
+                null,
                 jobExecutionId
         );
+    }
+
+    private long writeCount(JobExecution jobExecution) {
+        return jobExecution.getStepExecutions().stream()
+                .mapToLong(StepExecution::getWriteCount)
+                .sum();
     }
 
     private JobExecution launch(Long orderId) {
