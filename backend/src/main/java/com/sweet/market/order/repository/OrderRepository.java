@@ -26,4 +26,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             where o.id = :orderId
             """)
     Optional<Order> findSettlementTargetById(@Param("orderId") Long orderId);
+
+    @EntityGraph(attributePaths = {"buyer", "product", "product.seller"})
+    Optional<Order> findAdminSettlementRetryTargetById(Long orderId);
 }

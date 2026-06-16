@@ -2,6 +2,7 @@ package com.sweet.market.settlement.admin;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -24,6 +25,7 @@ import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.settlement.domain.Settlement;
+import com.sweet.market.settlement.repository.SettlementRepository;
 import com.sweet.market.support.IntegrationTestSupport;
 
 import jakarta.persistence.EntityManager;
@@ -36,6 +38,9 @@ class AdminSettlementApiTest extends IntegrationTestSupport {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private SettlementRepository settlementRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -207,6 +212,117 @@ class AdminSettlementApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
     }
 
+    @Test
+    void 관리자는_확정되었지만_정산되지_않은_주문을_단건_재실행으로_정산한다() throws Exception {
+        String adminToken = createAdminAndLogin("admin-retry-create@example.com");
+        CreatedOrder order = createOrderForRetry("retry-create", true);
+
+        mockMvc.perform(post("/api/admin/settlements/retry")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":" + order.orderId() + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.resultCode").value("CREATED"))
+                .andExpect(jsonPath("$.data.orderId").value(order.orderId()))
+                .andExpect(jsonPath("$.data.settlementId").isNumber())
+                .andExpect(jsonPath("$.data.jobExecutionId").isNumber())
+                .andExpect(jsonPath("$.data.message").value("정산이 생성되었습니다."));
+
+        assertThat(settlementRepository.existsByOrderId(order.orderId())).isTrue();
+    }
+
+    @Test
+    void 이미_정산된_주문은_단건_재실행에서_차단된다() throws Exception {
+        String adminToken = createAdminAndLogin("admin-retry-settled@example.com");
+        SettlementFixture settlement = createSettlement("retry-settled", LocalDateTime.now());
+
+        mockMvc.perform(post("/api/admin/settlements/retry")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":" + settlement.orderId() + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.resultCode").value("ALREADY_SETTLED"))
+                .andExpect(jsonPath("$.data.orderId").value(settlement.orderId()))
+                .andExpect(jsonPath("$.data.settlementId").value(settlement.settlementId()))
+                .andExpect(jsonPath("$.data.jobExecutionId").isEmpty())
+                .andExpect(jsonPath("$.data.message").value("이미 정산된 주문입니다."));
+    }
+
+    @Test
+    void 확정되지_않은_주문은_단건_재실행에서_차단된다() throws Exception {
+        String adminToken = createAdminAndLogin("admin-retry-not-confirmed@example.com");
+        CreatedOrder order = createOrderForRetry("retry-not-confirmed", false);
+
+        mockMvc.perform(post("/api/admin/settlements/retry")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":" + order.orderId() + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.resultCode").value("ORDER_NOT_CONFIRMED"))
+                .andExpect(jsonPath("$.data.orderId").value(order.orderId()))
+                .andExpect(jsonPath("$.data.settlementId").isEmpty())
+                .andExpect(jsonPath("$.data.jobExecutionId").isEmpty())
+                .andExpect(jsonPath("$.data.message").value("구매 확정 상태가 아니라 정산할 수 없습니다."));
+    }
+
+    @Test
+    void 없는_주문은_단건_재실행에서_찾을_수_없다() throws Exception {
+        String adminToken = createAdminAndLogin("admin-retry-missing@example.com");
+
+        mockMvc.perform(post("/api/admin/settlements/retry")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":999999}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.resultCode").value("ORDER_NOT_FOUND"))
+                .andExpect(jsonPath("$.data.orderId").value(999999))
+                .andExpect(jsonPath("$.data.settlementId").isEmpty())
+                .andExpect(jsonPath("$.data.jobExecutionId").isEmpty())
+                .andExpect(jsonPath("$.data.message").value("주문을 찾을 수 없습니다."));
+    }
+
+    @Test
+    void 같은_주문을_반복_재실행해도_중복_정산을_생성하지_않는다() throws Exception {
+        String adminToken = createAdminAndLogin("admin-retry-repeat@example.com");
+        CreatedOrder order = createOrderForRetry("retry-repeat", true);
+
+        String firstResponse = mockMvc.perform(post("/api/admin/settlements/retry")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":" + order.orderId() + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.resultCode").value("CREATED"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Long settlementId = objectMapper.readTree(firstResponse).path("data").path("settlementId").asLong();
+
+        mockMvc.perform(post("/api/admin/settlements/retry")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":" + order.orderId() + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.resultCode").value("ALREADY_SETTLED"))
+                .andExpect(jsonPath("$.data.orderId").value(order.orderId()))
+                .andExpect(jsonPath("$.data.settlementId").value(settlementId))
+                .andExpect(jsonPath("$.data.jobExecutionId").isEmpty())
+                .andExpect(jsonPath("$.data.message").value("이미 정산된 주문입니다."));
+    }
+
+    @Test
+    void 일반_회원은_단건_정산_재실행에_접근할_수_없다() throws Exception {
+        String memberToken = createMemberAndLogin("member-retry@example.com");
+        CreatedOrder order = createOrderForRetry("retry-member", true);
+
+        mockMvc.perform(post("/api/admin/settlements/retry")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderId\":" + order.orderId() + "}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
     private String createAdminAndLogin(String email) throws Exception {
         memberRepository.save(Member.createAdmin(
                 email,
@@ -272,6 +388,30 @@ class AdminSettlementApiTest extends IntegrationTestSupport {
         return fixture;
     }
 
+    private CreatedOrder createOrderForRetry(String suffix, boolean confirmed) {
+        return transactionTemplate.execute(status -> {
+            Member seller = Member.create("retry-seller-" + suffix + "@example.com", "encoded-password", "rs-" + suffix);
+            Member buyer = Member.create("retry-buyer-" + suffix + "@example.com", "encoded-password", "rb-" + suffix);
+            entityManager.persist(seller);
+            entityManager.persist(buyer);
+
+            Product product = Product.create(seller, "Retry MacBook Pro " + suffix, "M3 laptop", 2_000_000L);
+            entityManager.persist(product);
+
+            Order order = Order.create(buyer, product);
+            order.markPaid();
+            order.startShipping();
+            order.completeDelivery();
+            if (confirmed) {
+                order.confirm();
+            }
+            entityManager.persist(order);
+            entityManager.flush();
+
+            return new CreatedOrder(order.getId());
+        });
+    }
+
     private void updateSettledAt(Long settlementId, LocalDateTime settledAt) {
         jdbcTemplate.update("update settlements set settled_at = ? where id = ?", settledAt, settlementId);
     }
@@ -287,5 +427,8 @@ class AdminSettlementApiTest extends IntegrationTestSupport {
             Long buyerId,
             Long productId
     ) {
+    }
+
+    private record CreatedOrder(Long orderId) {
     }
 }

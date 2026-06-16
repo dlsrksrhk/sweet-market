@@ -7,19 +7,28 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sweet.market.common.api.ApiResponse;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/admin/settlements")
 public class AdminSettlementController {
 
     private final AdminSettlementQueryService adminSettlementQueryService;
+    private final AdminSettlementRetryService adminSettlementRetryService;
 
-    public AdminSettlementController(AdminSettlementQueryService adminSettlementQueryService) {
+    public AdminSettlementController(
+            AdminSettlementQueryService adminSettlementQueryService,
+            AdminSettlementRetryService adminSettlementRetryService
+    ) {
         this.adminSettlementQueryService = adminSettlementQueryService;
+        this.adminSettlementRetryService = adminSettlementRetryService;
     }
 
     @GetMapping
@@ -33,5 +42,12 @@ public class AdminSettlementController {
     @GetMapping("/{settlementId}")
     public ApiResponse<AdminSettlementDetailResponse> detail(@PathVariable Long settlementId) {
         return ApiResponse.ok(adminSettlementQueryService.findDetail(settlementId));
+    }
+
+    @PostMapping("/retry")
+    public ApiResponse<AdminSettlementRetryResponse> retry(
+            @Valid @RequestBody AdminSettlementRetryRequest request
+    ) {
+        return ApiResponse.ok(adminSettlementRetryService.retry(request));
     }
 }
