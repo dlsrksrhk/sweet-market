@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.sweet.market.product.admin.AdminProductSummaryResponse;
 import com.sweet.market.product.api.ProductSummaryResponse;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductStatus;
@@ -49,4 +50,40 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             where p.seller.id = :sellerId
             """)
     Page<ProductSummaryResponse> findSummariesBySellerIdOrderByIdDesc(@Param("sellerId") Long sellerId, Pageable pageable);
+
+    @Query(value = """
+            select new com.sweet.market.product.admin.AdminProductSummaryResponse(
+                p.id,
+                s.id,
+                s.nickname,
+                p.title,
+                p.price,
+                p.status,
+                (
+                    select min(i.imageUrl)
+                    from ProductImage i
+                    where i.product = p
+                )
+            )
+            from Product p
+            join p.seller s
+            where (:sellerId is null or s.id = :sellerId)
+              and (:status is null or p.status = :status)
+              and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
+            order by p.id desc
+            """,
+            countQuery = """
+            select count(p)
+            from Product p
+            join p.seller s
+            where (:sellerId is null or s.id = :sellerId)
+              and (:status is null or p.status = :status)
+              and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
+            """)
+    Page<AdminProductSummaryResponse> searchAdminProducts(
+            @Param("sellerId") Long sellerId,
+            @Param("status") ProductStatus status,
+            @Param("keyword") String keyword,
+            Pageable pageable
+    );
 }
