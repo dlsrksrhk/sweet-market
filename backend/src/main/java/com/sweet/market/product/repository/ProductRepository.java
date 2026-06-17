@@ -1,5 +1,6 @@
 package com.sweet.market.product.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -13,6 +14,7 @@ import com.sweet.market.product.admin.AdminProductSummaryResponse;
 import com.sweet.market.product.api.ProductSummaryResponse;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductStatus;
+import com.sweet.market.seller.report.SellerProductStatusCountProjection;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
@@ -87,4 +89,14 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     );
 
     long countBySellerId(Long sellerId);
+
+    long countBySellerIdAndStatus(Long sellerId, ProductStatus status);
+
+    @Query("""
+            select p.status as status, count(p) as count
+            from Product p
+            where p.seller.id = :sellerId
+            group by p.status
+            """)
+    List<SellerProductStatusCountProjection> countProductStatusesBySellerId(@Param("sellerId") Long sellerId);
 }

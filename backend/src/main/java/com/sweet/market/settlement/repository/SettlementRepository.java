@@ -109,4 +109,26 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
             @Param("status") String status,
             @Param("settledAt") LocalDateTime settledAt
     );
+
+    @Query("""
+            select coalesce(sum(s.amount), 0)
+            from Settlement s
+            where s.seller.id = :sellerId
+              and s.status = com.sweet.market.settlement.domain.SettlementStatus.COMPLETED
+            """)
+    Long sumCompletedAmountBySellerId(@Param("sellerId") Long sellerId);
+
+    @Query("""
+            select coalesce(sum(s.amount), 0)
+            from Settlement s
+            where s.seller.id = :sellerId
+              and s.status = com.sweet.market.settlement.domain.SettlementStatus.COMPLETED
+              and s.settledAt >= :fromInclusive
+              and s.settledAt < :toExclusive
+            """)
+    Long sumCompletedAmountBySellerIdAndSettledAtBetween(
+            @Param("sellerId") Long sellerId,
+            @Param("fromInclusive") LocalDateTime fromInclusive,
+            @Param("toExclusive") LocalDateTime toExclusive
+    );
 }
