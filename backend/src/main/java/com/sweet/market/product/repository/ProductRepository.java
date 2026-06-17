@@ -70,7 +70,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             where (:sellerId is null or s.id = :sellerId)
               and (:status is null or p.status = :status)
               and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
-            order by p.id desc
             """,
             countQuery = """
             select count(p)

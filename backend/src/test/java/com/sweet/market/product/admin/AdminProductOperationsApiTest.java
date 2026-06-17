@@ -62,6 +62,24 @@ class AdminProductOperationsApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 관리자는_pageable_정렬로_상품_목록을_조회한다() throws Exception {
+        String adminToken = createAdminAndLogin();
+        Member seller = saveMember("seller@example.com", "seller");
+        Product lowPriceProduct = saveProduct(seller, "Keyboard", "low price", 50_000, "https://example.com/keyboard.jpg");
+        Product highPriceProduct = saveProduct(seller, "MacBook Pro", "high price", 2_000_000, "https://example.com/macbook.jpg");
+
+        mockMvc.perform(get("/api/admin/products")
+                        .param("sort", "price,asc")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(2)))
+                .andExpect(jsonPath("$.data.content[0].productId").value(lowPriceProduct.getId()))
+                .andExpect(jsonPath("$.data.content[0].price").value(50_000))
+                .andExpect(jsonPath("$.data.content[1].productId").value(highPriceProduct.getId()))
+                .andExpect(jsonPath("$.data.content[1].price").value(2_000_000));
+    }
+
+    @Test
     void 관리자는_판매자_ID로_상품을_필터링한다() throws Exception {
         String adminToken = createAdminAndLogin();
         Member targetSeller = saveMember("seller1@example.com", "seller1");
