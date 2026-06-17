@@ -1,18 +1,30 @@
 import { useQuery } from '@tanstack/react-query';
-import { getSellerDashboardReport, type SellerStatusCount } from '../features/reports/sellerReportApi';
+import { useAuth } from '../features/auth/AuthProvider';
+import { getSellerDashboardReport } from '../features/reports/sellerReportApi';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR');
 const numberFormatter = new Intl.NumberFormat('ko-KR');
+const dateOnlyFormatter = new Intl.DateTimeFormat('ko-KR', {
+  dateStyle: 'medium',
+});
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
   dateStyle: 'medium',
   timeStyle: 'short',
 });
 
+type StatusCount = {
+  status: string;
+  count: number;
+};
+
 export function MyReportsPage() {
+  const { member } = useAuth();
+  const memberId = member?.id;
   const { data, error, isLoading } = useQuery({
-    queryKey: ['seller-dashboard-report'],
+    queryKey: ['seller-dashboard-report', memberId],
     queryFn: getSellerDashboardReport,
+    enabled: memberId !== undefined,
   });
 
   if (isLoading) {
@@ -34,7 +46,13 @@ export function MyReportsPage() {
       total.soldOutProductCount +
       total.confirmedOrderCount +
       total.completedSettlementAmount +
-      total.unsettledConfirmedAmount >
+      total.unsettledConfirmedAmount +
+      recent.orderedCount +
+      recent.confirmedOrderCount +
+      recent.completedSettlementAmount +
+      recent.unsettledConfirmedAmount +
+      sumCounts(data.productStatusCounts) +
+      sumCounts(data.orderStatusCounts) >
     0;
 
   return (
@@ -69,7 +87,7 @@ export function MyReportsPage() {
         <div className="report-section-header">
           <h2 id="report-recent-title">최근 {data.period.recentDays}일</h2>
           <span className="muted-text">
-            {data.period.recentFrom} ~ {data.period.recentTo}
+            {formatDate(data.period.recentFrom)} ~ {formatDate(data.period.recentTo)}
           </span>
         </div>
         <div className="metric-grid">
@@ -97,7 +115,7 @@ function MetricCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusDistribution({ title, counts }: { title: string; counts: SellerStatusCount[] }) {
+function StatusDistribution({ title, counts }: { title: string; counts: StatusCount[] }) {
   return (
     <section className="report-section" aria-label={title}>
       <div className="report-section-header">
@@ -123,6 +141,16 @@ function formatCurrency(value: number) {
   return currencyFormatter.format(value);
 }
 
+function formatDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+
+  return dateOnlyFormatter.format(new Date(year, month - 1, day));
+}
+
 function formatDateTime(value: string) {
   return dateFormatter.format(new Date(value));
+}
+
+function sumCounts(counts: StatusCount[]) {
+  return counts.reduce((sum, item) => sum + item.count, 0);
 }

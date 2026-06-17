@@ -29,8 +29,13 @@ export type SellerReportSummary = {
   recent30Days: SellerReportRecentSummary;
 };
 
-export type SellerStatusCount = {
-  status: ProductStatus | OrderStatus;
+export type SellerProductStatusCount = {
+  status: ProductStatus;
+  count: number;
+};
+
+export type SellerOrderStatusCount = {
+  status: OrderStatus;
   count: number;
 };
 
@@ -38,8 +43,8 @@ export type SellerDashboardReport = {
   generatedAt: string;
   period: SellerReportPeriod;
   summary: SellerReportSummary;
-  productStatusCounts: SellerStatusCount[];
-  orderStatusCounts: SellerStatusCount[];
+  productStatusCounts: SellerProductStatusCount[];
+  orderStatusCounts: SellerOrderStatusCount[];
 };
 
 export function getSellerDashboardReport() {

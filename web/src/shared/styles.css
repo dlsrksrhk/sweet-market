@@ -580,11 +580,19 @@ textarea {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
 }
 
 .report-section-header h2 {
+  min-width: 0;
   margin: 0;
   font-size: 1.1rem;
+}
+
+.report-section-header .muted-text,
+.list-page-header .status-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .metric-grid {
@@ -595,6 +603,7 @@ textarea {
 
 .metric-card {
   display: flex;
+  min-width: 0;
   min-height: 96px;
   flex-direction: column;
   justify-content: space-between;
@@ -613,6 +622,7 @@ textarea {
 .metric-card strong {
   font-size: 1.45rem;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .report-distribution-grid {
@@ -634,8 +644,14 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
   min-height: 48px;
   padding: 12px 14px;
+}
+
+.status-count-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .status-count-row + .status-count-row {
