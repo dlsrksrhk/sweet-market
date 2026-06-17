@@ -17,6 +17,7 @@ export function Shell() {
               <NavLink to="/me/orders">내 주문</NavLink>
               <NavLink to="/me/sales">내 판매</NavLink>
               <NavLink to="/me/settlements">정산</NavLink>
+              <NavLink to="/me/reports">리포트</NavLink>
               {member.role === 'ADMIN' ? <NavLink to="/admin/operations">관리자</NavLink> : null}
             </>
           ) : null}

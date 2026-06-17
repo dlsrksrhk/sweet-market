@@ -6,6 +6,7 @@ import { AdminSettlementBatchPage } from '../pages/AdminSettlementBatchPage';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MyOrdersPage } from '../pages/MyOrdersPage';
+import { MyReportsPage } from '../pages/MyReportsPage';
 import { MySalesPage } from '../pages/MySalesPage';
 import { MySettlementsPage } from '../pages/MySettlementsPage';
 import { ProductDetailPage } from '../pages/ProductDetailPage';
@@ -58,6 +59,14 @@ export function AppRouter() {
           element={
             <RequireAuth>
               <MySettlementsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="me/reports"
+          element={
+            <RequireAuth>
+              <MyReportsPage />
             </RequireAuth>
           }
         />
