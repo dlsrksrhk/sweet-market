@@ -85,4 +85,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             @Param("keyword") String keyword,
             Pageable pageable
     );
+
+    long countBySellerId(Long sellerId);
 }
