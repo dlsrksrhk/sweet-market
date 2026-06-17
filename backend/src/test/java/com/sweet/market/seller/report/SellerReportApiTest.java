@@ -111,23 +111,34 @@ class SellerReportApiTest extends IntegrationTestSupport {
         LocalDate today = LocalDate.now();
         LocalDateTime insideWindow = today.minusDays(29).atTime(9, 0);
         LocalDateTime outsideWindow = today.minusDays(30).atTime(23, 59);
+        LocalDateTime tomorrowStart = today.plusDays(1).atStartOfDay();
 
-        Product insideProduct = saveProduct(seller, "Inside", 30_000);
+        Product orderedOnlyProduct = saveProduct(seller, "Ordered only", 10_000);
+        Product confirmedOnlyProduct = saveProduct(seller, "Confirmed only", 20_000);
+        Product settledOnlyProduct = saveProduct(seller, "Settled only", 30_000);
         Product outsideProduct = saveProduct(seller, "Outside", 40_000);
+        Product tomorrowProduct = saveProduct(seller, "Tomorrow", 50_000);
 
-        Order insideOrder = saveConfirmedOrder(buyer, insideProduct, insideWindow);
-        Order outsideOrder = saveConfirmedOrder(buyer, outsideProduct, outsideWindow);
-        saveSettlement(insideOrder, insideWindow.plusHours(1));
+        saveConfirmedOrder(buyer, orderedOnlyProduct, insideWindow, outsideWindow);
+        saveConfirmedOrder(buyer, confirmedOnlyProduct, outsideWindow, insideWindow);
+        Order settledOnlyOrder = saveConfirmedOrder(buyer, settledOnlyProduct, outsideWindow, outsideWindow);
+        Order outsideOrder = saveConfirmedOrder(buyer, outsideProduct, outsideWindow, outsideWindow);
+        saveConfirmedOrder(buyer, tomorrowProduct, tomorrowStart, tomorrowStart);
+        saveSettlement(settledOnlyOrder, insideWindow);
         saveSettlement(outsideOrder, outsideWindow);
 
         mockMvc.perform(get("/api/seller/reports/dashboard")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.summary.total.confirmedOrderCount").value(2))
+                .andExpect(jsonPath("$.data.period.recentFrom").value(today.minusDays(29).toString()))
+                .andExpect(jsonPath("$.data.period.recentTo").value(today.toString()))
+                .andExpect(jsonPath("$.data.summary.total.confirmedOrderCount").value(5))
                 .andExpect(jsonPath("$.data.summary.total.completedSettlementAmount").value(70_000))
+                .andExpect(jsonPath("$.data.summary.total.unsettledConfirmedAmount").value(80_000))
                 .andExpect(jsonPath("$.data.summary.recent30Days.orderedCount").value(1))
                 .andExpect(jsonPath("$.data.summary.recent30Days.confirmedOrderCount").value(1))
-                .andExpect(jsonPath("$.data.summary.recent30Days.completedSettlementAmount").value(30_000));
+                .andExpect(jsonPath("$.data.summary.recent30Days.completedSettlementAmount").value(30_000))
+                .andExpect(jsonPath("$.data.summary.recent30Days.unsettledConfirmedAmount").value(20_000));
     }
 
     @Test
@@ -245,6 +256,15 @@ class SellerReportApiTest extends IntegrationTestSupport {
     }
 
     private Order saveConfirmedOrder(Member buyer, Product product, LocalDateTime eventAt) {
+        return saveConfirmedOrder(buyer, product, eventAt, eventAt);
+    }
+
+    private Order saveConfirmedOrder(
+            Member buyer,
+            Product product,
+            LocalDateTime orderedAt,
+            LocalDateTime confirmedAt
+    ) {
         Order order = transactionTemplate.execute(status -> {
             Member managedBuyer = entityManager.find(Member.class, buyer.getId());
             Product managedProduct = entityManager.find(Product.class, product.getId());
@@ -259,8 +279,8 @@ class SellerReportApiTest extends IntegrationTestSupport {
         });
         jdbcTemplate.update(
                 "update orders set ordered_at = ?, confirmed_at = ? where id = ?",
-                eventAt,
-                eventAt,
+                orderedAt,
+                confirmedAt,
                 order.getId()
         );
         return order;

@@ -29,9 +29,8 @@ C:\dev\study\sweet-market\.worktrees\milestone-12-seller-reports
 ## Review Notes
 
 - Backend spec review passed.
-- Backend code quality review passed with only non-blocking suggestions:
+- Backend code quality review passed with only non-blocking suggestions after metric-specific date coverage was tightened:
   - Consider injecting `Clock` later if date-boundary tests need more determinism.
-  - Consider adding explicit exclusive-upper-boundary coverage if report date logic grows.
 - Web spec review passed.
 - Web code quality review initially found auth-cache and empty-state issues; these were fixed and re-reviewed successfully.
 
