@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import { RequireAdmin } from '../features/auth/RequireAdmin';
 import { RequireAuth } from '../features/auth/RequireAuth';
+import { AdminOperationsPage } from '../pages/AdminOperationsPage';
 import { AdminSettlementBatchPage } from '../pages/AdminSettlementBatchPage';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
@@ -58,6 +59,14 @@ export function AppRouter() {
             <RequireAuth>
               <MySettlementsPage />
             </RequireAuth>
+          }
+        />
+        <Route
+          path="admin/operations"
+          element={
+            <RequireAdmin>
+              <AdminOperationsPage />
+            </RequireAdmin>
           }
         />
         <Route

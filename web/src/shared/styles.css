@@ -116,7 +116,15 @@ textarea {
 .admin-result-panel,
 .admin-settlement-table,
 .admin-settlement-row,
-.admin-panel-heading-row {
+.admin-panel-heading-row,
+.admin-operations-page,
+.admin-operations-header,
+.admin-operations-section-grid,
+.admin-operations-list,
+.admin-operations-detail,
+.admin-operations-table,
+.admin-operations-row,
+.admin-operations-table-head {
   min-width: 0;
 }
 
@@ -127,7 +135,10 @@ textarea {
 .list-page-header p,
 .admin-failure-list li,
 .admin-settlement-row span,
-.admin-settlement-table-head span {
+.admin-settlement-table-head span,
+.admin-operations-row span,
+.admin-operations-table-head span,
+.admin-operations-detail h3 {
   overflow-wrap: anywhere;
 }
 
@@ -559,6 +570,47 @@ textarea {
   gap: 24px;
 }
 
+.admin-operations-page {
+  display: grid;
+  gap: 24px;
+}
+
+.admin-operations-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-operations-header > div {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-operations-section-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-operations-list,
+.admin-operations-detail {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-operations-detail {
+  border-left: 1px solid #dfe6ee;
+  padding-left: 18px;
+}
+
+.admin-operations-detail h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
 .admin-batch-layout {
   display: grid;
   grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr);
@@ -702,6 +754,77 @@ textarea {
   overflow-x: auto;
   border: 1px solid #dfe6ee;
   border-radius: 8px;
+}
+
+.admin-operations-table {
+  overflow-x: auto;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+}
+
+.admin-operations-table-head,
+.admin-operations-row {
+  display: grid;
+  gap: 10px;
+  align-items: center;
+}
+
+.admin-operations-table-head {
+  padding: 10px 12px;
+  border-bottom: 1px solid #dfe6ee;
+  background: #f4f7fa;
+  color: #52616f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-operations-row {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #edf2f7;
+  padding: 12px;
+  background: #ffffff;
+  color: #172026;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+}
+
+.admin-operations-row:last-child {
+  border-bottom: 0;
+}
+
+.admin-operations-row:hover,
+.admin-operations-row-selected {
+  background: #f0fbfa;
+}
+
+.admin-operations-row-selected {
+  box-shadow: inset 3px 0 0 #0f7b78;
+}
+
+.admin-product-grid {
+  grid-template-columns: minmax(180px, 1.5fr) minmax(140px, 1fr) minmax(110px, 0.75fr) minmax(92px, 0.55fr);
+  min-width: 680px;
+}
+
+.admin-order-grid {
+  grid-template-columns:
+    minmax(78px, 0.55fr) minmax(180px, 1.25fr) minmax(132px, 0.9fr) minmax(132px, 0.9fr)
+    minmax(92px, 0.6fr) minmax(150px, 0.95fr);
+  min-width: 820px;
+}
+
+.admin-member-grid {
+  grid-template-columns: minmax(150px, 1fr) minmax(220px, 1.4fr) minmax(84px, 0.5fr);
+  min-width: 520px;
+}
+
+.admin-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
 
 .admin-settlement-table-head,
@@ -848,6 +971,17 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .admin-operations-section-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-operations-detail {
+    border-top: 1px solid #dfe6ee;
+    border-left: 0;
+    padding-top: 18px;
+    padding-left: 0;
+  }
+
   .admin-search-form {
     grid-template-columns: repeat(3, minmax(140px, 1fr));
   }
@@ -898,7 +1032,8 @@ textarea {
   }
 
   .admin-panel-heading-row,
-  .admin-pagination {
+  .admin-pagination,
+  .admin-operations-header {
     align-items: stretch;
     flex-direction: column;
   }
