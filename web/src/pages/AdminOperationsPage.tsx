@@ -116,6 +116,7 @@ export function AdminOperationsPage() {
       setHideError(null);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['admin-operations', 'products'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-operations', 'orders'] }),
         queryClient.invalidateQueries({ queryKey: ['products'] }),
       ]);
     },
