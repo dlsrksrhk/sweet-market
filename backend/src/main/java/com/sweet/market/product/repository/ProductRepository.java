@@ -41,6 +41,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                         from ProductImage representativeImage
                         where representativeImage.product = p
                           and representativeImage.representative = true
+                          and representativeImage.sortOrder = (
+                              select min(firstRepresentativeImage.sortOrder)
+                              from ProductImage firstRepresentativeImage
+                              where firstRepresentativeImage.product = p
+                                and firstRepresentativeImage.representative = true
+                          )
                     ),
                     (
                         select min(orderedImage.imageUrl)
@@ -80,6 +86,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                         from ProductImage representativeImage
                         where representativeImage.product = p
                           and representativeImage.representative = true
+                          and representativeImage.sortOrder = (
+                              select min(firstRepresentativeImage.sortOrder)
+                              from ProductImage firstRepresentativeImage
+                              where firstRepresentativeImage.product = p
+                                and firstRepresentativeImage.representative = true
+                          )
                     ),
                     (
                         select min(orderedImage.imageUrl)

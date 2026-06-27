@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -21,6 +23,7 @@ import com.sweet.market.auth.api.SignupRequest;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.support.IntegrationTestSupport;
 
@@ -135,13 +138,13 @@ class AdminProductOperationsApiTest extends IntegrationTestSupport {
     void 관리자는_상품_상세를_조회한다() throws Exception {
         String adminToken = createAdminAndLogin();
         Member seller = saveMember("seller@example.com", "seller");
-        Product product = saveProduct(
+        Product product = saveProductWithArrangedImages(
                 seller,
                 "MacBook Pro",
                 "M3 laptop",
                 2_000_000,
-                "https://example.com/macbook-1.jpg",
-                "https://example.com/macbook-2.jpg"
+                ProductImage.local("https://example.com/macbook-1.jpg", "macbook-1.jpg", "macbook-1.jpg", "image/jpeg", 100L, 0, false),
+                ProductImage.local("https://example.com/macbook-2.jpg", "macbook-2.jpg", "macbook-2.jpg", "image/jpeg", 100L, 1, true)
         );
 
         mockMvc.perform(get("/api/admin/products/{productId}", product.getId())
@@ -154,7 +157,7 @@ class AdminProductOperationsApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.description").value("M3 laptop"))
                 .andExpect(jsonPath("$.data.price").value(2_000_000))
                 .andExpect(jsonPath("$.data.status").value("ON_SALE"))
-                .andExpect(jsonPath("$.data.thumbnailUrl").value("https://example.com/macbook-1.jpg"))
+                .andExpect(jsonPath("$.data.thumbnailUrl").value("https://example.com/macbook-2.jpg"))
                 .andExpect(jsonPath("$.data.imageUrls", containsInAnyOrder(
                         "https://example.com/macbook-1.jpg",
                         "https://example.com/macbook-2.jpg"
@@ -274,6 +277,18 @@ class AdminProductOperationsApiTest extends IntegrationTestSupport {
         for (String imageUrl : imageUrls) {
             product.addImage(imageUrl);
         }
+        return productRepository.save(product);
+    }
+
+    private Product saveProductWithArrangedImages(
+            Member seller,
+            String title,
+            String description,
+            long price,
+            ProductImage... images
+    ) {
+        Product product = Product.create(seller, title, description, price);
+        product.replaceImages(List.of(images));
         return productRepository.save(product);
     }
 }
