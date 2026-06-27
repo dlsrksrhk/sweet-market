@@ -45,11 +45,15 @@ public abstract class IntegrationTestSupport {
         registry.add("spring.batch.jdbc.initialize-schema", () -> "never");
         registry.add("jwt.secret", () -> "sweet-market-test-secret-key-32bytes-minimum");
         registry.add("jwt.access-token-validity-seconds", () -> "3600");
+        registry.add("product.images.upload-root", () -> "build/test-product-images");
+        registry.add("product.images.temp-expiration", () -> "60m");
+        registry.add("spring.servlet.multipart.max-file-size", () -> "5MB");
+        registry.add("spring.servlet.multipart.max-request-size", () -> "6MB");
     }
 
     @AfterEach
     void cleanUp() {
-        jdbcTemplate.execute("TRUNCATE TABLE settlements, deliveries, payments, orders, product_images, products, members RESTART IDENTITY CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE settlements, deliveries, payments, orders, product_image_uploads, product_images, products, members RESTART IDENTITY CASCADE");
     }
 
     protected String json(Object value) throws JsonProcessingException {
