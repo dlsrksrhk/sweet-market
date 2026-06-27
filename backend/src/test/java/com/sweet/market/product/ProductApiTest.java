@@ -149,6 +149,53 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 잘못된_이미지_배치로_실패한_임시_업로드는_다시_사용할_수_있다() throws Exception {
+        String accessToken = signupAndLogin("seller-retry@example.com", "password123", "seller");
+        Long uploadId = uploadImage(accessToken, "retry-product.jpg");
+
+        mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": false
+                                    }
+                                  ]
+                                }
+                                """.formatted(uploadId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(uploadId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.images[0].imageUrl", startsWith("/uploads/products/public/")))
+                .andExpect(jsonPath("$.data.images[0].representative").value(true));
+    }
+
+    @Test
     void 소유자는_상품_수정에_성공한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(accessToken);
