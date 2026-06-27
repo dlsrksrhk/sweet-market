@@ -3,6 +3,7 @@ package com.sweet.market.seller.report;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sweet.market.auth.security.AuthenticatedMember;
@@ -22,5 +23,15 @@ public class SellerReportController {
     public ApiResponse<SellerDashboardReportResponse> dashboard(Authentication authentication) {
         AuthenticatedMember member = (AuthenticatedMember) authentication.getPrincipal();
         return ApiResponse.ok(sellerReportQueryService.getDashboard(member.id()));
+    }
+
+    @GetMapping("/period")
+    public ApiResponse<SellerPeriodReportResponse> period(
+            Authentication authentication,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to
+    ) {
+        AuthenticatedMember member = (AuthenticatedMember) authentication.getPrincipal();
+        return ApiResponse.ok(sellerReportQueryService.getPeriodReport(member.id(), from, to));
     }
 }

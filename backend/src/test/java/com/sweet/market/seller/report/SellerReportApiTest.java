@@ -222,6 +222,86 @@ class SellerReportApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
     }
 
+    @Test
+    void 판매자는_기본_기간_리포트를_조회한다() throws Exception {
+        String token = createMemberAndLogin("seller-period-default@example.com", "seller-period-default");
+
+        LocalDate today = LocalDate.now();
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.generatedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data.period.from").value(today.minusDays(29).toString()))
+                .andExpect(jsonPath("$.data.period.to").value(today.toString()))
+                .andExpect(jsonPath("$.data.period.days").value(30))
+                .andExpect(jsonPath("$.data.summary.orderedCount").value(0))
+                .andExpect(jsonPath("$.data.summary.confirmedOrderCount").value(0))
+                .andExpect(jsonPath("$.data.summary.confirmedSalesAmount").value(0))
+                .andExpect(jsonPath("$.data.summary.completedSettlementAmount").value(0))
+                .andExpect(jsonPath("$.data.summary.unsettledConfirmedAmount").value(0))
+                .andExpect(jsonPath("$.data.summary.averageConfirmedOrderAmount").value(0))
+                .andExpect(jsonPath("$.data.productRankings").isArray())
+                .andExpect(jsonPath("$.data.dailySales").isArray())
+                .andExpect(jsonPath("$.data.dailySales.length()").value(30))
+                .andExpect(jsonPath("$.data.recentSales").isArray())
+                .andExpect(jsonPath("$.data.recentSettlements").isArray());
+    }
+
+    @Test
+    void 기간_리포트는_from과_to를_함께_받아야_한다() throws Exception {
+        String token = createMemberAndLogin("seller-period-half@example.com", "seller-period-half");
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", LocalDate.now().minusDays(7).toString())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REPORT_PERIOD"));
+    }
+
+    @Test
+    void 기간_리포트는_시작일이_종료일보다_늦으면_실패한다() throws Exception {
+        String token = createMemberAndLogin("seller-period-reversed@example.com", "seller-period-reversed");
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", "2026-06-20")
+                        .queryParam("to", "2026-06-01")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REPORT_PERIOD"));
+    }
+
+    @Test
+    void 기간_리포트는_180일을_초과하면_실패한다() throws Exception {
+        String token = createMemberAndLogin("seller-period-too-long@example.com", "seller-period-too-long");
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", "2026-01-01")
+                        .queryParam("to", "2026-07-01")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REPORT_PERIOD"));
+    }
+
+    @Test
+    void 기간_리포트는_ISO_날짜가_아니면_실패한다() throws Exception {
+        String token = createMemberAndLogin("seller-period-invalid-date@example.com", "seller-period-invalid-date");
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", "2026/06/01")
+                        .queryParam("to", "2026-06-30")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REPORT_PERIOD"));
+    }
+
+    @Test
+    void 인증되지_않은_사용자는_기간_리포트를_조회할_수_없다() throws Exception {
+        mockMvc.perform(get("/api/seller/reports/period"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
+    }
+
     private String createMemberAndLogin(String email, String nickname) throws Exception {
         memberRepository.save(Member.create(email, passwordEncoder.encode("password123"), nickname));
         return login(email, "password123");
