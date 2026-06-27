@@ -4,6 +4,8 @@ import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -12,17 +14,28 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.product.application.ProductImageUploadService;
 import com.sweet.market.support.IntegrationTestSupport;
 
 class ProductApiTest extends IntegrationTestSupport {
+
+    @Autowired
+    private FailingImageConfirmService failingImageConfirmService;
 
     @Test
     void 상품_등록에_성공한다() throws Exception {
@@ -299,6 +312,35 @@ class ProductApiTest extends IntegrationTestSupport {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.images[0].imageUrl", startsWith("/uploads/products/public/")))
                 .andExpect(jsonPath("$.data.images[0].representative").value(true));
+    }
+
+    @Test
+    void 임시_업로드_확인_후_롤백되면_같은_업로드를_다시_사용할_수_있다() throws Exception {
+        String accessToken = signupAndLogin("seller-rollback@example.com", "password123", "seller");
+        Long uploadId = uploadImage(accessToken, "rollback-product.jpg");
+
+        assertThatThrownBy(() -> failingImageConfirmService.confirmAndThrow(1L, uploadId))
+                .isInstanceOf(IllegalStateException.class);
+
+        mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(uploadId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.images[0].imageUrl", startsWith("/uploads/products/public/")));
     }
 
     @Test
@@ -610,6 +652,106 @@ class ProductApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.images[0].representative").value(true));
     }
 
+    @Test
+    void 상품_수정에서_제외한_기존_로컬_이미지는_DB와_공개_파일에서_삭제된다() throws Exception {
+        String accessToken = signupAndLogin("seller-omit-local@example.com", "password123", "seller");
+        Long productId = createProduct(accessToken);
+        Long firstImageId = getFirstImageId(productId);
+        Long secondUploadId = uploadImage(accessToken, "omit-local.jpg");
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "imageId": %d,
+                                      "sortOrder": 1,
+                                      "representative": false
+                                    },
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(firstImageId, secondUploadId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.images", hasSize(2)));
+
+        JsonNode beforeOmitImages = getProductImages(productId);
+        Long omittedImageId = beforeOmitImages.get(0).path("id").asLong();
+        Long retainedImageId = beforeOmitImages.get(1).path("id").asLong();
+        String omittedStoredFileName = storedFileName(beforeOmitImages.get(0).path("imageUrl").asText());
+        Path omittedPublicPath = Path.of("build/test-product-images/public", omittedStoredFileName);
+        assertThat(Files.exists(omittedPublicPath)).isTrue();
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "imageId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(retainedImageId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.images", hasSize(1)))
+                .andExpect(jsonPath("$.data.images[0].id").value(retainedImageId));
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.images", hasSize(1)))
+                .andExpect(jsonPath("$.data.images[0].id").value(retainedImageId));
+        Integer omittedRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM product_images WHERE id = ?",
+                Integer.class,
+                omittedImageId
+        );
+        assertThat(omittedRows).isZero();
+        assertThat(Files.exists(omittedPublicPath)).isFalse();
+    }
+
+    @Test
+    void 상품_이미지_URL_추가_엔드포인트는_더_이상_지원하지_않는다() throws Exception {
+        String accessToken = signupAndLogin("seller-url-add-gone@example.com", "password123", "seller");
+        Long productId = createProduct(accessToken);
+
+        mockMvc.perform(post("/api/products/{productId}/images", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "imageUrl": "https://example.com/macbook-2.jpg"
+                                }
+                                """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 상품_이미지_삭제_엔드포인트는_더_이상_지원하지_않는다() throws Exception {
+        String accessToken = signupAndLogin("seller-url-delete-gone@example.com", "password123", "seller");
+        Long productId = createProduct(accessToken);
+        Long imageId = getFirstImageId(productId);
+
+        mockMvc.perform(delete("/api/products/{productId}/images/{imageId}", productId, imageId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isNotFound());
+    }
+
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
         SignupRequest signupRequest = new SignupRequest(email, password, nickname);
         LoginRequest loginRequest = new LoginRequest(email, password);
@@ -682,6 +824,10 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     private Long getFirstImageId(Long productId) throws Exception {
+        return getProductImages(productId).get(0).path("id").asLong();
+    }
+
+    private JsonNode getProductImages(Long productId) throws Exception {
         String response = mockMvc.perform(get("/api/products/{productId}", productId))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -689,6 +835,34 @@ class ProductApiTest extends IntegrationTestSupport {
                 .getContentAsString();
 
         JsonNode root = objectMapper.readTree(response);
-        return root.path("data").path("images").get(0).path("id").asLong();
+        return root.path("data").path("images");
+    }
+
+    private String storedFileName(String imageUrl) {
+        return imageUrl.substring(imageUrl.lastIndexOf('/') + 1);
+    }
+
+    @TestConfiguration
+    static class FailingImageConfirmTestConfiguration {
+
+        @Bean
+        FailingImageConfirmService failingImageConfirmService(ProductImageUploadService productImageUploadService) {
+            return new FailingImageConfirmService(productImageUploadService);
+        }
+    }
+
+    static class FailingImageConfirmService {
+
+        private final ProductImageUploadService productImageUploadService;
+
+        FailingImageConfirmService(ProductImageUploadService productImageUploadService) {
+            this.productImageUploadService = productImageUploadService;
+        }
+
+        @Transactional
+        void confirmAndThrow(Long memberId, Long uploadId) {
+            productImageUploadService.confirm(memberId, uploadId, 0, true);
+            throw new IllegalStateException("rollback after confirm");
+        }
     }
 }

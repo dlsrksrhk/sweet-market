@@ -72,6 +72,18 @@ public class ProductImageStorageService {
         return new StoredProductImage(storedFileName, originalFileName, contentType, size, PUBLIC_URL_PREFIX + storedFileName);
     }
 
+    public void restoreTemporary(String storedFileName) {
+        Path source = resolveUnder(properties.publicPath(), storedFileName);
+        Path target = resolveUnder(properties.tempPath(), storedFileName);
+
+        try {
+            Files.createDirectories(normalizedRoot(properties.tempPath()));
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_FILE);
+        }
+    }
+
     public void deleteTemporary(String storedFileName) {
         delete(resolveUnder(properties.tempPath(), storedFileName));
     }

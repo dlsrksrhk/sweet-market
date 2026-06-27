@@ -3,9 +3,12 @@ package com.sweet.market.product.application;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
@@ -19,6 +22,7 @@ import com.sweet.market.product.api.ProductUpdateRequest;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.product.storage.ProductImageStorageService;
 
 @Service
 public class ProductService {
@@ -26,15 +30,18 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final MemberRepository memberRepository;
     private final ProductImageUploadService productImageUploadService;
+    private final ProductImageStorageService productImageStorageService;
 
     public ProductService(
             ProductRepository productRepository,
             MemberRepository memberRepository,
-            ProductImageUploadService productImageUploadService
+            ProductImageUploadService productImageUploadService,
+            ProductImageStorageService productImageStorageService
     ) {
         this.productRepository = productRepository;
         this.memberRepository = memberRepository;
         this.productImageUploadService = productImageUploadService;
+        this.productImageStorageService = productImageStorageService;
     }
 
     @Transactional
@@ -83,12 +90,14 @@ public class ProductService {
                 .map(ProductUpdateImageRequest::uploadId)
                 .toList();
         productImageUploadService.validateConfirmableUploads(sellerId, uploadIds);
+        List<String> omittedLocalFileNames = omittedLocalFileNames(product, request.images());
 
         List<ProductImage> nextImages = request.images().stream()
                 .map(image -> toProductImage(sellerId, product, image))
                 .toList();
         try {
             product.replaceImages(nextImages);
+            deletePublicFilesAfterCommit(omittedLocalFileNames);
         } catch (IllegalArgumentException exception) {
             throw mapProductImageException(exception);
         }
@@ -173,6 +182,42 @@ public class ProductService {
                 request.sortOrder(),
                 request.representative()
         );
+    }
+
+    private List<String> omittedLocalFileNames(Product product, List<ProductUpdateImageRequest> images) {
+        Set<Long> retainedImageIds = images.stream()
+                .filter(ProductUpdateImageRequest::referencesExistingImage)
+                .map(ProductUpdateImageRequest::imageId)
+                .collect(Collectors.toSet());
+        return product.getImages().stream()
+                .filter(ProductImage::isLocalFile)
+                .filter(image -> !retainedImageIds.contains(image.getId()))
+                .map(ProductImage::getStoredFileName)
+                .toList();
+    }
+
+    private void deletePublicFilesAfterCommit(List<String> storedFileNames) {
+        if (storedFileNames.isEmpty()) {
+            return;
+        }
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            storedFileNames.forEach(this::deletePublicBestEffort);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                storedFileNames.forEach(ProductService.this::deletePublicBestEffort);
+            }
+        });
+    }
+
+    private void deletePublicBestEffort(String storedFileName) {
+        try {
+            productImageStorageService.deletePublic(storedFileName);
+        } catch (RuntimeException ignored) {
+            // Best-effort cleanup after DB commit.
+        }
     }
 
     private void validateCreateImages(List<ProductCreateImageRequest> images) {

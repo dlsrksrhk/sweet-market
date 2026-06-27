@@ -10,6 +10,8 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.sweet.market.common.error.BusinessException;
@@ -109,6 +111,7 @@ public class ProductImageUploadService {
                 upload.getContentType(),
                 upload.getSize()
         );
+        restoreTemporaryOnRollback(storedImage.storedFileName());
         productImageUploadRepository.delete(upload);
 
         return ProductImage.local(
@@ -120,5 +123,24 @@ public class ProductImageUploadService {
                 sortOrder,
                 representative
         );
+    }
+
+    private void restoreTemporaryOnRollback(String storedFileName) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_ROLLED_BACK) {
+                    return;
+                }
+                try {
+                    storageService.restoreTemporary(storedFileName);
+                } catch (RuntimeException ignored) {
+                    // Best-effort file compensation after DB rollback.
+                }
+            }
+        });
     }
 }
