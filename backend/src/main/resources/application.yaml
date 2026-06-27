@@ -44,6 +44,7 @@ product:
     temp-dir: temp
     public-dir: public
     temp-expiration: ${PRODUCT_IMAGE_TEMP_EXPIRATION:60m}
+    cleanup-cron: "${PRODUCT_IMAGE_CLEANUP_CRON:0 */10 * * * *}"
     max-file-size: 5MB
 
 web:
