@@ -3,8 +3,10 @@ package com.sweet.market.product;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -13,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sweet.market.auth.api.LoginRequest;
@@ -24,6 +27,7 @@ class ProductApiTest extends IntegrationTestSupport {
     @Test
     void 상품_등록에_성공한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
+        Long uploadId = uploadImage(accessToken, "macbook.jpg");
 
         mockMvc.perform(post("/api/products")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
@@ -33,12 +37,15 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
-                                  "imageUrls": [
-                                    "https://example.com/macbook-1.jpg",
-                                    "https://example.com/macbook-2.jpg"
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
                                   ]
                                 }
-                """))
+                                """.formatted(uploadId)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.id").isNumber())
                 .andExpect(jsonPath("$.data.sellerId").isNumber())
@@ -47,9 +54,10 @@ class ProductApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.description").value("M3 laptop"))
                 .andExpect(jsonPath("$.data.price").value(2000000))
                 .andExpect(jsonPath("$.data.status").value("ON_SALE"))
-                .andExpect(jsonPath("$.data.images", hasSize(2)))
-                .andExpect(jsonPath("$.data.images[0].imageUrl").value("https://example.com/macbook-1.jpg"))
-                .andExpect(jsonPath("$.data.images[1].imageUrl").value("https://example.com/macbook-2.jpg"));
+                .andExpect(jsonPath("$.data.images", hasSize(1)))
+                .andExpect(jsonPath("$.data.images[0].imageUrl", startsWith("/uploads/products/public/")))
+                .andExpect(jsonPath("$.data.images[0].sortOrder").value(0))
+                .andExpect(jsonPath("$.data.images[0].representative").value(true));
     }
 
     @Test
@@ -61,7 +69,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
-                                  "imageUrls": []
+                                  "images": []
                                 }
                                 """))
                 .andExpect(status().isUnauthorized())
@@ -80,12 +88,64 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "",
                                   "description": "",
                                   "price": 0,
-                                  "imageUrls": ["not-url"]
+                                  "images": [
+                                    {
+                                      "uploadId": null,
+                                      "sortOrder": -1,
+                                      "representative": false
+                                    }
+                                  ]
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.fieldErrors").isArray());
+    }
+
+    @Test
+    void 상품_등록은_이미지가_필요하다() throws Exception {
+        String accessToken = signupAndLogin("seller-required@example.com", "password123", "seller");
+
+        mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": []
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PRODUCT_IMAGE_REQUIRED"));
+    }
+
+    @Test
+    void 다른_회원의_임시_업로드로_상품을_등록할_수_없다() throws Exception {
+        String sellerToken = signupAndLogin("seller-denied@example.com", "password123", "seller");
+        String otherToken = signupAndLogin("other-denied@example.com", "password123", "other");
+        Long uploadId = uploadImage(otherToken, "other-product.jpg");
+
+        mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(uploadId)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PRODUCT_ACCESS_DENIED"));
     }
 
     @Test
@@ -164,7 +224,7 @@ class ProductApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content", hasSize(1)))
                 .andExpect(jsonPath("$.data.content[0].title").value("MacBook Pro"))
                 .andExpect(jsonPath("$.data.content[0].sellerNickname").value("seller"))
-                .andExpect(jsonPath("$.data.content[0].thumbnailUrl").value("https://example.com/macbook-1.jpg"));
+                .andExpect(jsonPath("$.data.content[0].thumbnailUrl", startsWith("/uploads/products/public/")));
     }
 
     @Test
@@ -289,6 +349,8 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     private Long createProduct(String accessToken) throws Exception {
+        Long uploadId = uploadImage(accessToken, "macbook-1.jpg");
+
         String response = mockMvc.perform(post("/api/products")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -297,11 +359,35 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
-                                  "imageUrls": [
-                                    "https://example.com/macbook-1.jpg"
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
                                   ]
                                 }
-                                """))
+                                """.formatted(uploadId)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode root = objectMapper.readTree(response);
+        return root.path("data").path("id").asLong();
+    }
+
+    private Long uploadImage(String accessToken, String fileName) throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                fileName,
+                MediaType.IMAGE_JPEG_VALUE,
+                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00}
+        );
+
+        String response = mockMvc.perform(multipart("/api/product-image-uploads")
+                        .file(file)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()

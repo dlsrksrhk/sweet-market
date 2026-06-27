@@ -1,5 +1,7 @@
 package com.sweet.market.product.application;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +14,7 @@ import com.sweet.market.product.api.ProductImageAddRequest;
 import com.sweet.market.product.api.ProductResponse;
 import com.sweet.market.product.api.ProductUpdateRequest;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.repository.ProductRepository;
 
 @Service
@@ -19,19 +22,41 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final MemberRepository memberRepository;
+    private final ProductImageUploadService productImageUploadService;
 
-    public ProductService(ProductRepository productRepository, MemberRepository memberRepository) {
+    public ProductService(
+            ProductRepository productRepository,
+            MemberRepository memberRepository,
+            ProductImageUploadService productImageUploadService
+    ) {
         this.productRepository = productRepository;
         this.memberRepository = memberRepository;
+        this.productImageUploadService = productImageUploadService;
     }
 
     @Transactional
     public ProductResponse create(Long sellerId, ProductCreateRequest request) {
+        if (request.images().isEmpty()) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED);
+        }
+
         Member seller = memberRepository.findById(sellerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
 
         Product product = Product.create(seller, request.title(), request.description(), request.price());
-        request.imageUrls().forEach(product::addImage);
+        List<ProductImage> images = request.images().stream()
+                .map(image -> productImageUploadService.confirm(
+                        sellerId,
+                        image.uploadId(),
+                        image.sortOrder(),
+                        image.representative()
+                ))
+                .toList();
+        try {
+            product.replaceImages(images);
+        } catch (IllegalArgumentException exception) {
+            throw mapProductImageException(exception);
+        }
 
         Product savedProduct = productRepository.save(product);
         return ProductResponse.from(savedProduct);
@@ -90,5 +115,13 @@ public class ProductService {
             throw new BusinessException(ErrorCode.PRODUCT_ACCESS_DENIED);
         }
         return product;
+    }
+
+    private BusinessException mapProductImageException(IllegalArgumentException exception) {
+        return switch (exception.getMessage()) {
+            case "Product image is required" -> new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED);
+            case "Product image limit exceeded" -> new BusinessException(ErrorCode.PRODUCT_IMAGE_LIMIT_EXCEEDED);
+            default -> new BusinessException(ErrorCode.VALIDATION_ERROR);
+        };
     }
 }

@@ -11,6 +11,7 @@ import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.api.ProductImageUploadResponse;
+import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.domain.ProductImageUpload;
 import com.sweet.market.product.repository.ProductImageUploadRepository;
 import com.sweet.market.product.storage.ProductImageStorageProperties;
@@ -57,5 +58,35 @@ public class ProductImageUploadService {
         );
 
         return ProductImageUploadResponse.from(productImageUploadRepository.save(upload));
+    }
+
+    @Transactional
+    public ProductImage confirm(Long memberId, Long uploadId, int sortOrder, boolean representative) {
+        ProductImageUpload upload = productImageUploadRepository.findById(uploadId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_IMAGE_UPLOAD_NOT_FOUND));
+        if (!upload.isOwnedBy(memberId)) {
+            throw new BusinessException(ErrorCode.PRODUCT_ACCESS_DENIED);
+        }
+        if (upload.isExpired(LocalDateTime.now())) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_UPLOAD_EXPIRED);
+        }
+
+        StoredProductImage storedImage = storageService.confirm(
+                upload.getStoredFileName(),
+                upload.getOriginalFileName(),
+                upload.getContentType(),
+                upload.getSize()
+        );
+        productImageUploadRepository.delete(upload);
+
+        return ProductImage.local(
+                storedImage.url(),
+                storedImage.storedFileName(),
+                storedImage.originalFileName(),
+                storedImage.contentType(),
+                storedImage.size(),
+                sortOrder,
+                representative
+        );
     }
 }
