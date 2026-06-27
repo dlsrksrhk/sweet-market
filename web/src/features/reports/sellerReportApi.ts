@@ -2,7 +2,8 @@ import { api } from '../../shared/api/http';
 
 export type ProductStatus = 'ON_SALE' | 'RESERVED' | 'SOLD_OUT' | 'HIDDEN';
 export type OrderStatus = 'CREATED' | 'PAID' | 'SHIPPING' | 'DELIVERED' | 'CONFIRMED' | 'CANCELED';
-export type SettlementStatus = 'COMPLETED' | 'FAILED' | 'NONE';
+export type SettlementStatus = 'READY' | 'COMPLETED' | 'FAILED';
+export type SellerRecentSaleSettlementStatus = SettlementStatus | 'NONE';
 
 export type SellerReportPeriod = {
   recentDays: number;
@@ -90,7 +91,7 @@ export type SellerRecentSale = {
   buyerNickname: string;
   amount: number;
   confirmedAt: string;
-  settlementStatus: SettlementStatus;
+  settlementStatus: SellerRecentSaleSettlementStatus;
 };
 
 export type SellerRecentSettlement = {
@@ -99,7 +100,7 @@ export type SellerRecentSettlement = {
   productId: number;
   productTitle: string;
   amount: number;
-  status: Exclude<SettlementStatus, 'NONE'>;
+  status: SettlementStatus;
   settledAt: string;
 };
 
