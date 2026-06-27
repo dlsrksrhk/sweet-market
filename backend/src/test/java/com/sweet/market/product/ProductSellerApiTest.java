@@ -50,6 +50,43 @@ class ProductSellerApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 내_판매_상품_조회는_대표_이미지를_썸네일로_응답한다() throws Exception {
+        String sellerToken = signupAndLogin("seller-representative-products@example.com", "password123", "seller");
+        ProductImageUploadFixture firstImage = uploadProductImage(sellerToken, "seller-product-first.jpg");
+        ProductImageUploadFixture representativeImage = uploadProductImage(sellerToken, "seller-product-representative.jpg");
+
+        mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Seller Product",
+                                  "description": "Seller Product description",
+                                  "price": 10000,
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": false
+                                    },
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 1,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(firstImage.id(), representativeImage.id())))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/products/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].thumbnailUrl").value(representativeImage.publicUrl()));
+    }
+
+    @Test
     void 내_판매_상품_조회는_JWT가_필요하다() throws Exception {
         mockMvc.perform(get("/api/products/me"))
                 .andExpect(status().isUnauthorized())
@@ -80,6 +117,10 @@ class ProductSellerApiTest extends IntegrationTestSupport {
     }
 
     private Long uploadImage(String accessToken, String fileName) throws Exception {
+        return uploadProductImage(accessToken, fileName).id();
+    }
+
+    private ProductImageUploadFixture uploadProductImage(String accessToken, String fileName) throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 fileName,
@@ -96,7 +137,11 @@ class ProductSellerApiTest extends IntegrationTestSupport {
                 .getContentAsString();
 
         JsonNode root = objectMapper.readTree(response);
-        return root.path("data").path("id").asLong();
+        JsonNode data = root.path("data");
+        return new ProductImageUploadFixture(
+                data.path("id").asLong(),
+                data.path("previewUrl").asText().replace("/uploads/products/temp/", "/uploads/products/public/")
+        );
     }
 
     private Statistics statistics() {
@@ -125,5 +170,8 @@ class ProductSellerApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("accessToken").asText();
+    }
+
+    private record ProductImageUploadFixture(Long id, String publicUrl) {
     }
 }
