@@ -139,7 +139,7 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
                 p.id,
                 p.title,
                 s.amount,
-                cast(s.status as string),
+                s.status,
                 s.settledAt
             )
             from Settlement s

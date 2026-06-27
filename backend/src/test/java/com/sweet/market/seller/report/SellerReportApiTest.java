@@ -432,7 +432,8 @@ class SellerReportApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.productRankings[3].title").value("Recent Older"))
                 .andExpect(jsonPath("$.data.productRankings[3].confirmedOrderCount").value(1))
                 .andExpect(jsonPath("$.data.productRankings[3].confirmedSalesAmount").value(30_000))
-                .andExpect(jsonPath("$.data.productRankings[4].title").value("Low Amount"));
+                .andExpect(jsonPath("$.data.productRankings[4].title").value("Low Amount"))
+                .andExpect(jsonPath("$.data.recentSales[0].settlementStatus").value("NONE"));
     }
 
     @Test

@@ -193,7 +193,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                 buyer.nickname,
                 p.price,
                 o.confirmedAt,
-                coalesce(cast(s.status as string), 'NONE')
+                s.status
             )
             from Order o
             join o.buyer buyer
