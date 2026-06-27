@@ -3,6 +3,8 @@ package com.sweet.market.product.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 
 import com.sweet.market.member.domain.Member;
@@ -58,6 +60,79 @@ class ProductTest {
         assertThatThrownBy(() -> product.removeImage(999L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Product image not found: 999");
+    }
+
+    @Test
+    void 상품_이미지는_대표_이미지와_순서를_가진다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+
+        product.replaceImages(List.of(
+                ProductImage.local("/uploads/products/public/a.jpg", "a.jpg", "a.jpg", "image/jpeg", 100L, 1, false),
+                ProductImage.local("/uploads/products/public/b.jpg", "b.jpg", "b.jpg", "image/jpeg", 100L, 0, true)
+        ));
+
+        assertThat(product.getImages()).extracting(ProductImage::getImageUrl)
+                .containsExactly("/uploads/products/public/b.jpg", "/uploads/products/public/a.jpg");
+        assertThat(product.getImages()).extracting(ProductImage::isRepresentative)
+                .containsExactly(true, false);
+    }
+
+    @Test
+    void 상품_이미지는_최소_한_개가_필요하다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+
+        assertThatThrownBy(() -> product.replaceImages(List.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Product image is required");
+    }
+
+    @Test
+    void 상품_대표_이미지는_정확히_한_개여야_한다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+
+        assertThatThrownBy(() -> product.replaceImages(List.of(
+                ProductImage.local("/uploads/products/public/a.jpg", "a.jpg", "a.jpg", "image/jpeg", 100L, 0, false)
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Product representative image must be exactly one");
+    }
+
+    @Test
+    void 상품_이미지는_최대_열_개까지_등록할_수_있다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+
+        assertThatThrownBy(() -> product.replaceImages(List.of(
+                ProductImage.local("/uploads/products/public/0.jpg", "0.jpg", "0.jpg", "image/jpeg", 100L, 0, true),
+                ProductImage.local("/uploads/products/public/1.jpg", "1.jpg", "1.jpg", "image/jpeg", 100L, 1, false),
+                ProductImage.local("/uploads/products/public/2.jpg", "2.jpg", "2.jpg", "image/jpeg", 100L, 2, false),
+                ProductImage.local("/uploads/products/public/3.jpg", "3.jpg", "3.jpg", "image/jpeg", 100L, 3, false),
+                ProductImage.local("/uploads/products/public/4.jpg", "4.jpg", "4.jpg", "image/jpeg", 100L, 4, false),
+                ProductImage.local("/uploads/products/public/5.jpg", "5.jpg", "5.jpg", "image/jpeg", 100L, 5, false),
+                ProductImage.local("/uploads/products/public/6.jpg", "6.jpg", "6.jpg", "image/jpeg", 100L, 6, false),
+                ProductImage.local("/uploads/products/public/7.jpg", "7.jpg", "7.jpg", "image/jpeg", 100L, 7, false),
+                ProductImage.local("/uploads/products/public/8.jpg", "8.jpg", "8.jpg", "image/jpeg", 100L, 8, false),
+                ProductImage.local("/uploads/products/public/9.jpg", "9.jpg", "9.jpg", "image/jpeg", 100L, 9, false),
+                ProductImage.local("/uploads/products/public/10.jpg", "10.jpg", "10.jpg", "image/jpeg", 100L, 10, false)
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Product image limit exceeded");
+    }
+
+    @Test
+    void 상품_이미지_순서는_중복될_수_없다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+
+        assertThatThrownBy(() -> product.replaceImages(List.of(
+                ProductImage.local("/uploads/products/public/a.jpg", "a.jpg", "a.jpg", "image/jpeg", 100L, 0, true),
+                ProductImage.local("/uploads/products/public/b.jpg", "b.jpg", "b.jpg", "image/jpeg", 100L, 0, false)
+        )))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Product image sort order must be unique");
     }
 
     @Test
