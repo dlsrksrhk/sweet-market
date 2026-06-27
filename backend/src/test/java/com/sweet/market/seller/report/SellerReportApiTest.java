@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,7 @@ import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.settlement.domain.Settlement;
 import com.sweet.market.support.IntegrationTestSupport;
 
@@ -437,6 +439,31 @@ class SellerReportApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 상품_랭킹_썸네일은_대표_이미지를_우선한다() throws Exception {
+        String token = createMemberAndLogin("seller-ranking-thumbnail@example.com", "seller-ranking-thumbnail");
+        Member seller = memberRepository.findAll().get(0);
+        Member buyer = saveMember("buyer-ranking-thumbnail@example.com", "buyer-ranking-thumbnail");
+
+        LocalDate from = LocalDate.now().minusDays(6);
+        LocalDate to = LocalDate.now();
+        String representativeImageUrl = "https://example.com/z-representative.jpg";
+        Product product = saveProductWithImages(seller, "Thumbnail Target", 20_000, List.of(
+                ProductImage.local("https://example.com/a-first.jpg", "a-first.jpg", "a-first.jpg", "image/jpeg", 100L, 0, false),
+                ProductImage.local("https://example.com/m-middle.jpg", "m-middle.jpg", "m-middle.jpg", "image/jpeg", 100L, 1, false),
+                ProductImage.local(representativeImageUrl, "z-representative.jpg", "z-representative.jpg", "image/jpeg", 100L, 2, true)
+        ));
+
+        saveConfirmedOrder(buyer, product, from.plusDays(1).atTime(10, 0));
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", from.toString())
+                        .queryParam("to", to.toString())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productRankings[0].thumbnailUrl").value(representativeImageUrl));
+    }
+
+    @Test
     void 상품_랭킹은_판매액과_건수와_최근_확정일이_같으면_상품_ID_내림차순으로_정렬된다() throws Exception {
         String token = createMemberAndLogin("seller-ranking-id@example.com", "seller-ranking-id");
         Member seller = memberRepository.findAll().get(0);
@@ -580,6 +607,17 @@ class SellerReportApiTest extends IntegrationTestSupport {
         return transactionTemplate.execute(status -> {
             Member managedSeller = entityManager.find(Member.class, seller.getId());
             Product product = Product.create(managedSeller, title, "report fixture", price);
+            entityManager.persist(product);
+            entityManager.flush();
+            return product;
+        });
+    }
+
+    private Product saveProductWithImages(Member seller, String title, long price, List<ProductImage> images) {
+        return transactionTemplate.execute(status -> {
+            Member managedSeller = entityManager.find(Member.class, seller.getId());
+            Product product = Product.create(managedSeller, title, "report fixture", price);
+            product.replaceImages(images);
             entityManager.persist(product);
             entityManager.flush();
             return product;

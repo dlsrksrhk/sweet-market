@@ -51,6 +51,7 @@ public class ProductImageUploadService {
         Member uploader = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
         StoredProductImage storedImage = storageService.storeTemporary(file);
+        deleteTemporaryOnRollback(storedImage.storedFileName());
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expiresAt = now.plus(storageProperties.getTempExpiration());
 
@@ -123,6 +124,25 @@ public class ProductImageUploadService {
                 sortOrder,
                 representative
         );
+    }
+
+    private void deleteTemporaryOnRollback(String storedFileName) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_ROLLED_BACK) {
+                    return;
+                }
+                try {
+                    storageService.deleteTemporary(storedFileName);
+                } catch (RuntimeException ignored) {
+                    // Best-effort file compensation after DB rollback.
+                }
+            }
+        });
     }
 
     private void restoreTemporaryOnRollback(String storedFileName) {
