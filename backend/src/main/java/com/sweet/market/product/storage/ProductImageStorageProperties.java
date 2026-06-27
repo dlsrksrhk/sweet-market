@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.StringUtils;
 import org.springframework.util.unit.DataSize;
 
 @ConfigurationProperties(prefix = "product.images")
@@ -20,7 +21,9 @@ public class ProductImageStorageProperties {
     }
 
     public void setUploadRoot(Path uploadRoot) {
-        this.uploadRoot = uploadRoot;
+        if (uploadRoot != null) {
+            this.uploadRoot = uploadRoot;
+        }
     }
 
     public String getTempDir() {
@@ -28,7 +31,9 @@ public class ProductImageStorageProperties {
     }
 
     public void setTempDir(String tempDir) {
-        this.tempDir = tempDir;
+        if (StringUtils.hasText(tempDir)) {
+            this.tempDir = tempDir;
+        }
     }
 
     public String getPublicDir() {
@@ -36,7 +41,9 @@ public class ProductImageStorageProperties {
     }
 
     public void setPublicDir(String publicDir) {
-        this.publicDir = publicDir;
+        if (StringUtils.hasText(publicDir)) {
+            this.publicDir = publicDir;
+        }
     }
 
     public Duration getTempExpiration() {
@@ -44,7 +51,9 @@ public class ProductImageStorageProperties {
     }
 
     public void setTempExpiration(Duration tempExpiration) {
-        this.tempExpiration = tempExpiration;
+        if (tempExpiration != null) {
+            this.tempExpiration = tempExpiration;
+        }
     }
 
     public DataSize getMaxFileSize() {
@@ -52,7 +61,9 @@ public class ProductImageStorageProperties {
     }
 
     public void setMaxFileSize(DataSize maxFileSize) {
-        this.maxFileSize = maxFileSize;
+        if (maxFileSize != null) {
+            this.maxFileSize = maxFileSize;
+        }
     }
 
     public Path tempPath() {

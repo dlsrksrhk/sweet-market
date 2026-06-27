@@ -3,6 +3,7 @@ package com.sweet.market.product.storage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Map;
@@ -37,10 +38,10 @@ public class ProductImageStorageService {
 
         String extension = EXTENSIONS.get(file.getContentType());
         String storedFileName = UUID.randomUUID() + extension;
-        Path target = properties.tempPath().resolve(storedFileName).normalize();
+        Path target = resolveUnder(properties.tempPath(), storedFileName);
 
         try {
-            Files.createDirectories(properties.tempPath());
+            Files.createDirectories(normalizedRoot(properties.tempPath()));
             try (InputStream inputStream = file.getInputStream()) {
                 Files.copy(inputStream, target, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -58,11 +59,11 @@ public class ProductImageStorageService {
     }
 
     public StoredProductImage confirm(String storedFileName, String originalFileName, String contentType, long size) {
-        Path source = properties.tempPath().resolve(storedFileName).normalize();
-        Path target = properties.publicPath().resolve(storedFileName).normalize();
+        Path source = resolveUnder(properties.tempPath(), storedFileName);
+        Path target = resolveUnder(properties.publicPath(), storedFileName);
 
         try {
-            Files.createDirectories(properties.publicPath());
+            Files.createDirectories(normalizedRoot(properties.publicPath()));
             Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException exception) {
             throw new BusinessException(ErrorCode.PRODUCT_IMAGE_UPLOAD_NOT_FOUND);
@@ -72,11 +73,11 @@ public class ProductImageStorageService {
     }
 
     public void deleteTemporary(String storedFileName) {
-        delete(properties.tempPath().resolve(storedFileName));
+        delete(resolveUnder(properties.tempPath(), storedFileName));
     }
 
     public void deletePublic(String storedFileName) {
-        delete(properties.publicPath().resolve(storedFileName));
+        delete(resolveUnder(properties.publicPath(), storedFileName));
     }
 
     private void validate(MultipartFile file) {
@@ -89,6 +90,50 @@ public class ProductImageStorageService {
         if (!EXTENSIONS.containsKey(file.getContentType())) {
             throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_FILE);
         }
+        if (!hasValidSignature(file)) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_FILE);
+        }
+    }
+
+    private boolean hasValidSignature(MultipartFile file) {
+        try (InputStream inputStream = file.getInputStream()) {
+            byte[] header = inputStream.readNBytes(12);
+            return switch (file.getContentType()) {
+                case "image/jpeg" -> startsWith(header, new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
+                case "image/png" -> startsWith(header, new byte[]{
+                        (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
+                });
+                case "image/webp" -> startsWith(header, new byte[]{0x52, 0x49, 0x46, 0x46})
+                        && startsAt(header, 8, new byte[]{0x57, 0x45, 0x42, 0x50});
+                default -> false;
+            };
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_FILE);
+        }
+    }
+
+    private boolean startsWith(byte[] source, byte[] prefix) {
+        if (source.length < prefix.length) {
+            return false;
+        }
+        for (int i = 0; i < prefix.length; i++) {
+            if (source[i] != prefix[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean startsAt(byte[] source, int offset, byte[] prefix) {
+        if (source.length < offset + prefix.length) {
+            return false;
+        }
+        for (int i = 0; i < prefix.length; i++) {
+            if (source[offset + i] != prefix[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String originalFileName(MultipartFile file) {
@@ -101,9 +146,33 @@ public class ProductImageStorageService {
 
     private void delete(Path path) {
         try {
-            Files.deleteIfExists(path.normalize());
+            Files.deleteIfExists(path);
         } catch (IOException exception) {
             throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_FILE);
         }
+    }
+
+    private Path resolveUnder(Path root, String storedFileName) {
+        if (!StringUtils.hasText(storedFileName)
+                || storedFileName.contains("..")
+                || storedFileName.contains("/")
+                || storedFileName.contains("\\")) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_FILE);
+        }
+
+        try {
+            Path normalizedRoot = normalizedRoot(root);
+            Path target = normalizedRoot.resolve(storedFileName).normalize();
+            if (!target.startsWith(normalizedRoot)) {
+                throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_FILE);
+            }
+            return target;
+        } catch (InvalidPathException exception) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_INVALID_FILE);
+        }
+    }
+
+    private Path normalizedRoot(Path root) {
+        return root.toAbsolutePath().normalize();
     }
 }
