@@ -1,5 +1,12 @@
 package com.sweet.market.support;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.stream.Stream;
+
 import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -54,9 +61,32 @@ public abstract class IntegrationTestSupport {
     @AfterEach
     void cleanUp() {
         jdbcTemplate.execute("TRUNCATE TABLE settlements, deliveries, payments, orders, product_image_uploads, product_images, products, members RESTART IDENTITY CASCADE");
+        deleteTestProductImages();
     }
 
     protected String json(Object value) throws JsonProcessingException {
         return objectMapper.writeValueAsString(value);
+    }
+
+    private void deleteTestProductImages() {
+        Path uploadRoot = Path.of("build/test-product-images");
+        if (!Files.exists(uploadRoot)) {
+            return;
+        }
+
+        try (Stream<Path> paths = Files.walk(uploadRoot)) {
+            paths.sorted(Comparator.reverseOrder())
+                    .forEach(this::deleteIfExists);
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
+    }
+
+    private void deleteIfExists(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
     }
 }

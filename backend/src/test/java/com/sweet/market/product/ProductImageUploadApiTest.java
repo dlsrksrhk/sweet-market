@@ -3,6 +3,7 @@ package com.sweet.market.product;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -71,6 +72,31 @@ class ProductImageUploadApiTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("PRODUCT_IMAGE_INVALID_FILE"));
+    }
+
+    @Test
+    void 업로드된_상품_이미지_미리보기는_인증_없이_조회할_수_있다() throws Exception {
+        String accessToken = signupAndLogin("seller-upload-preview@example.com", "password123", "seller");
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "product.jpg",
+                MediaType.IMAGE_JPEG_VALUE,
+                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00}
+        );
+
+        String response = mockMvc.perform(multipart("/api/product-image-uploads")
+                        .file(file)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode root = objectMapper.readTree(response);
+        String previewUrl = root.path("data").path("previewUrl").asText();
+
+        mockMvc.perform(get(previewUrl))
+                .andExpect(status().isOk());
     }
 
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
