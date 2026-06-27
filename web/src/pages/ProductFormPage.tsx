@@ -311,7 +311,7 @@ export function ProductFormPage() {
           {images.length > 0 ? (
             <div className="product-image-list">
               {images.map((image, index) => {
-                const imageLabel = image.originalFileName || `${index + 1}번째 이미지`;
+                const imageLabel = `${index + 1}번째 ${image.originalFileName || '이미지'}`;
 
                 return (
                   <div className="product-image-item" key={image.key}>
