@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthProvider';
+import { toProductImageSrc } from '../features/products/productApi';
 import {
   getSellerDashboardReport,
   getSellerPeriodReport,
@@ -284,22 +285,26 @@ function ProductRanking({ rankings }: { rankings: SellerProductRanking[] }) {
         <EmptyState title="랭킹 데이터가 없습니다" description="선택 기간에 확정된 판매가 없습니다." />
       ) : (
         <div className="product-ranking-list">
-          {rankings.map((item, index) => (
-            <div className="product-ranking-row" key={item.productId}>
-              <span className="ranking-number">{index + 1}</span>
-              {item.thumbnailUrl ? (
-                <img className="ranking-thumb" src={item.thumbnailUrl} alt="" />
-              ) : (
-                <span className="ranking-thumb ranking-thumb-fallback">이미지 없음</span>
-              )}
-              <Link className="ranking-title" to={`/products/${item.productId}`}>
-                {item.title}
-              </Link>
-              <span>{formatNumber(item.confirmedOrderCount)}건</span>
-              <strong>{formatCurrency(item.confirmedSalesAmount)}원</strong>
-              <span>{formatDateTime(item.lastConfirmedAt)}</span>
-            </div>
-          ))}
+          {rankings.map((item, index) => {
+            const thumbnailSrc = toProductImageSrc(item.thumbnailUrl);
+
+            return (
+              <div className="product-ranking-row" key={item.productId}>
+                <span className="ranking-number">{index + 1}</span>
+                {thumbnailSrc ? (
+                  <img className="ranking-thumb" src={thumbnailSrc} alt="" />
+                ) : (
+                  <span className="ranking-thumb ranking-thumb-fallback">이미지 없음</span>
+                )}
+                <Link className="ranking-title" to={`/products/${item.productId}`}>
+                  {item.title}
+                </Link>
+                <span>{formatNumber(item.confirmedOrderCount)}건</span>
+                <strong>{formatCurrency(item.confirmedSalesAmount)}원</strong>
+                <span>{formatDateTime(item.lastConfirmedAt)}</span>
+              </div>
+            );
+          })}
         </div>
       )}
     </section>

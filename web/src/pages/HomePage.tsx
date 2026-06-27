@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { getProducts, type ProductSummary } from '../features/products/productApi';
+import { getProducts, toProductImageSrc, type ProductSummary } from '../features/products/productApi';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR');
@@ -69,8 +69,10 @@ type ProductThumbProps = {
 };
 
 function ProductThumb({ product }: ProductThumbProps) {
-  if (product.thumbnailUrl) {
-    return <img className="product-thumb" src={product.thumbnailUrl} alt="" />;
+  const thumbnailSrc = toProductImageSrc(product.thumbnailUrl);
+
+  if (thumbnailSrc) {
+    return <img className="product-thumb" src={thumbnailSrc} alt="" />;
   }
 
   return <div className="product-thumb product-thumb-fallback">Sweet Market</div>;
