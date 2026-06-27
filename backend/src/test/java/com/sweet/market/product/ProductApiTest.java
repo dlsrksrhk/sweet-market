@@ -433,6 +433,34 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 상품_수정에서_다른_상품의_이미지는_사용할_수_없다() throws Exception {
+        String accessToken = signupAndLogin("seller-cross-product-image@example.com", "password123", "seller");
+        Long targetProductId = createProduct(accessToken);
+        Long otherProductId = createProduct(accessToken);
+        Long otherProductImageId = getFirstImageId(otherProductId);
+
+        mockMvc.perform(patch("/api/products/{productId}", targetProductId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "imageId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(otherProductImageId)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PRODUCT_IMAGE_NOT_FOUND"));
+    }
+
+    @Test
     void 소유자가_아니면_상품_수정에_실패한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String otherToken = signupAndLogin("other@example.com", "password123", "other");
