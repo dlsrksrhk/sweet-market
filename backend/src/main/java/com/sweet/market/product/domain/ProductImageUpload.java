@@ -28,8 +28,8 @@ public class ProductImageUpload {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "member_id", nullable = false)
-    private Member member;
+    @JoinColumn(name = "uploader_id", nullable = false)
+    private Member uploader;
 
     @Column(nullable = false, length = 120)
     private String storedFileName;
@@ -53,7 +53,7 @@ public class ProductImageUpload {
     private LocalDateTime expiresAt;
 
     private ProductImageUpload(
-            Member member,
+            Member uploader,
             String storedFileName,
             String originalFileName,
             String contentType,
@@ -62,7 +62,7 @@ public class ProductImageUpload {
             LocalDateTime createdAt,
             LocalDateTime expiresAt
     ) {
-        this.member = member;
+        this.uploader = uploader;
         this.storedFileName = storedFileName;
         this.originalFileName = originalFileName;
         this.contentType = contentType;
@@ -73,7 +73,7 @@ public class ProductImageUpload {
     }
 
     public static ProductImageUpload create(
-            Member member,
+            Member uploader,
             String storedFileName,
             String originalFileName,
             String contentType,
@@ -83,7 +83,7 @@ public class ProductImageUpload {
             LocalDateTime expiresAt
     ) {
         return new ProductImageUpload(
-                member,
+                uploader,
                 storedFileName,
                 originalFileName,
                 contentType,
@@ -95,7 +95,7 @@ public class ProductImageUpload {
     }
 
     public boolean isOwnedBy(Long memberId) {
-        return member.getId().equals(memberId);
+        return uploader.getId().equals(memberId);
     }
 
     public boolean isExpired(LocalDateTime now) {

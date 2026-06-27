@@ -39,14 +39,14 @@ public class ProductImageUploadService {
 
     @Transactional
     public ProductImageUploadResponse upload(Long memberId, MultipartFile file) {
-        Member member = memberRepository.findById(memberId)
+        Member uploader = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
         StoredProductImage storedImage = storageService.storeTemporary(file);
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expiresAt = now.plus(storageProperties.getTempExpiration());
 
         ProductImageUpload upload = ProductImageUpload.create(
-                member,
+                uploader,
                 storedImage.storedFileName(),
                 storedImage.originalFileName(),
                 storedImage.contentType(),

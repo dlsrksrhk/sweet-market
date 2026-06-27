@@ -71,7 +71,7 @@ public class ProductImageStorageService {
         return new StoredProductImage(storedFileName, originalFileName, contentType, size, PUBLIC_URL_PREFIX + storedFileName);
     }
 
-    public void deleteTemp(String storedFileName) {
+    public void deleteTemporary(String storedFileName) {
         delete(properties.tempPath().resolve(storedFileName));
     }
 
