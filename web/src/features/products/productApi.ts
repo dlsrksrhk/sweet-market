@@ -47,12 +47,19 @@ export type ProductCreateImageInput = {
   representative: boolean;
 };
 
-export type ProductUpdateImageInput = {
-  imageId?: number;
-  uploadId?: number;
-  sortOrder: number;
-  representative: boolean;
-};
+export type ProductUpdateImageInput =
+  | {
+      imageId: number;
+      uploadId?: never;
+      sortOrder: number;
+      representative: boolean;
+    }
+  | {
+      imageId?: never;
+      uploadId: number;
+      sortOrder: number;
+      representative: boolean;
+    };
 
 export type Product = Omit<ProductSummary, 'thumbnailUrl'> & {
   description: string;

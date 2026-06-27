@@ -50,6 +50,8 @@ export function ProductFormPage() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [images, setImages] = useState<ManagedImage[]>([]);
+  const [loadedProductId, setLoadedProductId] = useState<number | null>(null);
+  const [isImageDirty, setIsImageDirty] = useState(false);
 
   const { data: product, error, isLoading } = useQuery({
     queryKey: ['products', parsedProductId],
@@ -78,13 +80,25 @@ export function ProductFormPage() {
       return;
     }
 
-    reset({
-      title: product.title,
-      description: product.description,
-      price: product.price,
-    });
-    setImages(product.images.slice().sort(compareProductImages).map(toManagedImage));
-  }, [product, reset]);
+    const isDifferentProduct = loadedProductId !== product.id;
+    const productImages = product.images.slice().sort(compareProductImages).map(toManagedImage);
+
+    if (isDifferentProduct) {
+      reset({
+        title: product.title,
+        description: product.description,
+        price: product.price,
+      });
+      setImages(productImages);
+      setLoadedProductId(product.id);
+      setIsImageDirty(false);
+      return;
+    }
+
+    if (!isImageDirty) {
+      setImages(productImages);
+    }
+  }, [isImageDirty, loadedProductId, product, reset]);
 
   const createMutation = useMutation({
     mutationFn: (input: ProductCreateInput) => createProduct(input),
@@ -126,28 +140,42 @@ export function ProductFormPage() {
       return;
     }
 
-    try {
-      const uploadedImages: ManagedImage[] = [];
+    let uploadedCount = 0;
+    let uploadFailureMessage: string | null = null;
 
-      for (const file of selectedFiles) {
+    for (const file of selectedFiles) {
+      try {
         const uploadedImage = await uploadMutation.mutateAsync(file);
-        uploadedImages.push({
+        const nextImage = {
           key: `upload-${uploadedImage.id}`,
           uploadId: uploadedImage.id,
           previewUrl: uploadedImage.previewUrl,
           originalFileName: uploadedImage.originalFileName,
           sortOrder: 0,
           representative: false,
-        } satisfies ManagedImage);
-      }
+        } satisfies ManagedImage;
 
-      setImages((currentImages) => normalizeManagedImages([...currentImages, ...uploadedImages]));
-    } catch (caughtError) {
-      setImageError(toErrorMessage(caughtError, '이미지 업로드에 실패했습니다.'));
+        uploadedCount += 1;
+        setImages((currentImages) => normalizeManagedImages([...currentImages, nextImage]));
+        setIsImageDirty(true);
+      } catch (caughtError) {
+        const fileName = file.name || '선택한 이미지';
+        uploadFailureMessage = `${fileName}: ${toErrorMessage(caughtError, '이미지 업로드에 실패했습니다.')}`;
+        break;
+      }
+    }
+
+    if (uploadFailureMessage) {
+      setImageError(
+        uploadedCount > 0
+          ? `${uploadFailureMessage} ${uploadedCount}개 이미지는 업로드됐습니다.`
+          : uploadFailureMessage,
+      );
     }
   };
 
   const selectRepresentative = (key: string) => {
+    setIsImageDirty(true);
     setImages((currentImages) =>
       currentImages.map((image, index) => ({
         ...image,
@@ -158,6 +186,7 @@ export function ProductFormPage() {
   };
 
   const moveImage = (key: string, direction: -1 | 1) => {
+    setIsImageDirty(true);
     setImages((currentImages) => {
       const currentIndex = currentImages.findIndex((image) => image.key === key);
       const nextIndex = currentIndex + direction;
@@ -176,6 +205,7 @@ export function ProductFormPage() {
   };
 
   const removeImage = (key: string) => {
+    setIsImageDirty(true);
     setImages((currentImages) => normalizeManagedImages(currentImages.filter((image) => image.key !== key)));
   };
 
@@ -280,39 +310,56 @@ export function ProductFormPage() {
           {uploadMutation.isPending ? <p className="status-text">이미지를 업로드하고 있습니다.</p> : null}
           {images.length > 0 ? (
             <div className="product-image-list">
-              {images.map((image, index) => (
-                <div className="product-image-item" key={image.key}>
-                  <img src={toProductImageSrc(image.previewUrl) ?? image.previewUrl} alt="" />
-                  <div>
-                    <strong>{image.originalFileName}</strong>
-                    <span className="status-text">{image.representative ? '대표 이미지' : `${index + 1}번째 이미지`}</span>
+              {images.map((image, index) => {
+                const imageLabel = image.originalFileName || `${index + 1}번째 이미지`;
+
+                return (
+                  <div className="product-image-item" key={image.key}>
+                    <img src={toProductImageSrc(image.previewUrl) ?? image.previewUrl} alt="" />
+                    <div>
+                      <strong>{image.originalFileName}</strong>
+                      <span className="status-text">{image.representative ? '대표 이미지' : `${index + 1}번째 이미지`}</span>
+                    </div>
+                    <div className="product-image-actions">
+                      <button
+                        type="button"
+                        className="text-button"
+                        aria-label={`${imageLabel} 대표 이미지로 선택`}
+                        disabled={image.representative}
+                        onClick={() => selectRepresentative(image.key)}
+                      >
+                        대표
+                      </button>
+                      <button
+                        type="button"
+                        className="text-button"
+                        aria-label={`${imageLabel} 위로 이동`}
+                        disabled={index === 0}
+                        onClick={() => moveImage(image.key, -1)}
+                      >
+                        위로
+                      </button>
+                      <button
+                        type="button"
+                        className="text-button"
+                        aria-label={`${imageLabel} 아래로 이동`}
+                        disabled={index === images.length - 1}
+                        onClick={() => moveImage(image.key, 1)}
+                      >
+                        아래로
+                      </button>
+                      <button
+                        type="button"
+                        className="text-button danger-button"
+                        aria-label={`${imageLabel} 삭제`}
+                        onClick={() => removeImage(image.key)}
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </div>
-                  <div className="product-image-actions">
-                    <button
-                      type="button"
-                      className="text-button"
-                      disabled={image.representative}
-                      onClick={() => selectRepresentative(image.key)}
-                    >
-                      대표
-                    </button>
-                    <button type="button" className="text-button" disabled={index === 0} onClick={() => moveImage(image.key, -1)}>
-                      위로
-                    </button>
-                    <button
-                      type="button"
-                      className="text-button"
-                      disabled={index === images.length - 1}
-                      onClick={() => moveImage(image.key, 1)}
-                    >
-                      아래로
-                    </button>
-                    <button type="button" className="text-button danger-button" onClick={() => removeImage(image.key)}>
-                      삭제
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="status-text">선택된 이미지가 없습니다.</p>
@@ -380,12 +427,29 @@ function toCreateImages(images: ManagedImage[]): ProductCreateImageInput[] {
 }
 
 function toUpdateImages(images: ManagedImage[]): ProductUpdateImageInput[] {
-  return images.map((image) => ({
-    imageId: image.imageId,
-    uploadId: image.uploadId,
-    sortOrder: image.sortOrder,
-    representative: image.representative,
-  }));
+  return images.map((image) => {
+    if (image.imageId !== undefined && image.uploadId !== undefined) {
+      throw new Error('상품 이미지는 기존 이미지 또는 업로드 이미지 중 하나만 사용할 수 있습니다.');
+    }
+
+    if (image.imageId !== undefined) {
+      return {
+        imageId: image.imageId,
+        sortOrder: image.sortOrder,
+        representative: image.representative,
+      };
+    }
+
+    if (image.uploadId !== undefined) {
+      return {
+        uploadId: image.uploadId,
+        sortOrder: image.sortOrder,
+        representative: image.representative,
+      };
+    }
+
+    throw new Error('상품 이미지 정보가 없습니다.');
+  });
 }
 
 function toErrorMessage(error: unknown, fallbackMessage: string) {
