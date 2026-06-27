@@ -305,6 +305,7 @@ class ProductApiTest extends IntegrationTestSupport {
     void 소유자는_상품_수정에_성공한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(accessToken);
+        Long imageId = getFirstImageId(productId);
 
         mockMvc.perform(patch("/api/products/{productId}", productId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
@@ -313,9 +314,16 @@ class ProductApiTest extends IntegrationTestSupport {
                                 {
                                   "title": "iPhone 15 Pro",
                                   "description": "Natural titanium",
-                                  "price": 1200000
+                                  "price": 1200000,
+                                  "images": [
+                                    {
+                                      "imageId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
                                 }
-                                """))
+                                """.formatted(imageId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(productId))
                 .andExpect(jsonPath("$.data.title").value("iPhone 15 Pro"))
@@ -324,10 +332,70 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 소유자는_상품_이미지_구성을_수정할_수_있다() throws Exception {
+        String accessToken = signupAndLogin("seller-update-images@example.com", "password123", "seller");
+        Long productId = createProduct(accessToken);
+        Long existingImageId = getFirstImageId(productId);
+        Long newUploadId = uploadImage(accessToken, "macbook-2.jpg");
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "imageId": %d,
+                                      "sortOrder": 1,
+                                      "representative": false
+                                    },
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(existingImageId, newUploadId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.images", hasSize(2)))
+                .andExpect(jsonPath("$.data.images[0].imageUrl", startsWith("/uploads/products/public/")))
+                .andExpect(jsonPath("$.data.images[0].sortOrder").value(0))
+                .andExpect(jsonPath("$.data.images[0].representative").value(true))
+                .andExpect(jsonPath("$.data.images[1].id").value(existingImageId))
+                .andExpect(jsonPath("$.data.images[1].sortOrder").value(1))
+                .andExpect(jsonPath("$.data.images[1].representative").value(false));
+    }
+
+    @Test
+    void 상품_수정은_최소_한_개_이미지를_유지해야_한다() throws Exception {
+        String accessToken = signupAndLogin("seller-update-required@example.com", "password123", "seller");
+        Long productId = createProduct(accessToken);
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": []
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PRODUCT_IMAGE_REQUIRED"));
+    }
+
+    @Test
     void 소유자가_아니면_상품_수정에_실패한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String otherToken = signupAndLogin("other@example.com", "password123", "other");
         Long productId = createProduct(sellerToken);
+        Long imageId = getFirstImageId(productId);
 
         mockMvc.perform(patch("/api/products/{productId}", productId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken)
@@ -336,9 +404,16 @@ class ProductApiTest extends IntegrationTestSupport {
                                 {
                                   "title": "iPhone 15 Pro",
                                   "description": "Natural titanium",
-                                  "price": 1200000
+                                  "price": 1200000,
+                                  "images": [
+                                    {
+                                      "imageId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
                                 }
-                                """))
+                                """.formatted(imageId)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("PRODUCT_ACCESS_DENIED"));
     }
@@ -411,72 +486,128 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void 소유자는_상품_이미지_추가에_성공한다() throws Exception {
-        String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
+    void 상품_수정에서_기존_이미지가_잘못되어도_새_업로드는_다시_사용할_수_있다() throws Exception {
+        String accessToken = signupAndLogin("seller-invalid-existing@example.com", "password123", "seller");
         Long productId = createProduct(accessToken);
+        Long existingImageId = getFirstImageId(productId);
+        Long uploadId = uploadImage(accessToken, "retry-update.jpg");
 
-        mockMvc.perform(post("/api/products/{productId}/images", productId)
+        mockMvc.perform(patch("/api/products/{productId}", productId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "imageUrl": "https://example.com/macbook-2.jpg"
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "imageId": 999,
+                                      "sortOrder": 1,
+                                      "representative": false
+                                    },
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
                                 }
-                                """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.images", hasSize(2)))
-                .andExpect(jsonPath("$.data.images[1].imageUrl").value("https://example.com/macbook-2.jpg"));
-    }
+                                """.formatted(uploadId)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PRODUCT_IMAGE_NOT_FOUND"));
 
-    @Test
-    void 소유자가_아니면_상품_이미지_추가에_실패한다() throws Exception {
-        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
-        String otherToken = signupAndLogin("other@example.com", "password123", "other");
-        Long productId = createProduct(sellerToken);
-
-        mockMvc.perform(post("/api/products/{productId}/images", productId)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "imageUrl": "https://example.com/macbook-2.jpg"
-                                }
-                                """))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("PRODUCT_ACCESS_DENIED"));
-    }
-
-    @Test
-    void 소유자는_상품_이미지_삭제에_성공한다() throws Exception {
-        String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
-        Long productId = createProduct(accessToken);
-        mockMvc.perform(post("/api/products/{productId}/images", productId)
+        mockMvc.perform(patch("/api/products/{productId}", productId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "imageUrl": "https://example.com/macbook-2.jpg"
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "imageId": %d,
+                                      "sortOrder": 1,
+                                      "representative": false
+                                    },
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
                                 }
-                                """))
-                .andExpect(status().isCreated());
-        Long imageId = getFirstImageId(productId);
-
-        mockMvc.perform(delete("/api/products/{productId}/images/{imageId}", productId, imageId)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                                """.formatted(existingImageId, uploadId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.images", hasSize(1)))
+                .andExpect(jsonPath("$.data.images", hasSize(2)))
                 .andExpect(jsonPath("$.data.images[0].representative").value(true));
     }
 
     @Test
-    void 상품에_속하지_않은_이미지를_삭제하면_실패한다() throws Exception {
-        String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
-        Long productId = createProduct(accessToken);
+    void 상품_수정에서_다른_업로드가_잘못되어도_앞선_업로드는_다시_사용할_수_있다() throws Exception {
+        String sellerToken = signupAndLogin("seller-invalid-upload@example.com", "password123", "seller");
+        String otherToken = signupAndLogin("other-invalid-upload@example.com", "password123", "other");
+        Long productId = createProduct(sellerToken);
+        Long existingImageId = getFirstImageId(productId);
+        Long sellerUploadId = uploadImage(sellerToken, "seller-update.jpg");
+        Long otherUploadId = uploadImage(otherToken, "other-update.jpg");
 
-        mockMvc.perform(delete("/api/products/{productId}/images/{imageId}", productId, 999L)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("PRODUCT_IMAGE_NOT_FOUND"));
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "imageId": %d,
+                                      "sortOrder": 2,
+                                      "representative": false
+                                    },
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    },
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 1,
+                                      "representative": false
+                                    }
+                                  ]
+                                }
+                                """.formatted(existingImageId, sellerUploadId, otherUploadId)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PRODUCT_ACCESS_DENIED"));
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "imageId": %d,
+                                      "sortOrder": 1,
+                                      "representative": false
+                                    },
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(existingImageId, sellerUploadId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.images", hasSize(2)))
+                .andExpect(jsonPath("$.data.images[0].representative").value(true));
     }
 
     private String signupAndLogin(String email, String password, String nickname) throws Exception {

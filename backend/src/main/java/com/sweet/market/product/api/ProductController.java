@@ -84,24 +84,4 @@ public class ProductController {
         return ApiResponse.ok(productService.hide(member.id(), productId));
     }
 
-    @PostMapping("/{productId}/images")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<ProductResponse> addImage(
-            Authentication authentication,
-            @PathVariable Long productId,
-            @Valid @RequestBody ProductImageAddRequest request
-    ) {
-        AuthenticatedMember member = (AuthenticatedMember) authentication.getPrincipal();
-        return ApiResponse.ok(productService.addImage(member.id(), productId, request));
-    }
-
-    @DeleteMapping("/{productId}/images/{imageId}")
-    public ApiResponse<ProductResponse> removeImage(
-            Authentication authentication,
-            @PathVariable Long productId,
-            @PathVariable Long imageId
-    ) {
-        AuthenticatedMember member = (AuthenticatedMember) authentication.getPrincipal();
-        return ApiResponse.ok(productService.removeImage(member.id(), productId, imageId));
-    }
 }

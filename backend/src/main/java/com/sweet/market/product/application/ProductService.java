@@ -13,8 +13,8 @@ import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.api.ProductCreateImageRequest;
 import com.sweet.market.product.api.ProductCreateRequest;
-import com.sweet.market.product.api.ProductImageAddRequest;
 import com.sweet.market.product.api.ProductResponse;
+import com.sweet.market.product.api.ProductUpdateImageRequest;
 import com.sweet.market.product.api.ProductUpdateRequest;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductImage;
@@ -77,6 +77,21 @@ public class ProductService {
         } catch (IllegalStateException exception) {
             throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED);
         }
+        validateUpdateImages(product, request.images());
+        List<Long> uploadIds = request.images().stream()
+                .filter(ProductUpdateImageRequest::referencesUpload)
+                .map(ProductUpdateImageRequest::uploadId)
+                .toList();
+        productImageUploadService.validateConfirmableUploads(sellerId, uploadIds);
+
+        List<ProductImage> nextImages = request.images().stream()
+                .map(image -> toProductImage(sellerId, product, image))
+                .toList();
+        try {
+            product.replaceImages(nextImages);
+        } catch (IllegalArgumentException exception) {
+            throw mapProductImageException(exception);
+        }
         return ProductResponse.from(product);
     }
 
@@ -91,30 +106,6 @@ public class ProductService {
         return ProductResponse.from(product);
     }
 
-    @Transactional
-    public ProductResponse addImage(Long sellerId, Long productId, ProductImageAddRequest request) {
-        Product product = findProductForOwner(sellerId, productId);
-        try {
-            product.addImage(request.imageUrl());
-        } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED);
-        }
-        return ProductResponse.from(product);
-    }
-
-    @Transactional
-    public ProductResponse removeImage(Long sellerId, Long productId, Long imageId) {
-        Product product = findProductForOwner(sellerId, productId);
-        try {
-            product.removeImage(imageId);
-        } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED);
-        } catch (IllegalArgumentException exception) {
-            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_NOT_FOUND);
-        }
-        return ProductResponse.from(product);
-    }
-
     private Product findProductForOwner(Long sellerId, Long productId) {
         Product product = productRepository.findWithSellerAndImagesById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
@@ -122,6 +113,66 @@ public class ProductService {
             throw new BusinessException(ErrorCode.PRODUCT_ACCESS_DENIED);
         }
         return product;
+    }
+
+    private void validateUpdateImages(Product product, List<ProductUpdateImageRequest> images) {
+        if (images.isEmpty()) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED);
+        }
+        if (images.size() > 10) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_LIMIT_EXCEEDED);
+        }
+        long representativeCount = images.stream()
+                .filter(ProductUpdateImageRequest::representative)
+                .count();
+        if (representativeCount != 1) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        Set<Integer> sortOrders = new HashSet<>();
+        boolean hasDuplicateSortOrder = images.stream()
+                .map(ProductUpdateImageRequest::sortOrder)
+                .anyMatch(sortOrder -> !sortOrders.add(sortOrder));
+        if (hasDuplicateSortOrder) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        boolean hasInvalidReference = images.stream()
+                .anyMatch(image -> !image.referencesExistingImage() && !image.referencesUpload());
+        if (hasInvalidReference) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        Set<Long> existingImageIds = new HashSet<>();
+        boolean hasDuplicateExistingImageId = images.stream()
+                .filter(ProductUpdateImageRequest::referencesExistingImage)
+                .map(ProductUpdateImageRequest::imageId)
+                .anyMatch(imageId -> !existingImageIds.add(imageId));
+        if (hasDuplicateExistingImageId) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        boolean hasUnknownExistingImage = images.stream()
+                .filter(ProductUpdateImageRequest::referencesExistingImage)
+                .map(ProductUpdateImageRequest::imageId)
+                .anyMatch(imageId -> product.getImages().stream()
+                        .noneMatch(image -> imageId.equals(image.getId())));
+        if (hasUnknownExistingImage) {
+            throw new BusinessException(ErrorCode.PRODUCT_IMAGE_NOT_FOUND);
+        }
+    }
+
+    private ProductImage toProductImage(Long sellerId, Product product, ProductUpdateImageRequest request) {
+        if (request.referencesExistingImage()) {
+            ProductImage image = product.getImages().stream()
+                    .filter(existingImage -> request.imageId().equals(existingImage.getId()))
+                    .findFirst()
+                    .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_IMAGE_NOT_FOUND));
+            image.changeArrangement(request.sortOrder(), request.representative());
+            return image;
+        }
+        return productImageUploadService.confirm(
+                sellerId,
+                request.uploadId(),
+                request.sortOrder(),
+                request.representative()
+        );
     }
 
     private void validateCreateImages(List<ProductCreateImageRequest> images) {
