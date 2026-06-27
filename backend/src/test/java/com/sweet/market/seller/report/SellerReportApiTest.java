@@ -494,6 +494,39 @@ class SellerReportApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 최근_정산은_READY를_제외하고_COMPLETED와_FAILED만_반환한다() throws Exception {
+        String token = createMemberAndLogin("seller-recent-settlement-status@example.com", "seller-ready-filter");
+        Member seller = memberRepository.findAll().get(0);
+        Member buyer = saveMember("buyer-recent-settlement-status@example.com", "buyer-ready-filter");
+
+        LocalDate from = LocalDate.now().minusDays(6);
+        LocalDate to = LocalDate.now();
+        LocalDateTime inside = from.plusDays(1).atTime(10, 0);
+
+        Order completedOrder = saveConfirmedOrder(buyer, saveProduct(seller, "Completed Settlement", 10_000), inside);
+        Order failedOrder = saveConfirmedOrder(buyer, saveProduct(seller, "Failed Settlement", 20_000), inside);
+        Order readyOrder = saveConfirmedOrder(buyer, saveProduct(seller, "Ready Settlement", 30_000), inside);
+        saveSettlement(completedOrder, inside.plusHours(1));
+        Settlement failedSettlement = saveSettlement(failedOrder, inside.plusHours(2));
+        Settlement readySettlement = saveSettlement(readyOrder, inside.plusHours(3));
+        jdbcTemplate.update("update settlements set status = 'FAILED' where id = ?", failedSettlement.getId());
+        jdbcTemplate.update("update settlements set status = 'READY' where id = ?", readySettlement.getId());
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", from.toString())
+                        .queryParam("to", to.toString())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.recentSettlements.length()").value(2))
+                .andExpect(jsonPath("$.data.recentSettlements[0].productTitle").value("Failed Settlement"))
+                .andExpect(jsonPath("$.data.recentSettlements[0].status").value("FAILED"))
+                .andExpect(jsonPath("$.data.recentSettlements[1].productTitle").value("Completed Settlement"))
+                .andExpect(jsonPath("$.data.recentSettlements[1].status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.recentSettlements[*].productTitle", not(hasItem("Ready Settlement"))))
+                .andExpect(jsonPath("$.data.recentSettlements[*].status", not(hasItem("READY"))));
+    }
+
+    @Test
     void 랭킹과_최근_목록은_다른_판매자_데이터를_포함하지_않는다() throws Exception {
         String token = createMemberAndLogin("seller-ranking-scope@example.com", "seller-ranking-scope");
         Member targetSeller = memberRepository.findAll().get(0);

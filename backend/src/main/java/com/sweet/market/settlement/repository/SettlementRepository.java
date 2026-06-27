@@ -146,6 +146,10 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
             join s.order o
             join o.product p
             where s.seller.id = :sellerId
+              and s.status in (
+                  com.sweet.market.settlement.domain.SettlementStatus.COMPLETED,
+                  com.sweet.market.settlement.domain.SettlementStatus.FAILED
+              )
               and s.settledAt >= :fromInclusive
               and s.settledAt < :toExclusive
             order by s.settledAt desc, s.id desc
