@@ -3,6 +3,7 @@ package com.sweet.market.payment;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sweet.market.auth.api.LoginRequest;
@@ -117,6 +119,8 @@ class PaymentApiTest extends IntegrationTestSupport {
     }
 
     private Long createProduct(String accessToken) throws Exception {
+        Long uploadId = uploadImage(accessToken, "macbook-1.jpg");
+
         String response = mockMvc.perform(post("/api/products")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -125,11 +129,35 @@ class PaymentApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
-                                  "imageUrls": [
-                                    "https://example.com/macbook-1.jpg"
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
                                   ]
                                 }
-                                """))
+                                """.formatted(uploadId)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode root = objectMapper.readTree(response);
+        return root.path("data").path("id").asLong();
+    }
+
+    private Long uploadImage(String accessToken, String fileName) throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                fileName,
+                MediaType.IMAGE_JPEG_VALUE,
+                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, 0x00}
+        );
+
+        String response = mockMvc.perform(multipart("/api/product-image-uploads")
+                        .file(file)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
