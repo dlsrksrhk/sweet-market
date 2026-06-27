@@ -405,11 +405,15 @@ class SellerReportApiTest extends IntegrationTestSupport {
         Product lowAmount = saveProduct(seller, "Low Amount", 10_000);
         Product highCount = saveProduct(seller, "High Count", 20_000);
         Product highRecent = saveProduct(seller, "High Recent", 40_000);
+        Product recentOlder = saveProduct(seller, "Recent Older", 30_000);
+        Product recentNewer = saveProduct(seller, "Recent Newer", 30_000);
 
         saveConfirmedOrder(buyer, lowAmount, from.atTime(9, 0));
         saveConfirmedOrder(buyer, highCount, from.atTime(10, 0));
         saveConfirmedOrder(buyer, highCount, from.plusDays(1).atTime(10, 0));
         saveConfirmedOrder(buyer, highRecent, from.plusDays(2).atTime(10, 0));
+        saveConfirmedOrder(buyer, recentOlder, from.plusDays(3).atTime(10, 0));
+        saveConfirmedOrder(buyer, recentNewer, from.plusDays(4).atTime(10, 0));
 
         mockMvc.perform(get("/api/seller/reports/period")
                         .queryParam("from", from.toString())
@@ -422,7 +426,40 @@ class SellerReportApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.productRankings[1].title").value("High Recent"))
                 .andExpect(jsonPath("$.data.productRankings[1].confirmedOrderCount").value(1))
                 .andExpect(jsonPath("$.data.productRankings[1].confirmedSalesAmount").value(40_000))
-                .andExpect(jsonPath("$.data.productRankings[2].title").value("Low Amount"));
+                .andExpect(jsonPath("$.data.productRankings[2].title").value("Recent Newer"))
+                .andExpect(jsonPath("$.data.productRankings[2].confirmedOrderCount").value(1))
+                .andExpect(jsonPath("$.data.productRankings[2].confirmedSalesAmount").value(30_000))
+                .andExpect(jsonPath("$.data.productRankings[3].title").value("Recent Older"))
+                .andExpect(jsonPath("$.data.productRankings[3].confirmedOrderCount").value(1))
+                .andExpect(jsonPath("$.data.productRankings[3].confirmedSalesAmount").value(30_000))
+                .andExpect(jsonPath("$.data.productRankings[4].title").value("Low Amount"));
+    }
+
+    @Test
+    void 상품_랭킹은_판매액과_건수와_최근_확정일이_같으면_상품_ID_내림차순으로_정렬된다() throws Exception {
+        String token = createMemberAndLogin("seller-ranking-id@example.com", "seller-ranking-id");
+        Member seller = memberRepository.findAll().get(0);
+        Member buyer = saveMember("buyer-ranking-id@example.com", "buyer-ranking-id");
+
+        LocalDate from = LocalDate.now().minusDays(6);
+        LocalDate to = LocalDate.now();
+        LocalDateTime confirmedAt = from.plusDays(1).atTime(10, 0);
+
+        Product lowerId = saveProduct(seller, "Lower Id", 20_000);
+        Product higherId = saveProduct(seller, "Higher Id", 20_000);
+
+        saveConfirmedOrder(buyer, lowerId, confirmedAt);
+        saveConfirmedOrder(buyer, higherId, confirmedAt);
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", from.toString())
+                        .queryParam("to", to.toString())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productRankings[0].title").value("Higher Id"))
+                .andExpect(jsonPath("$.data.productRankings[0].productId").value(higherId.getId()))
+                .andExpect(jsonPath("$.data.productRankings[1].title").value("Lower Id"))
+                .andExpect(jsonPath("$.data.productRankings[1].productId").value(lowerId.getId()));
     }
 
     @Test
