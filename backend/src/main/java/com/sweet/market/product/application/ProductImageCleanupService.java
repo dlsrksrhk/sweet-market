@@ -27,7 +27,7 @@ public class ProductImageCleanupService {
     @Transactional
     public int cleanExpiredUploads(LocalDateTime now) {
         int deletedCount = 0;
-        for (ProductImageUpload upload : uploadRepository.findByExpiresAtBefore(now)) {
+        for (ProductImageUpload upload : uploadRepository.findByExpiresAtLessThanEqual(now)) {
             try {
                 storageService.deleteTemporary(upload.getStoredFileName());
             } catch (BusinessException ignored) {

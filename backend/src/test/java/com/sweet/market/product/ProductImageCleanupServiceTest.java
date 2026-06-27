@@ -57,6 +57,31 @@ class ProductImageCleanupServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 만료_시각이_정리_시각과_같은_업로드를_정리한다() throws Exception {
+        Member seller = memberRepository.save(Member.create("seller-cleanup-boundary@example.com", "encoded-password", "seller"));
+        Files.createDirectories(properties.tempPath());
+        Path expiredFile = properties.tempPath().resolve("boundary.jpg");
+        Files.write(expiredFile, new byte[]{1, 2, 3});
+        LocalDateTime now = LocalDateTime.of(2026, 1, 1, 12, 0);
+        uploadRepository.save(ProductImageUpload.create(
+                seller,
+                "boundary.jpg",
+                "boundary.jpg",
+                "image/jpeg",
+                3L,
+                "/uploads/products/temp/boundary.jpg",
+                now.minusHours(1),
+                now
+        ));
+
+        int deletedCount = cleanupService.cleanExpiredUploads(now);
+
+        assertThat(deletedCount).isEqualTo(1);
+        assertThat(uploadRepository.findAll()).isEmpty();
+        assertThat(Files.exists(expiredFile)).isFalse();
+    }
+
+    @Test
     void 임시_파일_삭제에_실패해도_만료된_업로드를_정리한다() {
         Member seller = memberRepository.save(Member.create("seller-cleanup-invalid@example.com", "encoded-password", "seller"));
         LocalDateTime now = LocalDateTime.now();

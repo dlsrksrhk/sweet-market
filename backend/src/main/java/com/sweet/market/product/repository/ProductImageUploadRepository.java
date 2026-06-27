@@ -9,5 +9,5 @@ import com.sweet.market.product.domain.ProductImageUpload;
 
 public interface ProductImageUploadRepository extends JpaRepository<ProductImageUpload, Long> {
 
-    List<ProductImageUpload> findByExpiresAtBefore(LocalDateTime now);
+    List<ProductImageUpload> findByExpiresAtLessThanEqual(LocalDateTime now);
 }
