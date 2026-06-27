@@ -121,7 +121,10 @@ public class Product {
 
     public ProductImage addLegacyImage(String imageUrl) {
         validateNotReserved();
-        ProductImage image = ProductImage.legacyUrl(imageUrl, images.size(), images.isEmpty());
+        if (images.size() >= 10) {
+            throw new IllegalArgumentException("Product image limit exceeded");
+        }
+        ProductImage image = ProductImage.legacyUrl(imageUrl, nextSortOrder(), images.isEmpty());
         image.assignProduct(this);
         images.add(image);
         sortImages();
@@ -141,10 +144,35 @@ public class Product {
 
     public void removeImage(Long imageId) {
         validateNotReserved();
-        boolean removed = images.removeIf(image -> imageId.equals(image.getId()));
-        if (!removed) {
-            throw new IllegalArgumentException("Product image not found: " + imageId);
+        ProductImage target = images.stream()
+                .filter(image -> imageId.equals(image.getId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Product image not found: " + imageId));
+        if (images.size() == 1) {
+            throw new IllegalStateException("Product image is required");
         }
+        images.remove(target);
+        if (target.isRepresentative()) {
+            promoteRepresentative();
+        }
+    }
+
+    private int nextSortOrder() {
+        return images.stream()
+                .mapToInt(ProductImage::getSortOrder)
+                .max()
+                .orElse(-1) + 1;
+    }
+
+    private void promoteRepresentative() {
+        boolean hasRepresentative = images.stream()
+                .anyMatch(ProductImage::isRepresentative);
+        if (hasRepresentative) {
+            return;
+        }
+        sortImages();
+        ProductImage firstImage = images.get(0);
+        firstImage.changeArrangement(firstImage.getSortOrder(), true);
     }
 
     private void validateImages(List<ProductImage> nextImages) {

@@ -237,12 +237,22 @@ class ProductApiTest extends IntegrationTestSupport {
     void 소유자는_상품_이미지_삭제에_성공한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(accessToken);
+        mockMvc.perform(post("/api/products/{productId}/images", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "imageUrl": "https://example.com/macbook-2.jpg"
+                                }
+                                """))
+                .andExpect(status().isCreated());
         Long imageId = getFirstImageId(productId);
 
         mockMvc.perform(delete("/api/products/{productId}/images/{imageId}", productId, imageId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.images", hasSize(0)));
+                .andExpect(jsonPath("$.data.images", hasSize(1)))
+                .andExpect(jsonPath("$.data.images[0].representative").value(true));
     }
 
     @Test

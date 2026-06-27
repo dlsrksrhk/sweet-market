@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.sweet.market.member.domain.Member;
 
@@ -151,6 +152,78 @@ class ProductTest {
     }
 
     @Test
+    void 레거시_이미지_추가는_고유한_순서와_하나의_대표_이미지를_유지한다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+
+        product.addLegacyImage("https://example.com/macbook-1.jpg");
+        product.addLegacyImage("https://example.com/macbook-2.jpg");
+
+        assertThat(product.getImages()).extracting(ProductImage::getSortOrder)
+                .containsExactly(0, 1);
+        assertThat(product.getImages()).extracting(ProductImage::isRepresentative)
+                .containsExactly(true, false);
+    }
+
+    @Test
+    void 레거시_이미지_추가는_최대_열_개까지만_허용한다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+        for (int i = 0; i < 10; i++) {
+            product.addLegacyImage("https://example.com/macbook-" + i + ".jpg");
+        }
+
+        assertThatThrownBy(() -> product.addLegacyImage("https://example.com/macbook-10.jpg"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Product image limit exceeded");
+    }
+
+    @Test
+    void 레거시_이미지는_삭제_후_추가해도_순서가_중복되지_않는다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+        ProductImage first = product.addLegacyImage("https://example.com/macbook-1.jpg");
+        ProductImage second = product.addLegacyImage("https://example.com/macbook-2.jpg");
+        ProductImage third = product.addLegacyImage("https://example.com/macbook-3.jpg");
+        assignImageId(first, 1L);
+        assignImageId(second, 2L);
+        assignImageId(third, 3L);
+
+        product.removeImage(2L);
+        product.addLegacyImage("https://example.com/macbook-4.jpg");
+
+        assertThat(product.getImages()).extracting(ProductImage::getSortOrder)
+                .containsExactly(0, 2, 3);
+    }
+
+    @Test
+    void 대표_이미지를_삭제하면_남은_이미지가_대표_이미지가_된다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+        ProductImage first = product.addLegacyImage("https://example.com/macbook-1.jpg");
+        ProductImage second = product.addLegacyImage("https://example.com/macbook-2.jpg");
+        assignImageId(first, 1L);
+        assignImageId(second, 2L);
+
+        product.removeImage(1L);
+
+        assertThat(product.getImages()).extracting(ProductImage::isRepresentative)
+                .containsExactly(true);
+    }
+
+    @Test
+    void 마지막_이미지는_삭제할_수_없다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+        ProductImage image = product.addLegacyImage("https://example.com/macbook-1.jpg");
+        assignImageId(image, 1L);
+
+        assertThatThrownBy(() -> product.removeImage(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Product image is required");
+    }
+
+    @Test
     void 판매중_상품을_예약한다() {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
@@ -233,5 +306,9 @@ class ProductTest {
         assertThatThrownBy(() -> product.update("iPhone", "15 Pro", 1_200_000L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Reserved product cannot be changed");
+    }
+
+    private void assignImageId(ProductImage image, Long id) {
+        ReflectionTestUtils.setField(image, "id", id);
     }
 }
