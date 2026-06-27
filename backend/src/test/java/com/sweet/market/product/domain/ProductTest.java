@@ -136,6 +136,21 @@ class ProductTest {
     }
 
     @Test
+    void 저장_파일명이_비어_있으면_로컬_파일이_아니다() {
+        ProductImage image = ProductImage.local(
+                "/uploads/products/public/a.jpg",
+                " ",
+                "a.jpg",
+                "image/jpeg",
+                100L,
+                0,
+                true
+        );
+
+        assertThat(image.isLocalFile()).isFalse();
+    }
+
+    @Test
     void 판매중_상품을_예약한다() {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);

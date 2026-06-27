@@ -103,6 +103,6 @@ public class ProductImage {
     }
 
     public boolean isLocalFile() {
-        return storedFileName != null;
+        return storedFileName != null && !storedFileName.isBlank();
     }
 }
