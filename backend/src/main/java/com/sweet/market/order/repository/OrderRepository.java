@@ -14,6 +14,7 @@ import org.springframework.data.repository.query.Param;
 import com.sweet.market.order.admin.AdminOrderSummaryResponse;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderStatus;
+import com.sweet.market.seller.report.SellerDailySalesResponse;
 import com.sweet.market.seller.report.SellerOrderStatusCountProjection;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
@@ -114,6 +115,42 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
               and o.confirmedAt < :toExclusive
             """)
     long countConfirmedOrdersBySellerIdAndConfirmedAtBetween(
+            @Param("sellerId") Long sellerId,
+            @Param("fromInclusive") LocalDateTime fromInclusive,
+            @Param("toExclusive") LocalDateTime toExclusive
+    );
+
+    @Query("""
+            select coalesce(sum(p.price), 0)
+            from Order o
+            join o.product p
+            where p.seller.id = :sellerId
+              and o.status = com.sweet.market.order.domain.OrderStatus.CONFIRMED
+              and o.confirmedAt >= :fromInclusive
+              and o.confirmedAt < :toExclusive
+            """)
+    Long sumConfirmedSalesAmountBySellerIdAndConfirmedAtBetween(
+            @Param("sellerId") Long sellerId,
+            @Param("fromInclusive") LocalDateTime fromInclusive,
+            @Param("toExclusive") LocalDateTime toExclusive
+    );
+
+    @Query("""
+            select new com.sweet.market.seller.report.SellerDailySalesResponse(
+                cast(o.confirmedAt as localdate),
+                count(o),
+                coalesce(sum(p.price), 0)
+            )
+            from Order o
+            join o.product p
+            where p.seller.id = :sellerId
+              and o.status = com.sweet.market.order.domain.OrderStatus.CONFIRMED
+              and o.confirmedAt >= :fromInclusive
+              and o.confirmedAt < :toExclusive
+            group by cast(o.confirmedAt as localdate)
+            order by cast(o.confirmedAt as localdate) asc
+            """)
+    List<SellerDailySalesResponse> findDailyConfirmedSalesBySellerIdAndConfirmedAtBetween(
             @Param("sellerId") Long sellerId,
             @Param("fromInclusive") LocalDateTime fromInclusive,
             @Param("toExclusive") LocalDateTime toExclusive

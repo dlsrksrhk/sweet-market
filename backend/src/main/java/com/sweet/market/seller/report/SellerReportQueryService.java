@@ -83,13 +83,55 @@ public class SellerReportQueryService {
 
     public SellerPeriodReportResponse getPeriodReport(Long sellerId, String fromValue, String toValue) {
         SellerPeriodRange period = resolvePeriod(fromValue, toValue);
+        LocalDateTime fromInclusive = period.fromInclusive();
+        LocalDateTime toExclusive = period.toExclusive();
+        long orderedCount = orderRepository.countOrdersBySellerIdAndOrderedAtBetween(
+                sellerId,
+                fromInclusive,
+                toExclusive
+        );
+        long confirmedOrderCount = orderRepository.countConfirmedOrdersBySellerIdAndConfirmedAtBetween(
+                sellerId,
+                fromInclusive,
+                toExclusive
+        );
+        long confirmedSalesAmount = zeroIfNull(orderRepository.sumConfirmedSalesAmountBySellerIdAndConfirmedAtBetween(
+                sellerId,
+                fromInclusive,
+                toExclusive
+        ));
+        long completedSettlementAmount = zeroIfNull(settlementRepository.sumCompletedAmountBySellerIdAndSettledAtBetween(
+                sellerId,
+                fromInclusive,
+                toExclusive
+        ));
+        long unsettledConfirmedAmount = zeroIfNull(orderRepository.sumUnsettledConfirmedAmountBySellerIdAndConfirmedAtBetween(
+                sellerId,
+                fromInclusive,
+                toExclusive
+        ));
+        long averageConfirmedOrderAmount = confirmedOrderCount == 0 ? 0 : confirmedSalesAmount / confirmedOrderCount;
 
         return new SellerPeriodReportResponse(
                 LocalDateTime.now(),
                 new SellerPeriodResponse(period.from(), period.to(), period.days()),
-                new SellerPeriodSummaryResponse(0L, 0L, 0L, 0L, 0L, 0L),
+                new SellerPeriodSummaryResponse(
+                        orderedCount,
+                        confirmedOrderCount,
+                        confirmedSalesAmount,
+                        completedSettlementAmount,
+                        unsettledConfirmedAmount,
+                        averageConfirmedOrderAmount
+                ),
                 List.of(),
-                zeroFilledDailySales(period),
+                zeroFilledDailySales(
+                        period,
+                        orderRepository.findDailyConfirmedSalesBySellerIdAndConfirmedAtBetween(
+                                sellerId,
+                                fromInclusive,
+                                toExclusive
+                        )
+                ),
                 List.of(),
                 List.of()
         );
@@ -126,9 +168,18 @@ public class SellerReportQueryService {
         return new SellerPeriodRange(from, to, days);
     }
 
-    private List<SellerDailySalesResponse> zeroFilledDailySales(SellerPeriodRange period) {
+    private List<SellerDailySalesResponse> zeroFilledDailySales(
+            SellerPeriodRange period,
+            List<SellerDailySalesResponse> actualSales
+    ) {
+        Map<LocalDate, SellerDailySalesResponse> actualSalesByDate = actualSales.stream()
+                .collect(Collectors.toMap(SellerDailySalesResponse::date, Function.identity()));
+
         return LongStream.range(0, period.days())
-                .mapToObj(offset -> new SellerDailySalesResponse(period.from().plusDays(offset), 0L, 0L))
+                .mapToObj(offset -> {
+                    LocalDate date = period.from().plusDays(offset);
+                    return actualSalesByDate.getOrDefault(date, new SellerDailySalesResponse(date, 0L, 0L));
+                })
                 .toList();
     }
 

@@ -302,6 +302,97 @@ class SellerReportApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
     }
 
+    @Test
+    void 기간_리포트는_선택한_기간의_요약을_집계한다() throws Exception {
+        String token = createMemberAndLogin("seller-period-summary@example.com", "seller-period-summary");
+        Member seller = memberRepository.findAll().get(0);
+        Member buyer = saveMember("buyer-period-summary@example.com", "buyer-period-summary");
+
+        LocalDate from = LocalDate.now().minusDays(6);
+        LocalDate to = LocalDate.now();
+        LocalDateTime inside = from.plusDays(1).atTime(10, 0);
+        LocalDateTime outside = from.minusDays(1).atTime(10, 0);
+
+        Product orderedOnly = saveProduct(seller, "Ordered only", 10_000);
+        Product confirmedOne = saveProduct(seller, "Confirmed one", 20_000);
+        Product confirmedTwo = saveProduct(seller, "Confirmed two", 40_000);
+        Product outsideProduct = saveProduct(seller, "Outside", 80_000);
+
+        saveConfirmedOrder(buyer, orderedOnly, inside, outside);
+        saveConfirmedOrder(buyer, confirmedOne, outside, inside);
+        Order settledOrder = saveConfirmedOrder(buyer, confirmedTwo, outside, inside.plusDays(1));
+        saveSettlement(settledOrder, inside.plusDays(2));
+        Order outsideOrder = saveConfirmedOrder(buyer, outsideProduct, outside, outside);
+        saveSettlement(outsideOrder, outside);
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", from.toString())
+                        .queryParam("to", to.toString())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.summary.orderedCount").value(1))
+                .andExpect(jsonPath("$.data.summary.confirmedOrderCount").value(2))
+                .andExpect(jsonPath("$.data.summary.confirmedSalesAmount").value(60_000))
+                .andExpect(jsonPath("$.data.summary.completedSettlementAmount").value(40_000))
+                .andExpect(jsonPath("$.data.summary.unsettledConfirmedAmount").value(20_000))
+                .andExpect(jsonPath("$.data.summary.averageConfirmedOrderAmount").value(30_000));
+    }
+
+    @Test
+    void 일별_판매_추세는_주문이_없는_날도_0으로_포함한다() throws Exception {
+        String token = createMemberAndLogin("seller-daily-sales@example.com", "seller-daily-sales");
+        Member seller = memberRepository.findAll().get(0);
+        Member buyer = saveMember("buyer-daily-sales@example.com", "buyer-daily-sales");
+
+        LocalDate from = LocalDate.now().minusDays(2);
+        LocalDate to = LocalDate.now();
+
+        saveConfirmedOrder(buyer, saveProduct(seller, "Day one", 10_000), from.atTime(8, 0));
+        saveConfirmedOrder(buyer, saveProduct(seller, "Day three", 30_000), to.atTime(9, 0));
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", from.toString())
+                        .queryParam("to", to.toString())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dailySales.length()").value(3))
+                .andExpect(jsonPath("$.data.dailySales[0].date").value(from.toString()))
+                .andExpect(jsonPath("$.data.dailySales[0].confirmedOrderCount").value(1))
+                .andExpect(jsonPath("$.data.dailySales[0].confirmedSalesAmount").value(10_000))
+                .andExpect(jsonPath("$.data.dailySales[1].date").value(from.plusDays(1).toString()))
+                .andExpect(jsonPath("$.data.dailySales[1].confirmedOrderCount").value(0))
+                .andExpect(jsonPath("$.data.dailySales[1].confirmedSalesAmount").value(0))
+                .andExpect(jsonPath("$.data.dailySales[2].date").value(to.toString()))
+                .andExpect(jsonPath("$.data.dailySales[2].confirmedOrderCount").value(1))
+                .andExpect(jsonPath("$.data.dailySales[2].confirmedSalesAmount").value(30_000));
+    }
+
+    @Test
+    void 기간_리포트_요약은_다른_판매자의_데이터를_포함하지_않는다() throws Exception {
+        String token = createMemberAndLogin("seller-period-scope@example.com", "seller-period-scope");
+        Member targetSeller = memberRepository.findAll().get(0);
+        Member otherSeller = saveMember("other-period-scope@example.com", "other-period-scope");
+        Member buyer = saveMember("buyer-period-scope@example.com", "buyer-period-scope");
+
+        LocalDate from = LocalDate.now().minusDays(6);
+        LocalDate to = LocalDate.now();
+        LocalDateTime inside = LocalDateTime.now().minusDays(1);
+
+        saveConfirmedOrder(buyer, saveProduct(targetSeller, "Target", 10_000), inside);
+        Order otherOrder = saveConfirmedOrder(buyer, saveProduct(otherSeller, "Other", 100_000), inside);
+        saveSettlement(otherOrder, inside);
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", from.toString())
+                        .queryParam("to", to.toString())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.summary.confirmedOrderCount").value(1))
+                .andExpect(jsonPath("$.data.summary.confirmedSalesAmount").value(10_000))
+                .andExpect(jsonPath("$.data.summary.completedSettlementAmount").value(0))
+                .andExpect(jsonPath("$.data.summary.unsettledConfirmedAmount").value(10_000));
+    }
+
     private String createMemberAndLogin(String email, String nickname) throws Exception {
         memberRepository.save(Member.create(email, passwordEncoder.encode("password123"), nickname));
         return login(email, "password123");
