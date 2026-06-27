@@ -78,7 +78,7 @@ public class ProductImage {
             String storedFileName,
             String originalFileName,
             String contentType,
-            Long size,
+            long size,
             int sortOrder,
             boolean representative
     ) {
