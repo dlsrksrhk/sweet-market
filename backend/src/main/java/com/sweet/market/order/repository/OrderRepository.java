@@ -176,7 +176,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
               and o.confirmedAt >= :fromInclusive
               and o.confirmedAt < :toExclusive
             group by p.id, p.title
-            order by coalesce(sum(p.price), 0) desc, max(o.confirmedAt) desc, count(o) desc, p.id desc
+            order by coalesce(sum(p.price), 0) desc, count(o) desc, max(o.confirmedAt) desc, p.id desc
             """)
     List<com.sweet.market.seller.report.SellerProductRankingResponse> findTopProductRankingsBySellerIdAndConfirmedAtBetween(
             @Param("sellerId") Long sellerId,

@@ -416,11 +416,11 @@ class SellerReportApiTest extends IntegrationTestSupport {
                         .queryParam("to", to.toString())
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.productRankings[0].title").value("High Recent"))
-                .andExpect(jsonPath("$.data.productRankings[0].confirmedOrderCount").value(1))
+                .andExpect(jsonPath("$.data.productRankings[0].title").value("High Count"))
+                .andExpect(jsonPath("$.data.productRankings[0].confirmedOrderCount").value(2))
                 .andExpect(jsonPath("$.data.productRankings[0].confirmedSalesAmount").value(40_000))
-                .andExpect(jsonPath("$.data.productRankings[1].title").value("High Count"))
-                .andExpect(jsonPath("$.data.productRankings[1].confirmedOrderCount").value(2))
+                .andExpect(jsonPath("$.data.productRankings[1].title").value("High Recent"))
+                .andExpect(jsonPath("$.data.productRankings[1].confirmedOrderCount").value(1))
                 .andExpect(jsonPath("$.data.productRankings[1].confirmedSalesAmount").value(40_000))
                 .andExpect(jsonPath("$.data.productRankings[2].title").value("Low Amount"));
     }
