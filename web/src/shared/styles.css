@@ -658,6 +658,165 @@ textarea {
   border-top: 1px solid #dfe6ee;
 }
 
+.report-page-header {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.report-filter {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.report-filter-fields,
+.report-quick-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+
+.report-filter label {
+  display: grid;
+  gap: 7px;
+  min-width: 160px;
+  color: #52616f;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.report-filter input {
+  width: 100%;
+  border: 1px solid #cfd9e3;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: #172026;
+}
+
+.report-filter .error-text {
+  margin: 0;
+}
+
+.report-chip-button {
+  border: 1px solid #cfd9e3;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #ffffff;
+  color: #52616f;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.status-badge-none {
+  background: #eef2f6;
+  color: #637282;
+}
+
+.daily-sales-list,
+.product-ranking-list,
+.report-record-list {
+  display: grid;
+  overflow-x: auto;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.daily-sales-row,
+.product-ranking-row,
+.report-record-row {
+  display: grid;
+  gap: 10px;
+  align-items: center;
+  min-width: 760px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.daily-sales-row {
+  grid-template-columns: minmax(120px, 0.8fr) minmax(180px, 1.4fr) minmax(120px, 0.8fr) minmax(72px, 0.4fr);
+}
+
+.daily-sales-row:last-child,
+.product-ranking-row:last-child,
+.report-record-row:last-child {
+  border-bottom: 0;
+}
+
+.daily-sales-bar-track {
+  overflow: hidden;
+  height: 10px;
+  border-radius: 999px;
+  background: #edf2f7;
+}
+
+.daily-sales-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: #0f7b78;
+}
+
+.product-ranking-row {
+  grid-template-columns:
+    44px 56px minmax(180px, 1.4fr) minmax(72px, 0.45fr) minmax(120px, 0.8fr)
+    minmax(160px, 0.9fr);
+}
+
+.ranking-number {
+  color: #637282;
+  font-weight: 900;
+}
+
+.ranking-thumb {
+  width: 56px;
+  height: 42px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #e9eef4;
+}
+
+.ranking-thumb-fallback {
+  display: grid;
+  place-items: center;
+  color: #637282;
+  font-size: 10px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.ranking-title,
+.report-record-row a {
+  color: #0f7b78;
+  font-weight: 900;
+}
+
+.ranking-title,
+.report-record-row a,
+.daily-sales-row span,
+.daily-sales-row strong,
+.product-ranking-row span,
+.product-ranking-row strong,
+.report-record-row span,
+.report-record-row strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.report-table-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.report-record-row {
+  grid-template-columns: minmax(160px, 1.3fr) minmax(100px, 0.8fr) minmax(110px, 0.8fr) minmax(90px, 0.6fr) minmax(150px, 1fr);
+}
+
 .admin-batch-page {
   display: grid;
   gap: 24px;
@@ -1129,6 +1288,24 @@ textarea {
   .admin-operations-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .report-page-header,
+  .report-table-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .report-filter-fields {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .report-filter label {
+    min-width: 0;
+  }
+
+  .report-filter .text-button {
+    width: 100%;
   }
 
   .admin-pagination .text-button {
