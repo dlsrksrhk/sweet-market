@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.product.domain.ProductImageUpload;
 import com.sweet.market.product.repository.ProductImageUploadRepository;
 import com.sweet.market.product.storage.ProductImageStorageService;
@@ -29,7 +30,7 @@ public class ProductImageCleanupService {
         for (ProductImageUpload upload : uploadRepository.findByExpiresAtBefore(now)) {
             try {
                 storageService.deleteTemporary(upload.getStoredFileName());
-            } catch (IllegalStateException ignored) {
+            } catch (BusinessException ignored) {
                 // Best-effort file deletion should not block stale row cleanup.
             }
             uploadRepository.delete(upload);

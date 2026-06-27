@@ -55,4 +55,25 @@ class ProductImageCleanupServiceTest extends IntegrationTestSupport {
         assertThat(uploadRepository.findAll()).isEmpty();
         assertThat(Files.exists(expiredFile)).isFalse();
     }
+
+    @Test
+    void 임시_파일_삭제에_실패해도_만료된_업로드를_정리한다() {
+        Member seller = memberRepository.save(Member.create("seller-cleanup-invalid@example.com", "encoded-password", "seller"));
+        LocalDateTime now = LocalDateTime.now();
+        uploadRepository.save(ProductImageUpload.create(
+                seller,
+                "../expired.jpg",
+                "expired.jpg",
+                "image/jpeg",
+                3L,
+                "/uploads/products/temp/expired.jpg",
+                now.minusHours(1),
+                now.minusMinutes(1)
+        ));
+
+        int deletedCount = cleanupService.cleanExpiredUploads(now);
+
+        assertThat(deletedCount).isEqualTo(1);
+        assertThat(uploadRepository.findAll()).isEmpty();
+    }
 }
