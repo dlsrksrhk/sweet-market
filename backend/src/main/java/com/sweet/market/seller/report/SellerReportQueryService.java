@@ -11,6 +11,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +29,8 @@ public class SellerReportQueryService {
 
     private static final int RECENT_DAYS = 30;
     private static final int MAX_PERIOD_DAYS = 180;
+    private static final int PRODUCT_RANKING_LIMIT = 5;
+    private static final int RECENT_ROW_LIMIT = 10;
 
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
@@ -111,6 +114,27 @@ public class SellerReportQueryService {
                 toExclusive
         ));
         long averageConfirmedOrderAmount = confirmedOrderCount == 0 ? 0 : confirmedSalesAmount / confirmedOrderCount;
+        List<SellerProductRankingResponse> productRankings =
+                orderRepository.findTopProductRankingsBySellerIdAndConfirmedAtBetween(
+                        sellerId,
+                        fromInclusive,
+                        toExclusive,
+                        PageRequest.of(0, PRODUCT_RANKING_LIMIT)
+                );
+        List<SellerRecentSaleResponse> recentSales =
+                orderRepository.findRecentConfirmedSalesBySellerIdAndConfirmedAtBetween(
+                        sellerId,
+                        fromInclusive,
+                        toExclusive,
+                        PageRequest.of(0, RECENT_ROW_LIMIT)
+                );
+        List<SellerRecentSettlementResponse> recentSettlements =
+                settlementRepository.findRecentSettlementsBySellerIdAndSettledAtBetween(
+                        sellerId,
+                        fromInclusive,
+                        toExclusive,
+                        PageRequest.of(0, RECENT_ROW_LIMIT)
+                );
 
         return new SellerPeriodReportResponse(
                 LocalDateTime.now(),
@@ -123,7 +147,7 @@ public class SellerReportQueryService {
                         unsettledConfirmedAmount,
                         averageConfirmedOrderAmount
                 ),
-                List.of(),
+                productRankings,
                 zeroFilledDailySales(
                         period,
                         orderRepository.findDailyConfirmedSalesBySellerIdAndConfirmedAtBetween(
@@ -132,8 +156,8 @@ public class SellerReportQueryService {
                                 toExclusive
                         )
                 ),
-                List.of(),
-                List.of()
+                recentSales,
+                recentSettlements
         );
     }
 

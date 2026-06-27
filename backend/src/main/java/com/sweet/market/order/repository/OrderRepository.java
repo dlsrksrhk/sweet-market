@@ -157,6 +157,62 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     );
 
     @Query("""
+            select new com.sweet.market.seller.report.SellerProductRankingResponse(
+                p.id,
+                p.title,
+                (
+                    select min(i.imageUrl)
+                    from ProductImage i
+                    where i.product = p
+                ),
+                count(o),
+                coalesce(sum(p.price), 0),
+                max(o.confirmedAt)
+            )
+            from Order o
+            join o.product p
+            where p.seller.id = :sellerId
+              and o.status = com.sweet.market.order.domain.OrderStatus.CONFIRMED
+              and o.confirmedAt >= :fromInclusive
+              and o.confirmedAt < :toExclusive
+            group by p.id, p.title
+            order by coalesce(sum(p.price), 0) desc, max(o.confirmedAt) desc, count(o) desc, p.id desc
+            """)
+    List<com.sweet.market.seller.report.SellerProductRankingResponse> findTopProductRankingsBySellerIdAndConfirmedAtBetween(
+            @Param("sellerId") Long sellerId,
+            @Param("fromInclusive") LocalDateTime fromInclusive,
+            @Param("toExclusive") LocalDateTime toExclusive,
+            Pageable pageable
+    );
+
+    @Query("""
+            select new com.sweet.market.seller.report.SellerRecentSaleResponse(
+                o.id,
+                p.id,
+                p.title,
+                buyer.nickname,
+                p.price,
+                o.confirmedAt,
+                coalesce(cast(s.status as string), 'NONE')
+            )
+            from Order o
+            join o.buyer buyer
+            join o.product p
+            left join Settlement s on s.order = o
+            where p.seller.id = :sellerId
+              and o.status = com.sweet.market.order.domain.OrderStatus.CONFIRMED
+              and o.confirmedAt >= :fromInclusive
+              and o.confirmedAt < :toExclusive
+            order by o.confirmedAt desc, o.id desc
+            """)
+    List<com.sweet.market.seller.report.SellerRecentSaleResponse> findRecentConfirmedSalesBySellerIdAndConfirmedAtBetween(
+            @Param("sellerId") Long sellerId,
+            @Param("fromInclusive") LocalDateTime fromInclusive,
+            @Param("toExclusive") LocalDateTime toExclusive,
+            Pageable pageable
+    );
+
+    @Query("""
             select o.status as status, count(o) as count
             from Order o
             join o.product p

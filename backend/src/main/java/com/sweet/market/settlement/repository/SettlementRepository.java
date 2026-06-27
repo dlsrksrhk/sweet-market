@@ -131,4 +131,29 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
             @Param("fromInclusive") LocalDateTime fromInclusive,
             @Param("toExclusive") LocalDateTime toExclusive
     );
+
+    @Query("""
+            select new com.sweet.market.seller.report.SellerRecentSettlementResponse(
+                s.id,
+                o.id,
+                p.id,
+                p.title,
+                s.amount,
+                cast(s.status as string),
+                s.settledAt
+            )
+            from Settlement s
+            join s.order o
+            join o.product p
+            where s.seller.id = :sellerId
+              and s.settledAt >= :fromInclusive
+              and s.settledAt < :toExclusive
+            order by s.settledAt desc, s.id desc
+            """)
+    List<com.sweet.market.seller.report.SellerRecentSettlementResponse> findRecentSettlementsBySellerIdAndSettledAtBetween(
+            @Param("sellerId") Long sellerId,
+            @Param("fromInclusive") LocalDateTime fromInclusive,
+            @Param("toExclusive") LocalDateTime toExclusive,
+            Pageable pageable
+    );
 }

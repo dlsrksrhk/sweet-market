@@ -393,6 +393,95 @@ class SellerReportApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.summary.unsettledConfirmedAmount").value(10_000));
     }
 
+    @Test
+    void 상품_랭킹은_확정_판매액과_건수와_최근_확정일과_ID순으로_정렬된다() throws Exception {
+        String token = createMemberAndLogin("seller-ranking@example.com", "seller-ranking");
+        Member seller = memberRepository.findAll().get(0);
+        Member buyer = saveMember("buyer-ranking@example.com", "buyer-ranking");
+
+        LocalDate from = LocalDate.now().minusDays(6);
+        LocalDate to = LocalDate.now();
+
+        Product lowAmount = saveProduct(seller, "Low Amount", 10_000);
+        Product highCount = saveProduct(seller, "High Count", 20_000);
+        Product highRecent = saveProduct(seller, "High Recent", 40_000);
+
+        saveConfirmedOrder(buyer, lowAmount, from.atTime(9, 0));
+        saveConfirmedOrder(buyer, highCount, from.atTime(10, 0));
+        saveConfirmedOrder(buyer, highCount, from.plusDays(1).atTime(10, 0));
+        saveConfirmedOrder(buyer, highRecent, from.plusDays(2).atTime(10, 0));
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", from.toString())
+                        .queryParam("to", to.toString())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productRankings[0].title").value("High Recent"))
+                .andExpect(jsonPath("$.data.productRankings[0].confirmedOrderCount").value(1))
+                .andExpect(jsonPath("$.data.productRankings[0].confirmedSalesAmount").value(40_000))
+                .andExpect(jsonPath("$.data.productRankings[1].title").value("High Count"))
+                .andExpect(jsonPath("$.data.productRankings[1].confirmedOrderCount").value(2))
+                .andExpect(jsonPath("$.data.productRankings[1].confirmedSalesAmount").value(40_000))
+                .andExpect(jsonPath("$.data.productRankings[2].title").value("Low Amount"));
+    }
+
+    @Test
+    void 최근_판매와_정산은_최신순으로_최대_10개를_반환한다() throws Exception {
+        String token = createMemberAndLogin("seller-recent-rows@example.com", "seller-recent-rows");
+        Member seller = memberRepository.findAll().get(0);
+        Member buyer = saveMember("buyer-recent-rows@example.com", "buyer-recent-rows");
+
+        LocalDate from = LocalDate.now().minusDays(20);
+        LocalDate to = LocalDate.now();
+
+        for (int index = 1; index <= 12; index++) {
+            Product product = saveProduct(seller, "Recent Product " + index, index * 1_000L);
+            Order order = saveConfirmedOrder(buyer, product, from.plusDays(index).atTime(10, 0));
+            saveSettlement(order, from.plusDays(index).atTime(11, 0));
+        }
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", from.toString())
+                        .queryParam("to", to.toString())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.recentSales.length()").value(10))
+                .andExpect(jsonPath("$.data.recentSales[0].productTitle").value("Recent Product 12"))
+                .andExpect(jsonPath("$.data.recentSales[0].settlementStatus").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.recentSales[9].productTitle").value("Recent Product 3"))
+                .andExpect(jsonPath("$.data.recentSettlements.length()").value(10))
+                .andExpect(jsonPath("$.data.recentSettlements[0].productTitle").value("Recent Product 12"))
+                .andExpect(jsonPath("$.data.recentSettlements[0].status").value("COMPLETED"))
+                .andExpect(jsonPath("$.data.recentSettlements[9].productTitle").value("Recent Product 3"));
+    }
+
+    @Test
+    void 랭킹과_최근_목록은_다른_판매자_데이터를_포함하지_않는다() throws Exception {
+        String token = createMemberAndLogin("seller-ranking-scope@example.com", "seller-ranking-scope");
+        Member targetSeller = memberRepository.findAll().get(0);
+        Member otherSeller = saveMember("other-ranking-scope@example.com", "other-ranking-scope");
+        Member buyer = saveMember("buyer-ranking-scope@example.com", "buyer-ranking-scope");
+
+        LocalDate from = LocalDate.now().minusDays(6);
+        LocalDate to = LocalDate.now();
+        LocalDateTime inside = LocalDateTime.now().minusDays(1);
+
+        saveConfirmedOrder(buyer, saveProduct(targetSeller, "Target Scope", 10_000), inside);
+        Order otherOrder = saveConfirmedOrder(buyer, saveProduct(otherSeller, "Other Scope", 100_000), inside);
+        saveSettlement(otherOrder, inside);
+
+        mockMvc.perform(get("/api/seller/reports/period")
+                        .queryParam("from", from.toString())
+                        .queryParam("to", to.toString())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productRankings.length()").value(1))
+                .andExpect(jsonPath("$.data.productRankings[0].title").value("Target Scope"))
+                .andExpect(jsonPath("$.data.recentSales.length()").value(1))
+                .andExpect(jsonPath("$.data.recentSales[0].productTitle").value("Target Scope"))
+                .andExpect(jsonPath("$.data.recentSettlements.length()").value(0));
+    }
+
     private String createMemberAndLogin(String email, String nickname) throws Exception {
         memberRepository.save(Member.create(email, passwordEncoder.encode("password123"), nickname));
         return login(email, "password123");
@@ -436,6 +525,7 @@ class SellerReportApiTest extends IntegrationTestSupport {
             LocalDateTime orderedAt,
             LocalDateTime confirmedAt
     ) {
+        jdbcTemplate.update("update products set status = 'ON_SALE' where id = ?", product.getId());
         Order order = transactionTemplate.execute(status -> {
             Member managedBuyer = entityManager.find(Member.class, buyer.getId());
             Product managedProduct = entityManager.find(Product.class, product.getId());
