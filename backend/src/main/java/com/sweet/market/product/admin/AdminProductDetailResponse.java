@@ -3,6 +3,7 @@ package com.sweet.market.product.admin;
 import java.util.List;
 
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductImage;
 
 public record AdminProductDetailResponse(
         Long productId,
@@ -20,7 +21,12 @@ public record AdminProductDetailResponse(
         List<String> imageUrls = product.getImages().stream()
                 .map(image -> image.getImageUrl())
                 .toList();
-        String thumbnailUrl = imageUrls.isEmpty() ? null : imageUrls.get(0);
+        String thumbnailUrl = product.getImages().stream()
+                .filter(ProductImage::isRepresentative)
+                .findFirst()
+                .or(() -> product.getImages().stream().findFirst())
+                .map(ProductImage::getImageUrl)
+                .orElse(null);
 
         return new AdminProductDetailResponse(
                 product.getId(),

@@ -1,5 +1,12 @@
 package com.sweet.market.support;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.stream.Stream;
+
 import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -45,14 +52,41 @@ public abstract class IntegrationTestSupport {
         registry.add("spring.batch.jdbc.initialize-schema", () -> "never");
         registry.add("jwt.secret", () -> "sweet-market-test-secret-key-32bytes-minimum");
         registry.add("jwt.access-token-validity-seconds", () -> "3600");
+        registry.add("product.images.upload-root", () -> "build/test-product-images");
+        registry.add("product.images.temp-expiration", () -> "60m");
+        registry.add("spring.servlet.multipart.max-file-size", () -> "5MB");
+        registry.add("spring.servlet.multipart.max-request-size", () -> "6MB");
     }
 
     @AfterEach
     void cleanUp() {
-        jdbcTemplate.execute("TRUNCATE TABLE settlements, deliveries, payments, orders, product_images, products, members RESTART IDENTITY CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE settlements, deliveries, payments, orders, product_image_uploads, product_images, products, members RESTART IDENTITY CASCADE");
+        deleteTestProductImages();
     }
 
     protected String json(Object value) throws JsonProcessingException {
         return objectMapper.writeValueAsString(value);
+    }
+
+    private void deleteTestProductImages() {
+        Path uploadRoot = Path.of("build/test-product-images");
+        if (!Files.exists(uploadRoot)) {
+            return;
+        }
+
+        try (Stream<Path> paths = Files.walk(uploadRoot)) {
+            paths.sorted(Comparator.reverseOrder())
+                    .forEach(this::deleteIfExists);
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
+    }
+
+    private void deleteIfExists(Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
     }
 }

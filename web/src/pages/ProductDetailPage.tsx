@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthProvider';
 import { createOrder } from '../features/orders/orderApi';
-import { getProduct, hideProduct } from '../features/products/productApi';
+import { getProduct, hideProduct, toProductImageSrc } from '../features/products/productApi';
 import { type ApiError } from '../shared/api/http';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
 import { parsePositiveIntegerParam } from '../shared/utils/parseId';
@@ -58,12 +58,15 @@ export function ProductDetailPage() {
   }
 
   const isSeller = member?.id === product.sellerId;
+  const galleryImages = product.images
+    .slice()
+    .sort((firstImage, secondImage) => Number(secondImage.representative) - Number(firstImage.representative) || firstImage.sortOrder - secondImage.sortOrder);
 
   return (
     <section className="product-detail">
       <div className="product-gallery">
-        {product.images.length > 0 ? (
-          product.images.map((image) => <img key={image.id} src={image.imageUrl} alt="" />)
+        {galleryImages.length > 0 ? (
+          galleryImages.map((image) => <img key={image.id} src={toProductImageSrc(image.imageUrl) ?? image.imageUrl} alt="" />)
         ) : (
           <div className="product-gallery-fallback">Sweet Market</div>
         )}

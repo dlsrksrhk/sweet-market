@@ -12,7 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.product.admin.AdminProductSummaryResponse;
+import com.sweet.market.product.api.ProductSummaryResponse;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.product.repository.ProductRepository;
 
@@ -89,6 +92,70 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
                     assertThat(persistenceUnitUtil.isLoaded(product, "seller")).isTrue();
                     assertThat(persistenceUnitUtil.isLoaded(product, "images")).isFalse();
                 });
+    }
+
+    @Test
+    @Transactional
+    void 상품_요약_프로젝션은_대표_이미지의_가장_낮은_순서를_썸네일로_사용한다() {
+        Member seller = memberRepository.save(Member.create(
+                "seller-representative-order@example.com",
+                "encoded-password",
+                "seller"
+        ));
+        Product product = Product.create(seller, "Product", "Description", 10_000L);
+        ProductImage nonRepresentativeImage = ProductImage.local(
+                "https://example.com/non-representative.jpg",
+                "non-representative.jpg",
+                "non-representative.jpg",
+                "image/jpeg",
+                100L,
+                0,
+                false
+        );
+        ProductImage lowerSortRepresentativeImage = ProductImage.local(
+                "https://example.com/z-lower-sort-representative.jpg",
+                "z-lower-sort-representative.jpg",
+                "z-lower-sort-representative.jpg",
+                "image/jpeg",
+                100L,
+                1,
+                true
+        );
+        ProductImage higherSortRepresentativeImage = ProductImage.local(
+                "https://example.com/a-higher-sort-representative.jpg",
+                "a-higher-sort-representative.jpg",
+                "a-higher-sort-representative.jpg",
+                "image/jpeg",
+                100L,
+                2,
+                false
+        );
+        product.replaceImages(List.of(
+                nonRepresentativeImage,
+                lowerSortRepresentativeImage,
+                higherSortRepresentativeImage
+        ));
+        higherSortRepresentativeImage.changeArrangement(2, true);
+        productRepository.save(product);
+        flushAndClear();
+
+        ProductSummaryResponse sellerSummary = productRepository.findSummariesBySellerIdOrderByIdDesc(
+                        seller.getId(),
+                        PageRequest.of(0, 10)
+                )
+                .getContent()
+                .get(0);
+        AdminProductSummaryResponse adminSummary = productRepository.searchAdminProducts(
+                        null,
+                        null,
+                        null,
+                        PageRequest.of(0, 10)
+                )
+                .getContent()
+                .get(0);
+
+        assertThat(sellerSummary.thumbnailUrl()).isEqualTo("https://example.com/z-lower-sort-representative.jpg");
+        assertThat(adminSummary.thumbnailUrl()).isEqualTo("https://example.com/z-lower-sort-representative.jpg");
     }
 
     private void seedProductsWithDifferentSellers() {

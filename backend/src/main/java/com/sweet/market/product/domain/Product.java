@@ -2,7 +2,10 @@ package com.sweet.market.product.domain;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.sweet.market.member.domain.Member;
 
@@ -108,23 +111,94 @@ public class Product {
     }
 
     public List<ProductImage> getImages() {
+        sortImages();
         return Collections.unmodifiableList(images);
     }
 
     public ProductImage addImage(String imageUrl) {
+        return addLegacyImage(imageUrl);
+    }
+
+    public ProductImage addLegacyImage(String imageUrl) {
         validateNotReserved();
-        ProductImage image = ProductImage.create(imageUrl);
+        if (images.size() >= 10) {
+            throw new IllegalArgumentException("Product image limit exceeded");
+        }
+        ProductImage image = ProductImage.legacyUrl(imageUrl, nextSortOrder(), images.isEmpty());
         image.assignProduct(this);
         images.add(image);
+        sortImages();
         return image;
+    }
+
+    public void replaceImages(List<ProductImage> nextImages) {
+        validateNotReserved();
+        validateImages(nextImages);
+        images.clear();
+        nextImages.forEach(image -> {
+            image.assignProduct(this);
+            images.add(image);
+        });
+        sortImages();
     }
 
     public void removeImage(Long imageId) {
         validateNotReserved();
-        boolean removed = images.removeIf(image -> imageId.equals(image.getId()));
-        if (!removed) {
-            throw new IllegalArgumentException("Product image not found: " + imageId);
+        ProductImage target = images.stream()
+                .filter(image -> imageId.equals(image.getId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Product image not found: " + imageId));
+        if (images.size() == 1) {
+            throw new IllegalStateException("Product image is required");
         }
+        images.remove(target);
+        if (target.isRepresentative()) {
+            promoteRepresentative();
+        }
+    }
+
+    private int nextSortOrder() {
+        return images.stream()
+                .mapToInt(ProductImage::getSortOrder)
+                .max()
+                .orElse(-1) + 1;
+    }
+
+    private void promoteRepresentative() {
+        boolean hasRepresentative = images.stream()
+                .anyMatch(ProductImage::isRepresentative);
+        if (hasRepresentative) {
+            return;
+        }
+        sortImages();
+        ProductImage firstImage = images.get(0);
+        firstImage.changeArrangement(firstImage.getSortOrder(), true);
+    }
+
+    private void validateImages(List<ProductImage> nextImages) {
+        if (nextImages.isEmpty()) {
+            throw new IllegalArgumentException("Product image is required");
+        }
+        if (nextImages.size() > 10) {
+            throw new IllegalArgumentException("Product image limit exceeded");
+        }
+        long representativeCount = nextImages.stream()
+                .filter(ProductImage::isRepresentative)
+                .count();
+        if (representativeCount != 1) {
+            throw new IllegalArgumentException("Product representative image must be exactly one");
+        }
+        Set<Integer> sortOrders = new HashSet<>();
+        boolean hasDuplicateSortOrder = nextImages.stream()
+                .map(ProductImage::getSortOrder)
+                .anyMatch(sortOrder -> !sortOrders.add(sortOrder));
+        if (hasDuplicateSortOrder) {
+            throw new IllegalArgumentException("Product image sort order must be unique");
+        }
+    }
+
+    private void sortImages() {
+        images.sort(Comparator.comparingInt(ProductImage::getSortOrder));
     }
 
     private void validateNotReserved() {

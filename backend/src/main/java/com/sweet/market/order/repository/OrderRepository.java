@@ -160,10 +160,29 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             select new com.sweet.market.seller.report.SellerProductRankingResponse(
                 p.id,
                 p.title,
-                (
-                    select min(i.imageUrl)
-                    from ProductImage i
-                    where i.product = p
+                coalesce(
+                    (
+                        select min(representativeImage.imageUrl)
+                        from ProductImage representativeImage
+                        where representativeImage.product = p
+                          and representativeImage.representative = true
+                          and representativeImage.sortOrder = (
+                              select min(firstRepresentativeImage.sortOrder)
+                              from ProductImage firstRepresentativeImage
+                              where firstRepresentativeImage.product = p
+                                and firstRepresentativeImage.representative = true
+                          )
+                    ),
+                    (
+                        select min(orderedImage.imageUrl)
+                        from ProductImage orderedImage
+                        where orderedImage.product = p
+                          and orderedImage.sortOrder = (
+                              select min(firstImage.sortOrder)
+                              from ProductImage firstImage
+                              where firstImage.product = p
+                          )
+                    )
                 ),
                 count(o),
                 coalesce(sum(p.price), 0),

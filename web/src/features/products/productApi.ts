@@ -1,5 +1,7 @@
 import { api } from '../../shared/api/http';
 
+const PRODUCT_IMAGE_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
+
 export type Page<T> = {
   content: T[];
   totalElements: number;
@@ -26,8 +28,38 @@ export type ProductSummary = {
 export type ProductImage = {
   id: number;
   imageUrl: string;
-  sortOrder?: number;
+  sortOrder: number;
+  representative: boolean;
 };
+
+export type ProductImageUpload = {
+  id: number;
+  previewUrl: string;
+  originalFileName: string;
+  contentType: string;
+  size: number;
+  expiresAt: string;
+};
+
+export type ProductCreateImageInput = {
+  uploadId: number;
+  sortOrder: number;
+  representative: boolean;
+};
+
+export type ProductUpdateImageInput =
+  | {
+      imageId: number;
+      uploadId?: never;
+      sortOrder: number;
+      representative: boolean;
+    }
+  | {
+      imageId?: never;
+      uploadId: number;
+      sortOrder: number;
+      representative: boolean;
+    };
 
 export type Product = Omit<ProductSummary, 'thumbnailUrl'> & {
   description: string;
@@ -38,13 +70,14 @@ export type ProductCreateInput = {
   title: string;
   description: string;
   price: number;
-  imageUrls: string[];
+  images: ProductCreateImageInput[];
 };
 
 export type ProductUpdateInput = {
   title: string;
   description: string;
   price: number;
+  images: ProductUpdateImageInput[];
 };
 
 export function getProducts() {
@@ -77,4 +110,20 @@ export function hideProduct(productId: number) {
   return api<Product>(`/api/products/${productId}`, {
     method: 'DELETE',
   });
+}
+
+export function uploadProductImage(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return api<ProductImageUpload>('/api/product-image-uploads', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+export function toProductImageSrc(imageUrl: string | null) {
+  if (!imageUrl) return null;
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://') || imageUrl.startsWith('data:')) return imageUrl;
+  return `${PRODUCT_IMAGE_BASE_URL}${imageUrl}`;
 }

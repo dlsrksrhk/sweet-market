@@ -5,6 +5,10 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema-batch-postgresql.sql
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   batch:
     job:
       enabled: false
@@ -33,6 +37,15 @@ logging:
 jwt:
   secret: ${JWT_SECRET}
   access-token-validity-seconds: ${JWT_ACCESS_TOKEN_VALIDITY_SECONDS:3600}
+
+product:
+  images:
+    upload-root: ${PRODUCT_IMAGE_UPLOAD_ROOT:./.local/product-images}
+    temp-dir: temp
+    public-dir: public
+    temp-expiration: ${PRODUCT_IMAGE_TEMP_EXPIRATION:60m}
+    cleanup-cron: "${PRODUCT_IMAGE_CLEANUP_CRON:0 */10 * * * *}"
+    max-file-size: 5MB
 
 web:
   cors:

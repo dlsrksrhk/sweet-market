@@ -35,10 +35,29 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 p.title,
                 p.price,
                 p.status,
-                (
-                    select min(i.imageUrl)
-                    from ProductImage i
-                    where i.product = p
+                coalesce(
+                    (
+                        select min(representativeImage.imageUrl)
+                        from ProductImage representativeImage
+                        where representativeImage.product = p
+                          and representativeImage.representative = true
+                          and representativeImage.sortOrder = (
+                              select min(firstRepresentativeImage.sortOrder)
+                              from ProductImage firstRepresentativeImage
+                              where firstRepresentativeImage.product = p
+                                and firstRepresentativeImage.representative = true
+                          )
+                    ),
+                    (
+                        select min(orderedImage.imageUrl)
+                        from ProductImage orderedImage
+                        where orderedImage.product = p
+                          and orderedImage.sortOrder = (
+                              select min(firstImage.sortOrder)
+                              from ProductImage firstImage
+                              where firstImage.product = p
+                          )
+                    )
                 )
             )
             from Product p
@@ -61,10 +80,29 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 p.title,
                 p.price,
                 p.status,
-                (
-                    select min(i.imageUrl)
-                    from ProductImage i
-                    where i.product = p
+                coalesce(
+                    (
+                        select min(representativeImage.imageUrl)
+                        from ProductImage representativeImage
+                        where representativeImage.product = p
+                          and representativeImage.representative = true
+                          and representativeImage.sortOrder = (
+                              select min(firstRepresentativeImage.sortOrder)
+                              from ProductImage firstRepresentativeImage
+                              where firstRepresentativeImage.product = p
+                                and firstRepresentativeImage.representative = true
+                          )
+                    ),
+                    (
+                        select min(orderedImage.imageUrl)
+                        from ProductImage orderedImage
+                        where orderedImage.product = p
+                          and orderedImage.sortOrder = (
+                              select min(firstImage.sortOrder)
+                              from ProductImage firstImage
+                              where firstImage.product = p
+                          )
+                    )
                 )
             )
             from Product p

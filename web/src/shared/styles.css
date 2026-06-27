@@ -565,6 +565,57 @@ textarea {
   color: #172026;
 }
 
+.product-image-manager {
+  display: grid;
+  gap: 12px;
+}
+
+.product-image-manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.product-image-list {
+  display: grid;
+  gap: 10px;
+}
+
+.product-image-item {
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+}
+
+.product-image-item img {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #f3f6fb;
+}
+
+.product-image-item > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.product-image-item strong {
+  overflow-wrap: anywhere;
+}
+
+.product-image-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .seller-report-page {
   gap: 24px;
 }
@@ -1267,6 +1318,7 @@ textarea {
 
   .product-grid,
   .product-detail,
+  .product-image-item,
   .record-meta,
   .admin-batch-layout,
   .admin-detail-grid,
@@ -1306,6 +1358,10 @@ textarea {
 
   .report-filter .text-button {
     width: 100%;
+  }
+
+  .product-image-actions {
+    justify-content: flex-start;
   }
 
   .admin-pagination .text-button {

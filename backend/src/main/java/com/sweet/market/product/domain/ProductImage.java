@@ -30,15 +30,79 @@ public class ProductImage {
     @Column(nullable = false, length = 500)
     private String imageUrl;
 
-    private ProductImage(String imageUrl) {
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    private int sortOrder;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean representative;
+
+    @Column(length = 255)
+    private String storedFileName;
+
+    @Column(length = 255)
+    private String originalFileName;
+
+    @Column(length = 100)
+    private String contentType;
+
+    private Long size;
+
+    private ProductImage(
+            String imageUrl,
+            int sortOrder,
+            boolean representative,
+            String storedFileName,
+            String originalFileName,
+            String contentType,
+            Long size
+    ) {
         this.imageUrl = imageUrl;
+        this.sortOrder = sortOrder;
+        this.representative = representative;
+        this.storedFileName = storedFileName;
+        this.originalFileName = originalFileName;
+        this.contentType = contentType;
+        this.size = size;
     }
 
     public static ProductImage create(String imageUrl) {
-        return new ProductImage(imageUrl);
+        return legacyUrl(imageUrl, 0, true);
+    }
+
+    public static ProductImage legacyUrl(String imageUrl, int sortOrder, boolean representative) {
+        return new ProductImage(imageUrl, sortOrder, representative, null, null, null, null);
+    }
+
+    public static ProductImage local(
+            String imageUrl,
+            String storedFileName,
+            String originalFileName,
+            String contentType,
+            long size,
+            int sortOrder,
+            boolean representative
+    ) {
+        return new ProductImage(
+                imageUrl,
+                sortOrder,
+                representative,
+                storedFileName,
+                originalFileName,
+                contentType,
+                size
+        );
     }
 
     void assignProduct(Product product) {
         this.product = product;
+    }
+
+    public void changeArrangement(int sortOrder, boolean representative) {
+        this.sortOrder = sortOrder;
+        this.representative = representative;
+    }
+
+    public boolean isLocalFile() {
+        return storedFileName != null && !storedFileName.isBlank();
     }
 }
