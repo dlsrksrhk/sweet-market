@@ -32,7 +32,7 @@ public class ProductImageStorageService {
         this.properties = properties;
     }
 
-    public StoredProductImage storeTemp(MultipartFile file) {
+    public StoredProductImage storeTemporary(MultipartFile file) {
         validate(file);
 
         String extension = EXTENSIONS.get(file.getContentType());

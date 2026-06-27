@@ -47,6 +47,9 @@ public class ProductImageUpload {
     private String previewUrl;
 
     @Column(nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
     private LocalDateTime expiresAt;
 
     private ProductImageUpload(
@@ -56,6 +59,7 @@ public class ProductImageUpload {
             String contentType,
             long size,
             String previewUrl,
+            LocalDateTime createdAt,
             LocalDateTime expiresAt
     ) {
         this.member = member;
@@ -64,6 +68,7 @@ public class ProductImageUpload {
         this.contentType = contentType;
         this.size = size;
         this.previewUrl = previewUrl;
+        this.createdAt = createdAt;
         this.expiresAt = expiresAt;
     }
 
@@ -74,9 +79,19 @@ public class ProductImageUpload {
             String contentType,
             long size,
             String previewUrl,
+            LocalDateTime createdAt,
             LocalDateTime expiresAt
     ) {
-        return new ProductImageUpload(member, storedFileName, originalFileName, contentType, size, previewUrl, expiresAt);
+        return new ProductImageUpload(
+                member,
+                storedFileName,
+                originalFileName,
+                contentType,
+                size,
+                previewUrl,
+                createdAt,
+                expiresAt
+        );
     }
 
     public boolean isOwnedBy(Long memberId) {
