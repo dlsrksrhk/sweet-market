@@ -196,6 +196,112 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 일부_임시_업로드가_권한_오류여도_앞선_업로드는_다시_사용할_수_있다() throws Exception {
+        String sellerToken = signupAndLogin("seller-partial@example.com", "password123", "seller");
+        String otherToken = signupAndLogin("other-partial@example.com", "password123", "other");
+        Long sellerUploadId = uploadImage(sellerToken, "seller-product.jpg");
+        Long otherUploadId = uploadImage(otherToken, "other-product.jpg");
+
+        mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    },
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 1,
+                                      "representative": false
+                                    }
+                                  ]
+                                }
+                                """.formatted(sellerUploadId, otherUploadId)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PRODUCT_ACCESS_DENIED"));
+
+        mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(sellerUploadId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.images[0].imageUrl", startsWith("/uploads/products/public/")))
+                .andExpect(jsonPath("$.data.images[0].representative").value(true));
+    }
+
+    @Test
+    void 중복된_임시_업로드는_사용할_수_없고_다시_사용할_수_있다() throws Exception {
+        String accessToken = signupAndLogin("seller-duplicate@example.com", "password123", "seller");
+        Long uploadId = uploadImage(accessToken, "duplicate-product.jpg");
+
+        mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    },
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 1,
+                                      "representative": false
+                                    }
+                                  ]
+                                }
+                                """.formatted(uploadId, uploadId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(uploadId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.images[0].imageUrl", startsWith("/uploads/products/public/")))
+                .andExpect(jsonPath("$.data.images[0].representative").value(true));
+    }
+
+    @Test
     void 소유자는_상품_수정에_성공한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(accessToken);

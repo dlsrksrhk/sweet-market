@@ -1,6 +1,12 @@
 package com.sweet.market.product.application;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +64,32 @@ public class ProductImageUploadService {
         );
 
         return ProductImageUploadResponse.from(productImageUploadRepository.save(upload));
+    }
+
+    @Transactional(readOnly = true)
+    public void validateConfirmableUploads(Long memberId, List<Long> uploadIds) {
+        Set<Long> uniqueUploadIds = new HashSet<>();
+        boolean hasDuplicateUploadId = uploadIds.stream()
+                .anyMatch(uploadId -> !uniqueUploadIds.add(uploadId));
+        if (hasDuplicateUploadId) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+
+        Map<Long, ProductImageUpload> uploadsById = productImageUploadRepository.findAllById(uploadIds).stream()
+                .collect(Collectors.toMap(ProductImageUpload::getId, Function.identity()));
+        LocalDateTime now = LocalDateTime.now();
+        for (Long uploadId : uploadIds) {
+            ProductImageUpload upload = uploadsById.get(uploadId);
+            if (upload == null) {
+                throw new BusinessException(ErrorCode.PRODUCT_IMAGE_UPLOAD_NOT_FOUND);
+            }
+            if (!upload.isOwnedBy(memberId)) {
+                throw new BusinessException(ErrorCode.PRODUCT_ACCESS_DENIED);
+            }
+            if (upload.isExpired(now)) {
+                throw new BusinessException(ErrorCode.PRODUCT_IMAGE_UPLOAD_EXPIRED);
+            }
+        }
     }
 
     @Transactional

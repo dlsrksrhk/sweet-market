@@ -40,6 +40,12 @@ public class ProductService {
     @Transactional
     public ProductResponse create(Long sellerId, ProductCreateRequest request) {
         validateCreateImages(request.images());
+        productImageUploadService.validateConfirmableUploads(
+                sellerId,
+                request.images().stream()
+                        .map(ProductCreateImageRequest::uploadId)
+                        .toList()
+        );
 
         Member seller = memberRepository.findById(sellerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
