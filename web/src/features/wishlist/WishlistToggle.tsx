@@ -18,7 +18,7 @@ export function WishlistToggle({
   wishlistCount,
   onChanged,
 }: WishlistToggleProps) {
-  const { member } = useAuth();
+  const { loading, member } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -49,14 +49,18 @@ export function WishlistToggle({
     <button
       type="button"
       className={displayedWishlisted ? 'wishlist-button wishlist-button-active' : 'wishlist-button'}
-      disabled={mutation.isPending}
+      disabled={loading || mutation.isPending}
       aria-pressed={displayedWishlisted}
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
 
+        if (loading) {
+          return;
+        }
+
         if (!member) {
-          navigate('/login', { state: { from: `${location.pathname}${location.search}` } });
+          navigate('/login', { state: { from: `${location.pathname}${location.search}${location.hash}` } });
           return;
         }
 
