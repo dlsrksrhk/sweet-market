@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthProvider';
 import { createOrder } from '../features/orders/orderApi';
-import { getProduct, hideProduct, toProductImageSrc } from '../features/products/productApi';
+import { getProduct, hideProduct, toProductImageSrc, type WishlistResponse } from '../features/products/productApi';
+import { WishlistToggle } from '../features/wishlist/WishlistToggle';
 import { type ApiError } from '../shared/api/http';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
 import { parsePositiveIntegerParam } from '../shared/utils/parseId';
@@ -16,6 +18,7 @@ export function ProductDetailPage() {
   const queryClient = useQueryClient();
   const parsedProductId = parsePositiveIntegerParam(productId);
   const hasValidProductId = parsedProductId !== null;
+  const [wishlistState, setWishlistState] = useState<WishlistResponse | null>(null);
 
   const { data: product, error, isLoading } = useQuery({
     queryKey: ['products', parsedProductId],
@@ -41,6 +44,10 @@ export function ProductDetailPage() {
     },
   });
 
+  useEffect(() => {
+    setWishlistState(null);
+  }, [product?.id, product?.wishlisted, product?.wishlistCount]);
+
   if (!hasValidProductId) {
     return <ErrorState message="상품 주소가 올바르지 않습니다." />;
   }
@@ -58,6 +65,7 @@ export function ProductDetailPage() {
   }
 
   const isSeller = member?.id === product.sellerId;
+  const displayedWishlist = wishlistState?.productId === product.id ? wishlistState : null;
   const galleryImages = product.images
     .slice()
     .sort((firstImage, secondImage) => Number(secondImage.representative) - Number(firstImage.representative) || firstImage.sortOrder - secondImage.sortOrder);
@@ -73,7 +81,16 @@ export function ProductDetailPage() {
       </div>
       <article className="product-detail-info">
         <div className="product-detail-heading">
-          <StatusBadge status={product.status} />
+          <div className="product-detail-status-row">
+            <StatusBadge status={product.status} />
+            <WishlistToggle
+              productId={product.id}
+              sellerId={product.sellerId}
+              wishlisted={displayedWishlist?.wishlisted ?? product.wishlisted}
+              wishlistCount={displayedWishlist?.wishlistCount ?? product.wishlistCount}
+              onChanged={setWishlistState}
+            />
+          </div>
           <h1>{product.title}</h1>
           <strong>{currencyFormatter.format(product.price)}원</strong>
           <span>판매자 {product.sellerNickname}</span>
