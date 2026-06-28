@@ -515,7 +515,10 @@ class ProductApiTest extends IntegrationTestSupport {
     @Test
     void JWT_없이_판매중_상품_목록을_조회한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
-        createProduct(sellerToken);
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+
+        addWishlist(buyerToken, productId);
 
         mockMvc.perform(get("/api/products"))
                 .andExpect(status().isOk())
@@ -523,21 +526,24 @@ class ProductApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].title").value("MacBook Pro"))
                 .andExpect(jsonPath("$.data.content[0].sellerNickname").value("seller"))
                 .andExpect(jsonPath("$.data.content[0].thumbnailUrl", startsWith("/uploads/products/public/")))
-                .andExpect(jsonPath("$.data.content[0].wishlistCount").value(0))
+                .andExpect(jsonPath("$.data.content[0].wishlistCount").value(1))
                 .andExpect(jsonPath("$.data.content[0].wishlisted").value(false));
     }
 
     @Test
     void JWT_없이_판매중_상품_상세를_조회한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
         Long productId = createProduct(sellerToken);
+
+        addWishlist(buyerToken, productId);
 
         mockMvc.perform(get("/api/products/{productId}", productId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(productId))
                 .andExpect(jsonPath("$.data.title").value("MacBook Pro"))
                 .andExpect(jsonPath("$.data.images", hasSize(1)))
-                .andExpect(jsonPath("$.data.wishlistCount").value(0))
+                .andExpect(jsonPath("$.data.wishlistCount").value(1))
                 .andExpect(jsonPath("$.data.wishlisted").value(false));
     }
 
@@ -833,6 +839,12 @@ class ProductApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("id").asLong();
+    }
+
+    private void addWishlist(String accessToken, Long productId) throws Exception {
+        mockMvc.perform(post("/api/products/{productId}/wishlist", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
     }
 
     private Long uploadImage(String accessToken, String fileName) throws Exception {
