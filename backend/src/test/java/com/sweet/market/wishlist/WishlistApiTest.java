@@ -59,6 +59,32 @@ class WishlistApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 찜한_상품이_판매중이_아니게_되어도_다시_찜하면_성공한다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+
+        mockMvc.perform(post("/api/products/{productId}/wishlist", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.wishlisted").value(true))
+                .andExpect(jsonPath("$.data.wishlistCount").value(1));
+
+        mockMvc.perform(delete("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/products/{productId}/wishlist", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productId").value(productId))
+                .andExpect(jsonPath("$.data.wishlisted").value(true))
+                .andExpect(jsonPath("$.data.wishlistCount").value(1));
+
+        assertThat(countWishlistItems(productId)).isEqualTo(1);
+    }
+
+    @Test
     void 찜을_해제할_수_있다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
