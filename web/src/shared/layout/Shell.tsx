@@ -14,6 +14,7 @@ export function Shell() {
           <NavLink to="/">상품</NavLink>
           {member ? (
             <>
+              <NavLink to="/me/wishlist">찜한 상품</NavLink>
               <NavLink to="/me/orders">내 주문</NavLink>
               <NavLink to="/me/sales">내 판매</NavLink>
               <NavLink to="/me/settlements">정산</NavLink>

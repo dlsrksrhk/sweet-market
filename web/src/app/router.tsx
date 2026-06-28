@@ -9,6 +9,7 @@ import { MyOrdersPage } from '../pages/MyOrdersPage';
 import { MyReportsPage } from '../pages/MyReportsPage';
 import { MySalesPage } from '../pages/MySalesPage';
 import { MySettlementsPage } from '../pages/MySettlementsPage';
+import { MyWishlistPage } from '../pages/MyWishlistPage';
 import { ProductDetailPage } from '../pages/ProductDetailPage';
 import { ProductFormPage } from '../pages/ProductFormPage';
 import { SignupPage } from '../pages/SignupPage';
@@ -35,6 +36,14 @@ export function AppRouter() {
           element={
             <RequireAuth>
               <ProductFormPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="me/wishlist"
+          element={
+            <RequireAuth>
+              <MyWishlistPage />
             </RequireAuth>
           }
         />

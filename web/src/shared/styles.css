@@ -108,6 +108,8 @@ textarea {
 
 .home-copy,
 .product-card-body,
+.wishlist-card,
+.wishlist-card-body,
 .product-detail-info,
 .record-main,
 .record-meta dd,
@@ -129,6 +131,7 @@ textarea {
 }
 
 .product-card h2,
+.wishlist-card h2,
 .product-detail-heading h1,
 .product-detail-info p,
 .record-main h2,
@@ -623,6 +626,87 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.wishlist-list {
+  display: grid;
+  gap: 14px;
+}
+
+.wishlist-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  padding: 14px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgb(20 38 58 / 7%);
+}
+
+.wishlist-card-main {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  min-width: 0;
+}
+
+a.wishlist-card-main:hover h2 {
+  color: #0f7b78;
+}
+
+.wishlist-card-thumb {
+  width: 120px;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #e9eef4;
+}
+
+.wishlist-card-thumb-fallback {
+  display: grid;
+  place-items: center;
+  color: #637282;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.wishlist-card-body {
+  display: grid;
+  gap: 8px;
+}
+
+.wishlist-card-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.wishlist-card h2 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.wishlist-card strong {
+  font-size: 22px;
+}
+
+.wishlist-card-body > span {
+  color: #637282;
+}
+
+.wishlist-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+  max-width: 220px;
+  text-align: right;
 }
 
 .product-form-page {
@@ -1393,6 +1477,8 @@ textarea {
 
   .product-grid,
   .product-detail,
+  .wishlist-card,
+  .wishlist-card-main,
   .product-image-item,
   .record-meta,
   .admin-batch-layout,
@@ -1447,6 +1533,16 @@ textarea {
 
   .product-detail-status-row {
     flex-wrap: wrap;
+  }
+
+  .wishlist-card-actions {
+    align-items: flex-start;
+    max-width: none;
+    text-align: left;
+  }
+
+  .wishlist-card-thumb {
+    width: 100%;
   }
 
   .admin-pagination .text-button {
