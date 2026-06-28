@@ -93,6 +93,30 @@ class WishlistApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 존재하지_않는_상품의_찜을_해제할_수_없다() throws Exception {
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+
+        mockMvc.perform(delete("/api/products/{productId}/wishlist", 999999L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
+    }
+
+    @Test
+    void 찜_추가는_JWT가_필요하다() throws Exception {
+        mockMvc.perform(post("/api/products/{productId}/wishlist", 1L))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
+    }
+
+    @Test
+    void 찜_해제는_JWT가_필요하다() throws Exception {
+        mockMvc.perform(delete("/api/products/{productId}/wishlist", 1L))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
+    }
+
+    @Test
     void 자기_상품은_찜할_수_없다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(sellerToken);
