@@ -345,12 +345,15 @@ class ProductApiTest extends IntegrationTestSupport {
 
     @Test
     void 소유자는_상품_수정에_성공한다() throws Exception {
-        String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
-        Long productId = createProduct(accessToken);
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer-update-count@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
         Long imageId = getFirstImageId(productId);
 
+        addWishlist(buyerToken, productId);
+
         mockMvc.perform(patch("/api/products/{productId}", productId)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -370,7 +373,9 @@ class ProductApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.id").value(productId))
                 .andExpect(jsonPath("$.data.title").value("iPhone 15 Pro"))
                 .andExpect(jsonPath("$.data.description").value("Natural titanium"))
-                .andExpect(jsonPath("$.data.price").value(1200000));
+                .andExpect(jsonPath("$.data.price").value(1200000))
+                .andExpect(jsonPath("$.data.wishlistCount").value(1))
+                .andExpect(jsonPath("$.data.wishlisted").value(false));
     }
 
     @Test
@@ -490,14 +495,19 @@ class ProductApiTest extends IntegrationTestSupport {
 
     @Test
     void 소유자는_상품_숨김에_성공한다() throws Exception {
-        String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
-        Long productId = createProduct(accessToken);
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer-hide-count@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+
+        addWishlist(buyerToken, productId);
 
         mockMvc.perform(delete("/api/products/{productId}", productId)
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(productId))
-                .andExpect(jsonPath("$.data.status").value("HIDDEN"));
+                .andExpect(jsonPath("$.data.status").value("HIDDEN"))
+                .andExpect(jsonPath("$.data.wishlistCount").value(1))
+                .andExpect(jsonPath("$.data.wishlisted").value(false));
     }
 
     @Test

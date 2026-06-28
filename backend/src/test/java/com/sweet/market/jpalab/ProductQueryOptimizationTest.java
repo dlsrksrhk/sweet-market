@@ -17,6 +17,7 @@ import com.sweet.market.product.api.ProductSummaryResponse;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.domain.ProductStatus;
+import com.sweet.market.product.query.ProductQueryService;
 import com.sweet.market.product.repository.ProductRepository;
 
 import jakarta.persistence.PersistenceUnitUtil;
@@ -28,6 +29,9 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Autowired
+    private ProductQueryService productQueryService;
 
     @Test
     @Transactional
@@ -92,6 +96,27 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
                     assertThat(persistenceUnitUtil.isLoaded(product, "seller")).isTrue();
                     assertThat(persistenceUnitUtil.isLoaded(product, "images")).isFalse();
                 });
+    }
+
+    @Test
+    @Transactional
+    void 공개_상품_목록_조회는_이미지_컬렉션을_초기화하지_않는다() {
+        seedProductsWithDifferentSellersAndImages();
+        flushAndClear();
+        resetStatistics();
+
+        List<ProductSummaryResponse> summaries = productQueryService.findOnSaleProducts(null, PageRequest.of(0, 10))
+                .getContent();
+
+        assertThat(summaries).hasSize(3);
+        assertThat(summaries)
+                .allSatisfy(summary -> {
+                    assertThat(summary.thumbnailUrl()).startsWith("https://example.com/product-");
+                    assertThat(summary.wishlistCount()).isZero();
+                    assertThat(summary.wishlisted()).isFalse();
+                });
+        assertThat(queryCount()).isLessThanOrEqualTo(2);
+        assertThat(collectionFetchCount()).isZero();
     }
 
     @Test
@@ -171,6 +196,32 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
                     "Description " + i,
                     10_000L * i
             ));
+        }
+    }
+
+    private void seedProductsWithDifferentSellersAndImages() {
+        for (int i = 1; i <= 3; i++) {
+            Member seller = memberRepository.save(Member.create(
+                    "seller-with-images" + i + "@example.com",
+                    "encoded-password",
+                    "seller" + i
+            ));
+            Product product = Product.create(
+                    seller,
+                    "Product " + i,
+                    "Description " + i,
+                    10_000L * i
+            );
+            product.replaceImages(List.of(ProductImage.local(
+                    "https://example.com/product-" + i + ".jpg",
+                    "product-" + i + ".jpg",
+                    "product-" + i + ".jpg",
+                    "image/jpeg",
+                    100L,
+                    0,
+                    true
+            )));
+            productRepository.save(product);
         }
     }
 }

@@ -32,6 +32,10 @@ abstract class QueryOptimizationTestSupport extends IntegrationTestSupport {
         return statistics().getPrepareStatementCount();
     }
 
+    protected long collectionFetchCount() {
+        return statistics().getCollectionFetchCount();
+    }
+
     private Statistics statistics() {
         return entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
     }

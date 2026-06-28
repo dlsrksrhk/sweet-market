@@ -23,22 +23,6 @@ public interface WishlistItemRepository extends JpaRepository<WishlistItem, Long
 
     long deleteByBuyerIdAndProductId(Long buyerId, Long productId);
 
-    @Query("""
-            select wi.product.id as productId, count(wi.id) as count
-            from WishlistItem wi
-            where wi.product.id in :productIds
-            group by wi.product.id
-            """)
-    List<WishlistProductCountProjection> countByProductIds(@Param("productIds") List<Long> productIds);
-
-    @Query("""
-            select wi.product.id
-            from WishlistItem wi
-            where wi.buyer.id = :buyerId
-              and wi.product.id in :productIds
-            """)
-    List<Long> findWishedProductIds(@Param("buyerId") Long buyerId, @Param("productIds") List<Long> productIds);
-
     @Query(value = """
             select new com.sweet.market.wishlist.api.WishlistItemResponse(
                 wi.id,
@@ -99,11 +83,4 @@ public interface WishlistItemRepository extends JpaRepository<WishlistItem, Long
             @Param("visibleStatuses") List<ProductStatus> visibleStatuses,
             Pageable pageable
     );
-
-    interface WishlistProductCountProjection {
-
-        Long getProductId();
-
-        long getCount();
-    }
 }

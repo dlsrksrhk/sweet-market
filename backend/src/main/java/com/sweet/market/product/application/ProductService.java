@@ -23,6 +23,7 @@ import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.product.storage.ProductImageStorageService;
+import com.sweet.market.wishlist.repository.WishlistItemRepository;
 
 @Service
 public class ProductService {
@@ -31,17 +32,20 @@ public class ProductService {
     private final MemberRepository memberRepository;
     private final ProductImageUploadService productImageUploadService;
     private final ProductImageStorageService productImageStorageService;
+    private final WishlistItemRepository wishlistItemRepository;
 
     public ProductService(
             ProductRepository productRepository,
             MemberRepository memberRepository,
             ProductImageUploadService productImageUploadService,
-            ProductImageStorageService productImageStorageService
+            ProductImageStorageService productImageStorageService,
+            WishlistItemRepository wishlistItemRepository
     ) {
         this.productRepository = productRepository;
         this.memberRepository = memberRepository;
         this.productImageUploadService = productImageUploadService;
         this.productImageStorageService = productImageStorageService;
+        this.wishlistItemRepository = wishlistItemRepository;
     }
 
     @Transactional
@@ -73,7 +77,7 @@ public class ProductService {
         }
 
         Product savedProduct = productRepository.save(product);
-        return ProductResponse.from(savedProduct);
+        return sellerResponse(savedProduct);
     }
 
     @Transactional
@@ -101,7 +105,7 @@ public class ProductService {
         } catch (IllegalArgumentException exception) {
             throw mapProductImageException(exception);
         }
-        return ProductResponse.from(product);
+        return sellerResponse(product);
     }
 
     @Transactional
@@ -112,7 +116,11 @@ public class ProductService {
         } catch (IllegalStateException exception) {
             throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED);
         }
-        return ProductResponse.from(product);
+        return sellerResponse(product);
+    }
+
+    private ProductResponse sellerResponse(Product product) {
+        return ProductResponse.from(product, wishlistItemRepository.countByProductId(product.getId()), false);
     }
 
     private Product findProductForOwner(Long sellerId, Long productId) {
