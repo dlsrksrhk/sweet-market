@@ -12,10 +12,16 @@ public record ProductResponse(
         String description,
         long price,
         String status,
-        List<ProductImageResponse> images
+        List<ProductImageResponse> images,
+        long wishlistCount,
+        boolean wishlisted
 ) {
 
     public static ProductResponse from(Product product) {
+        return from(product, 0, false);
+    }
+
+    public static ProductResponse from(Product product, long wishlistCount, boolean wishlisted) {
         return new ProductResponse(
                 product.getId(),
                 product.getSeller().getId(),
@@ -26,7 +32,9 @@ public record ProductResponse(
                 product.getStatus().name(),
                 product.getImages().stream()
                         .map(ProductImageResponse::from)
-                        .toList()
+                        .toList(),
+                wishlistCount,
+                wishlisted
         );
     }
 }

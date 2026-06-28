@@ -143,6 +143,57 @@ class WishlistApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 로그인한_사용자는_상품_목록에서_찜_상태와_수를_본다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        String otherBuyerToken = signupAndLogin("other-buyer@example.com", "password123", "otherBuyer");
+        Long wishedProductId = createProduct(sellerToken, "Wishlisted Product", "wishlisted.jpg");
+        Long otherOnlyProductId = createProduct(sellerToken, "Other Only Product", "other-only.jpg");
+
+        addWishlist(buyerToken, wishedProductId);
+        addWishlist(otherBuyerToken, wishedProductId);
+        addWishlist(otherBuyerToken, otherOnlyProductId);
+
+        mockMvc.perform(get("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andExpect(jsonPath("$.data.content[0].id").value(otherOnlyProductId))
+                .andExpect(jsonPath("$.data.content[0].wishlistCount").value(1))
+                .andExpect(jsonPath("$.data.content[0].wishlisted").value(false))
+                .andExpect(jsonPath("$.data.content[1].id").value(wishedProductId))
+                .andExpect(jsonPath("$.data.content[1].wishlistCount").value(2))
+                .andExpect(jsonPath("$.data.content[1].wishlisted").value(true));
+    }
+
+    @Test
+    void 로그인한_사용자는_상품_상세에서_찜_상태와_수를_본다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        String otherBuyerToken = signupAndLogin("other-buyer@example.com", "password123", "otherBuyer");
+        Long wishedProductId = createProduct(sellerToken, "Wishlisted Product", "wishlisted.jpg");
+        Long otherOnlyProductId = createProduct(sellerToken, "Other Only Product", "other-only.jpg");
+
+        addWishlist(buyerToken, wishedProductId);
+        addWishlist(otherBuyerToken, wishedProductId);
+        addWishlist(otherBuyerToken, otherOnlyProductId);
+
+        mockMvc.perform(get("/api/products/{productId}", wishedProductId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(wishedProductId))
+                .andExpect(jsonPath("$.data.wishlistCount").value(2))
+                .andExpect(jsonPath("$.data.wishlisted").value(true));
+
+        mockMvc.perform(get("/api/products/{productId}", otherOnlyProductId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(otherOnlyProductId))
+                .andExpect(jsonPath("$.data.wishlistCount").value(1))
+                .andExpect(jsonPath("$.data.wishlisted").value(false));
+    }
+
+    @Test
     void 판매중_상품을_찜할_수_있다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");

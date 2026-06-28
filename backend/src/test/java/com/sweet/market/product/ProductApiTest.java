@@ -522,7 +522,9 @@ class ProductApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content", hasSize(1)))
                 .andExpect(jsonPath("$.data.content[0].title").value("MacBook Pro"))
                 .andExpect(jsonPath("$.data.content[0].sellerNickname").value("seller"))
-                .andExpect(jsonPath("$.data.content[0].thumbnailUrl", startsWith("/uploads/products/public/")));
+                .andExpect(jsonPath("$.data.content[0].thumbnailUrl", startsWith("/uploads/products/public/")))
+                .andExpect(jsonPath("$.data.content[0].wishlistCount").value(0))
+                .andExpect(jsonPath("$.data.content[0].wishlisted").value(false));
     }
 
     @Test
@@ -534,7 +536,9 @@ class ProductApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(productId))
                 .andExpect(jsonPath("$.data.title").value("MacBook Pro"))
-                .andExpect(jsonPath("$.data.images", hasSize(1)));
+                .andExpect(jsonPath("$.data.images", hasSize(1)))
+                .andExpect(jsonPath("$.data.wishlistCount").value(0))
+                .andExpect(jsonPath("$.data.wishlisted").value(false));
     }
 
     @Test

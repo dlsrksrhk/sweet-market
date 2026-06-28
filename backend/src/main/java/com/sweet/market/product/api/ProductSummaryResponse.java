@@ -11,7 +11,9 @@ public record ProductSummaryResponse(
         String title,
         long price,
         String status,
-        String thumbnailUrl
+        String thumbnailUrl,
+        long wishlistCount,
+        boolean wishlisted
 ) {
 
     public ProductSummaryResponse(
@@ -23,10 +25,28 @@ public record ProductSummaryResponse(
             ProductStatus status,
             String thumbnailUrl
     ) {
-        this(id, sellerId, sellerNickname, title, price, status.name(), thumbnailUrl);
+        this(id, sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, 0, false);
+    }
+
+    public ProductSummaryResponse(
+            Long id,
+            Long sellerId,
+            String sellerNickname,
+            String title,
+            long price,
+            ProductStatus status,
+            String thumbnailUrl,
+            long wishlistCount,
+            boolean wishlisted
+    ) {
+        this(id, sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, wishlistCount, wishlisted);
     }
 
     public static ProductSummaryResponse from(Product product) {
+        return from(product, 0, false);
+    }
+
+    public static ProductSummaryResponse from(Product product, long wishlistCount, boolean wishlisted) {
         String thumbnailUrl = product.getImages().stream()
                 .filter(ProductImage::isRepresentative)
                 .findFirst()
@@ -41,7 +61,9 @@ public record ProductSummaryResponse(
                 product.getTitle(),
                 product.getPrice(),
                 product.getStatus().name(),
-                thumbnailUrl
+                thumbnailUrl,
+                wishlistCount,
+                wishlisted
         );
     }
 }

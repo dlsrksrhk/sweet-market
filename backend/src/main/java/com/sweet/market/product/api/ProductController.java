@@ -46,9 +46,10 @@ public class ProductController {
 
     @GetMapping
     public ApiResponse<Page<ProductSummaryResponse>> list(
+            Authentication authentication,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        return ApiResponse.ok(productQueryService.findOnSaleProducts(pageable));
+        return ApiResponse.ok(productQueryService.findOnSaleProducts(authenticatedMemberId(authentication), pageable));
     }
 
     @GetMapping("/me")
@@ -61,8 +62,8 @@ public class ProductController {
     }
 
     @GetMapping("/{productId}")
-    public ApiResponse<ProductResponse> get(@PathVariable Long productId) {
-        return ApiResponse.ok(productQueryService.findOnSaleProduct(productId));
+    public ApiResponse<ProductResponse> get(Authentication authentication, @PathVariable Long productId) {
+        return ApiResponse.ok(productQueryService.findOnSaleProduct(productId, authenticatedMemberId(authentication)));
     }
 
     @PatchMapping("/{productId}")
@@ -82,6 +83,13 @@ public class ProductController {
     ) {
         AuthenticatedMember member = (AuthenticatedMember) authentication.getPrincipal();
         return ApiResponse.ok(productService.hide(member.id(), productId));
+    }
+
+    private Long authenticatedMemberId(Authentication authentication) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof AuthenticatedMember member)) {
+            return null;
+        }
+        return member.id();
     }
 
 }
