@@ -28,7 +28,10 @@ import lombok.NoArgsConstructor;
                 name = "uk_wishlist_items_buyer_product",
                 columnNames = {"buyer_id", "product_id"}
         ),
-        indexes = @Index(name = "idx_wishlist_items_product_id", columnList = "product_id")
+        indexes = {
+                @Index(name = "idx_wishlist_items_product_id", columnList = "product_id"),
+                @Index(name = "idx_wishlist_items_buyer_created_id", columnList = "buyer_id, created_at, id")
+        }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class WishlistItem {

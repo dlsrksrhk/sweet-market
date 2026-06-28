@@ -92,6 +92,50 @@ class WishlistApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 내_찜_목록은_대표_이미지를_썸네일로_응답한다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        ProductImageUploadFixture firstImage = uploadProductImage(sellerToken, "wishlist-first.jpg");
+        ProductImageUploadFixture representativeImage = uploadProductImage(sellerToken, "wishlist-representative.jpg");
+
+        String response = mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Wishlist Thumbnail Product",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": false
+                                    },
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 1,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(firstImage.id(), representativeImage.id())))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Long productId = objectMapper.readTree(response).path("data").path("id").asLong();
+        addWishlist(buyerToken, productId);
+
+        mockMvc.perform(get("/api/me/wishlist")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].thumbnailUrl").value(representativeImage.publicUrl()));
+    }
+
+    @Test
     void 내_찜_목록_조회는_JWT가_필요하다() throws Exception {
         mockMvc.perform(get("/api/me/wishlist"))
                 .andExpect(status().isUnauthorized())
@@ -341,6 +385,10 @@ class WishlistApiTest extends IntegrationTestSupport {
     }
 
     private Long uploadImage(String accessToken, String fileName) throws Exception {
+        return uploadProductImage(accessToken, fileName).id();
+    }
+
+    private ProductImageUploadFixture uploadProductImage(String accessToken, String fileName) throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 fileName,
@@ -357,7 +405,11 @@ class WishlistApiTest extends IntegrationTestSupport {
                 .getContentAsString();
 
         JsonNode root = objectMapper.readTree(response);
-        return root.path("data").path("id").asLong();
+        JsonNode data = root.path("data");
+        return new ProductImageUploadFixture(
+                data.path("id").asLong(),
+                data.path("previewUrl").asText().replace("/uploads/products/temp/", "/uploads/products/public/")
+        );
     }
 
     private long countWishlistItems(Long productId) {
@@ -367,5 +419,8 @@ class WishlistApiTest extends IntegrationTestSupport {
                 productId
         );
         return count == null ? 0 : count;
+    }
+
+    private record ProductImageUploadFixture(Long id, String publicUrl) {
     }
 }
