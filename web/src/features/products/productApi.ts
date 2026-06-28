@@ -23,6 +23,8 @@ export type ProductSummary = {
   price: number;
   status: ProductStatus;
   thumbnailUrl: string | null;
+  wishlistCount: number;
+  wishlisted: boolean;
 };
 
 export type ProductImage = {
@@ -80,6 +82,26 @@ export type ProductUpdateInput = {
   images: ProductUpdateImageInput[];
 };
 
+export type WishlistResponse = {
+  productId: number;
+  wishlisted: boolean;
+  wishlistCount: number;
+};
+
+export type WishlistItem = {
+  wishlistItemId: number;
+  productId: number;
+  sellerId: number;
+  sellerNickname: string;
+  title: string;
+  price: number;
+  status: ProductStatus;
+  thumbnailUrl: string | null;
+  wishlisted: boolean;
+  wishlistCount: number;
+  wishedAt: string;
+};
+
 export function getProducts() {
   return api<Page<ProductSummary>>('/api/products');
 }
@@ -110,6 +132,22 @@ export function hideProduct(productId: number) {
   return api<Product>(`/api/products/${productId}`, {
     method: 'DELETE',
   });
+}
+
+export function addWishlist(productId: number) {
+  return api<WishlistResponse>(`/api/products/${productId}/wishlist`, {
+    method: 'POST',
+  });
+}
+
+export function removeWishlist(productId: number) {
+  return api<WishlistResponse>(`/api/products/${productId}/wishlist`, {
+    method: 'DELETE',
+  });
+}
+
+export function getMyWishlist() {
+  return api<Page<WishlistItem>>('/api/me/wishlist');
 }
 
 export function uploadProductImage(file: File) {
