@@ -5,6 +5,7 @@ import { AdminOperationsPage } from '../pages/AdminOperationsPage';
 import { AdminSettlementBatchPage } from '../pages/AdminSettlementBatchPage';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
+import { MyCartPage } from '../pages/MyCartPage';
 import { MyOrdersPage } from '../pages/MyOrdersPage';
 import { MyReportsPage } from '../pages/MyReportsPage';
 import { MySalesPage } from '../pages/MySalesPage';
@@ -44,6 +45,14 @@ export function AppRouter() {
           element={
             <RequireAuth>
               <MyWishlistPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="me/cart"
+          element={
+            <RequireAuth>
+              <MyCartPage />
             </RequireAuth>
           }
         />
