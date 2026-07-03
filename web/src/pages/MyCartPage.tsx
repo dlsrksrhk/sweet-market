@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { checkoutCart, getMyCart, removeCart, type CartItem } from '../features/cart/cartApi';
 import { toProductImageSrc } from '../features/products/productApi';
@@ -22,20 +22,27 @@ export function MyCartPage() {
     () => cartItems.filter((item) => item.checkoutAvailable).map((item) => item.cartItemId),
     [cartItems],
   );
+  const selectableIdSet = useMemo(() => new Set(selectableIds), [selectableIds]);
+  const validSelectedIds = useMemo(
+    () => selectedIds.filter((cartItemId) => selectableIdSet.has(cartItemId)),
+    [selectedIds, selectableIdSet],
+  );
   const selectedTotal = cartItems
-    .filter((item) => selectedIds.includes(item.cartItemId))
+    .filter((item) => validSelectedIds.includes(item.cartItemId))
     .reduce((sum, item) => sum + item.price, 0);
-  const allSelectableSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id));
+  const allSelectableSelected = selectableIds.length > 0 && selectableIds.every((id) => validSelectedIds.includes(id));
+
+  useEffect(() => {
+    setSelectedIds((current) => {
+      const next = current.filter((cartItemId) => selectableIdSet.has(cartItemId));
+      return next.length === current.length ? current : next;
+    });
+  }, [selectableIdSet]);
 
   const removeMutation = useMutation({
-    mutationFn: (productId: number) => removeCart(productId),
-    onSuccess: async (response) => {
-      setSelectedIds((current) =>
-        current.filter((cartItemId) => {
-          const item = cartItems.find((cartItem) => cartItem.cartItemId === cartItemId);
-          return item?.productId !== response.productId;
-        }),
-      );
+    mutationFn: (item: CartItem) => removeCart(item.productId),
+    onSuccess: async (response, item) => {
+      setSelectedIds((current) => current.filter((cartItemId) => cartItemId !== item.cartItemId));
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['my-cart'] }),
         queryClient.invalidateQueries({ queryKey: ['products'] }),
@@ -45,7 +52,7 @@ export function MyCartPage() {
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: () => checkoutCart(selectedIds),
+    mutationFn: (cartItemIds: number[]) => checkoutCart(cartItemIds),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['my-cart'] }),
@@ -99,8 +106,8 @@ export function MyCartPage() {
             <button
               type="button"
               className="text-button"
-              disabled={selectedIds.length === 0 || checkoutMutation.isPending}
-              onClick={() => checkoutMutation.mutate()}
+              disabled={validSelectedIds.length === 0 || checkoutMutation.isPending}
+              onClick={() => checkoutMutation.mutate(validSelectedIds)}
             >
               {checkoutMutation.isPending ? '주문 생성 중' : '선택 상품 주문하기'}
             </button>
@@ -113,7 +120,7 @@ export function MyCartPage() {
                 checked={selectedIds.includes(item.cartItemId)}
                 removePending={removeMutation.isPending}
                 onToggle={() => toggleItem(item.cartItemId)}
-                onRemove={() => removeMutation.mutate(item.productId)}
+                onRemove={() => removeMutation.mutate(item)}
               />
             ))}
           </div>
