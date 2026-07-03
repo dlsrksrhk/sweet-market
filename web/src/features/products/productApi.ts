@@ -25,6 +25,7 @@ export type ProductSummary = {
   thumbnailUrl: string | null;
   wishlistCount: number;
   wishlisted: boolean;
+  carted: boolean;
 };
 
 export type ProductImage = {

@@ -23,7 +23,15 @@ type AuthProviderProps = {
   children: ReactNode;
 };
 
-const authenticatedPrivateQueryKeys = [['my-orders'], ['my-products'], ['my-settlements'], ['seller-dashboard-report'], ['my-wishlist'], ['products']] as const;
+const authenticatedPrivateQueryKeys = [
+  ['my-orders'],
+  ['my-products'],
+  ['my-settlements'],
+  ['seller-dashboard-report'],
+  ['my-wishlist'],
+  ['my-cart'],
+  ['products'],
+] as const;
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const queryClient = useQueryClient();

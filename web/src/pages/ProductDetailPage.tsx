@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthProvider';
+import { CartToggle } from '../features/cart/CartToggle';
+import { type CartResponse } from '../features/cart/cartApi';
 import { createOrder } from '../features/orders/orderApi';
 import { getProduct, hideProduct, toProductImageSrc, type WishlistResponse } from '../features/products/productApi';
 import { WishlistToggle } from '../features/wishlist/WishlistToggle';
@@ -19,6 +21,7 @@ export function ProductDetailPage() {
   const parsedProductId = parsePositiveIntegerParam(productId);
   const hasValidProductId = parsedProductId !== null;
   const [wishlistState, setWishlistState] = useState<WishlistResponse | null>(null);
+  const [cartState, setCartState] = useState<CartResponse | null>(null);
 
   const { data: product, error, isLoading } = useQuery({
     queryKey: ['products', parsedProductId],
@@ -39,6 +42,7 @@ export function ProductDetailPage() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
+        queryClient.invalidateQueries({ queryKey: ['my-cart'] }),
       ]);
       navigate('/me/orders');
     },
@@ -46,7 +50,8 @@ export function ProductDetailPage() {
 
   useEffect(() => {
     setWishlistState(null);
-  }, [product?.id, product?.wishlisted, product?.wishlistCount]);
+    setCartState(null);
+  }, [product?.id, product?.wishlisted, product?.wishlistCount, product?.carted]);
 
   if (!hasValidProductId) {
     return <ErrorState message="상품 주소가 올바르지 않습니다." />;
@@ -66,6 +71,7 @@ export function ProductDetailPage() {
 
   const isSeller = member?.id === product.sellerId;
   const displayedWishlist = wishlistState?.productId === product.id ? wishlistState : null;
+  const displayedCart = cartState?.productId === product.id ? cartState : null;
   const galleryImages = product.images
     .slice()
     .sort((firstImage, secondImage) => Number(secondImage.representative) - Number(firstImage.representative) || firstImage.sortOrder - secondImage.sortOrder);
@@ -89,6 +95,12 @@ export function ProductDetailPage() {
               wishlisted={displayedWishlist?.wishlisted ?? product.wishlisted}
               wishlistCount={displayedWishlist?.wishlistCount ?? product.wishlistCount}
               onChanged={setWishlistState}
+            />
+            <CartToggle
+              productId={product.id}
+              sellerId={product.sellerId}
+              carted={displayedCart?.carted ?? product.carted}
+              onChanged={setCartState}
             />
           </div>
           <h1>{product.title}</h1>

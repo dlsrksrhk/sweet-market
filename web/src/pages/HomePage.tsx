@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { CartToggle } from '../features/cart/CartToggle';
 import { getProducts, toProductImageSrc, type ProductSummary } from '../features/products/productApi';
 import { WishlistToggle } from '../features/wishlist/WishlistToggle';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
@@ -73,13 +74,14 @@ function ProductGrid({ error, isLoading, products }: ProductGridProps) {
               <span>{product.sellerNickname}</span>
             </div>
           </Link>
-          <div className="product-card-wishlist">
+          <div className="product-card-actions">
             <WishlistToggle
               productId={product.id}
               sellerId={product.sellerId}
               wishlisted={product.wishlisted}
               wishlistCount={product.wishlistCount}
             />
+            <CartToggle productId={product.id} sellerId={product.sellerId} carted={product.carted} />
           </div>
         </article>
       ))}
