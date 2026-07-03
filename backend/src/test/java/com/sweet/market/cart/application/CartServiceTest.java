@@ -20,6 +20,7 @@ import com.sweet.market.cart.domain.CartItem;
 import com.sweet.market.cart.repository.CartItemRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
 
@@ -30,11 +31,13 @@ class CartServiceTest {
         CartItemRepository cartItemRepository = mock(CartItemRepository.class);
         ProductRepository productRepository = mock(ProductRepository.class);
         MemberRepository memberRepository = mock(MemberRepository.class);
+        OrderRepository orderRepository = mock(OrderRepository.class);
         PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
         CartService cartService = new CartService(
                 cartItemRepository,
                 productRepository,
                 memberRepository,
+                orderRepository,
                 transactionManager
         );
         Member buyer = member(1L, "buyer@example.com", "buyer");
