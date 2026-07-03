@@ -128,6 +128,10 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
                                 """.formatted(cartItemId, cartItemId)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("CART_CHECKOUT_INVALID_ITEMS"));
+
+        assertThat(countOrders()).isZero();
+        assertThat(countCartItems()).isEqualTo(1);
+        assertThat(findProductStatus(productId)).isEqualTo("ON_SALE");
     }
 
     @Test
@@ -151,6 +155,36 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
                                 """.formatted(cartItemId)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("CART_CHECKOUT_INVALID_ITEMS"));
+
+        assertThat(countOrders()).isZero();
+        assertThat(countCartItems()).isEqualTo(1);
+        assertThat(findProductStatus(productId)).isEqualTo("ON_SALE");
+    }
+
+    @Test
+    void 존재하지_않는_장바구니_항목이_포함되면_아무_주문도_생성하지_않는다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long buyerId = findMemberIdByEmail("buyer@example.com");
+        Long productId = createProduct(sellerToken, "Invalid Cart Product", "invalid-cart.jpg");
+
+        addCart(buyerToken, productId);
+        Long cartItemId = findCartItemId(buyerId, productId);
+
+        mockMvc.perform(post("/api/me/cart/checkout")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "cartItemIds": [%d, 999999]
+                                }
+                                """.formatted(cartItemId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CART_CHECKOUT_INVALID_ITEMS"));
+
+        assertThat(countOrders()).isZero();
+        assertThat(countCartItems()).isEqualTo(1);
+        assertThat(findProductStatus(productId)).isEqualTo("ON_SALE");
     }
 
     @Test
