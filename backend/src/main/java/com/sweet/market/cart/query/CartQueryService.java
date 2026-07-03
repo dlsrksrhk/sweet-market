@@ -1,6 +1,7 @@
 package com.sweet.market.cart.query;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ public class CartQueryService {
 
     @Transactional(readOnly = true)
     public Page<CartItemResponse> findMine(Long buyerId, Pageable pageable) {
-        return cartItemRepository.findPageByBuyerId(buyerId, pageable);
+        Pageable queryPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        return cartItemRepository.findPageByBuyerId(buyerId, queryPageable);
     }
 }

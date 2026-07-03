@@ -55,6 +55,28 @@ class CartApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 내_장바구니는_sort_파라미터가_있어도_최근에_담은_순서로_조회된다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long buyerId = findMemberIdByEmail("buyer@example.com");
+        Long oldProductId = createProduct(sellerToken, "Old MacBook Pro", "old-sort-macbook.jpg");
+        Long recentProductId = createProduct(sellerToken, "Recent MacBook Pro", "recent-sort-macbook.jpg");
+
+        addCart(buyerToken, oldProductId);
+        addCart(buyerToken, recentProductId);
+        updateCartedAt(buyerId, oldProductId, "2026-01-01 10:00:00");
+        updateCartedAt(buyerId, recentProductId, "2026-01-02 10:00:00");
+
+        mockMvc.perform(get("/api/me/cart")
+                        .param("sort", "createdAt,asc")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andExpect(jsonPath("$.data.content[0].productId").value(recentProductId))
+                .andExpect(jsonPath("$.data.content[1].productId").value(oldProductId));
+    }
+
+    @Test
     void 내_장바구니는_구매할_수_없는_상품도_보여주되_선택_불가로_표시한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
