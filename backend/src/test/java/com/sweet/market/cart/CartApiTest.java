@@ -88,6 +88,57 @@ class CartApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.carted").value(false));
     }
 
+    @Test
+    void 장바구니_담기는_JWT가_필요하다() throws Exception {
+        mockMvc.perform(post("/api/products/{productId}/cart", 1L))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
+    }
+
+    @Test
+    void 장바구니_제거는_JWT가_필요하다() throws Exception {
+        mockMvc.perform(delete("/api/products/{productId}/cart", 1L))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
+    }
+
+    @Test
+    void 자기_상품은_장바구니에_담을_수_없다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        Long productId = createProduct(sellerToken);
+
+        mockMvc.perform(post("/api/products/{productId}/cart", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CART_OWN_PRODUCT_NOT_ALLOWED"));
+    }
+
+    @Test
+    void 판매중이_아닌_상품은_새로_장바구니에_담을_수_없다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+
+        mockMvc.perform(delete("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/products/{productId}/cart", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CART_PRODUCT_NOT_ON_SALE"));
+    }
+
+    @Test
+    void 존재하지_않는_상품은_장바구니에서_제거할_수_없다() throws Exception {
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+
+        mockMvc.perform(delete("/api/products/{productId}/cart", 999999L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
+    }
+
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
         SignupRequest signupRequest = new SignupRequest(email, password, nickname);
         LoginRequest loginRequest = new LoginRequest(email, password);
