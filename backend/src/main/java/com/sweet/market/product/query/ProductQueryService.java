@@ -5,6 +5,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.cart.repository.CartItemRepository;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.product.api.ProductResponse;
@@ -19,10 +20,16 @@ public class ProductQueryService {
 
     private final ProductRepository productRepository;
     private final WishlistItemRepository wishlistItemRepository;
+    private final CartItemRepository cartItemRepository;
 
-    public ProductQueryService(ProductRepository productRepository, WishlistItemRepository wishlistItemRepository) {
+    public ProductQueryService(
+            ProductRepository productRepository,
+            WishlistItemRepository wishlistItemRepository,
+            CartItemRepository cartItemRepository
+    ) {
         this.productRepository = productRepository;
         this.wishlistItemRepository = wishlistItemRepository;
+        this.cartItemRepository = cartItemRepository;
     }
 
     @Transactional(readOnly = true)
@@ -51,6 +58,7 @@ public class ProductQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
         long wishlistCount = wishlistItemRepository.countByProductId(productId);
         boolean wishlisted = viewerId != null && wishlistItemRepository.existsByBuyerIdAndProductId(viewerId, productId);
-        return ProductResponse.from(product, wishlistCount, wishlisted);
+        boolean carted = viewerId != null && cartItemRepository.existsByBuyerIdAndProductId(viewerId, productId);
+        return ProductResponse.from(product, wishlistCount, wishlisted, carted);
     }
 }

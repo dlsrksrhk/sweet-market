@@ -14,7 +14,8 @@ public record ProductResponse(
         String status,
         List<ProductImageResponse> images,
         long wishlistCount,
-        boolean wishlisted
+        boolean wishlisted,
+        boolean carted
 ) {
 
     public static ProductResponse from(Product product) {
@@ -22,6 +23,10 @@ public record ProductResponse(
     }
 
     public static ProductResponse from(Product product, long wishlistCount, boolean wishlisted) {
+        return from(product, wishlistCount, wishlisted, false);
+    }
+
+    public static ProductResponse from(Product product, long wishlistCount, boolean wishlisted, boolean carted) {
         return new ProductResponse(
                 product.getId(),
                 product.getSeller().getId(),
@@ -34,7 +39,8 @@ public record ProductResponse(
                         .map(ProductImageResponse::from)
                         .toList(),
                 wishlistCount,
-                wishlisted
+                wishlisted,
+                carted
         );
     }
 }

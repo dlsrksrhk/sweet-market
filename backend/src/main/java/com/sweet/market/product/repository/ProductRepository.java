@@ -76,6 +76,16 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                           and viewerItem.buyer.id = :viewerId
                     ) > 0 then true
                     else false
+                end,
+                case
+                    when :viewerId is null then false
+                    when (
+                        select count(cartItem)
+                        from CartItem cartItem
+                        where cartItem.product = p
+                          and cartItem.buyer.id = :viewerId
+                    ) > 0 then true
+                    else false
                 end
             )
             from Product p

@@ -13,7 +13,8 @@ public record ProductSummaryResponse(
         String status,
         String thumbnailUrl,
         long wishlistCount,
-        boolean wishlisted
+        boolean wishlisted,
+        boolean carted
 ) {
 
     public ProductSummaryResponse(
@@ -25,7 +26,7 @@ public record ProductSummaryResponse(
             ProductStatus status,
             String thumbnailUrl
     ) {
-        this(id, sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, 0, false);
+        this(id, sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, 0, false, false);
     }
 
     public ProductSummaryResponse(
@@ -37,9 +38,10 @@ public record ProductSummaryResponse(
             ProductStatus status,
             String thumbnailUrl,
             long wishlistCount,
-            boolean wishlisted
+            boolean wishlisted,
+            boolean carted
     ) {
-        this(id, sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, wishlistCount, wishlisted);
+        this(id, sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, wishlistCount, wishlisted, carted);
     }
 
     public static ProductSummaryResponse from(Product product) {
@@ -47,6 +49,15 @@ public record ProductSummaryResponse(
     }
 
     public static ProductSummaryResponse from(Product product, long wishlistCount, boolean wishlisted) {
+        return from(product, wishlistCount, wishlisted, false);
+    }
+
+    public static ProductSummaryResponse from(
+            Product product,
+            long wishlistCount,
+            boolean wishlisted,
+            boolean carted
+    ) {
         String thumbnailUrl = product.getImages().stream()
                 .filter(ProductImage::isRepresentative)
                 .findFirst()
@@ -63,7 +74,8 @@ public record ProductSummaryResponse(
                 product.getStatus().name(),
                 thumbnailUrl,
                 wishlistCount,
-                wishlisted
+                wishlisted,
+                carted
         );
     }
 }

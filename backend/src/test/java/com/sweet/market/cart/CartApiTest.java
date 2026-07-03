@@ -122,6 +122,57 @@ class CartApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 로그인한_사용자는_상품_목록에서_장바구니_상태를_본다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long cartedProductId = createProduct(sellerToken, "Carted Product", "carted-product.jpg");
+        Long otherProductId = createProduct(sellerToken, "Other Product", "other-product.jpg");
+
+        addCart(buyerToken, cartedProductId);
+
+        mockMvc.perform(get("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andExpect(jsonPath("$.data.content[0].id").value(otherProductId))
+                .andExpect(jsonPath("$.data.content[0].carted").value(false))
+                .andExpect(jsonPath("$.data.content[1].id").value(cartedProductId))
+                .andExpect(jsonPath("$.data.content[1].carted").value(true));
+    }
+
+    @Test
+    void 로그인한_사용자는_상품_상세에서_장바구니_상태를_본다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+
+        addCart(buyerToken, productId);
+
+        mockMvc.perform(get("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(productId))
+                .andExpect(jsonPath("$.data.carted").value(true));
+    }
+
+    @Test
+    void 익명_사용자는_상품_목록과_상세에서_장바구니_상태를_false로_본다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        Long productId = createProduct(sellerToken);
+
+        mockMvc.perform(get("/api/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(productId))
+                .andExpect(jsonPath("$.data.content[0].carted").value(false));
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(productId))
+                .andExpect(jsonPath("$.data.carted").value(false));
+    }
+
+    @Test
     void 내_장바구니_조회는_JWT가_필요하다() throws Exception {
         mockMvc.perform(get("/api/me/cart"))
                 .andExpect(status().isUnauthorized())
