@@ -669,6 +669,68 @@ textarea {
   gap: 10px;
 }
 
+.review-form {
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid #dfe6ee;
+  padding-top: 18px;
+}
+
+.review-form label {
+  display: grid;
+  gap: 8px;
+  color: #52616f;
+  font-weight: 800;
+}
+
+.review-form textarea {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  border: 1px solid #cfd9e3;
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #172026;
+}
+
+.rating-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.rating-field legend {
+  width: 100%;
+  margin-bottom: 2px;
+  color: #52616f;
+  font-weight: 800;
+}
+
+.rating-button {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #cfd9e3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #52616f;
+  font-weight: 800;
+}
+
+.rating-button-selected {
+  border-color: #172026;
+  background: #172026;
+  color: #ffffff;
+}
+
+.review-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .wishlist-list {
   display: grid;
   gap: 14px;
