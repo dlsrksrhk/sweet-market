@@ -32,7 +32,11 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             select p
             from Product p
             where p.id = :id
-              and p.status <> com.sweet.market.product.domain.ProductStatus.HIDDEN
+              and p.status in (
+                  com.sweet.market.product.domain.ProductStatus.ON_SALE,
+                  com.sweet.market.product.domain.ProductStatus.RESERVED,
+                  com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+              )
             """)
     Optional<Product> findBuyerVisibleDetailById(@Param("id") Long id);
 

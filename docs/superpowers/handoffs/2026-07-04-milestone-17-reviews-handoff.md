@@ -23,6 +23,8 @@
 - Web build passed:
   - `cd web`
   - `npm run build`
+- Repo checks passed:
+  - `git diff --check`
 
 ## Local Notes
 

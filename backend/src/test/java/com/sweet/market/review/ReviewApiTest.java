@@ -49,6 +49,20 @@ class ReviewApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 리뷰_작성은_JWT가_필요하다() throws Exception {
+        mockMvc.perform(post("/api/orders/{orderId}/review", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "rating": 5,
+                                  "content": "거래가 빠르고 상품 설명도 정확했어요."
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
+    }
+
+    @Test
     void 다른_구매자의_주문에는_리뷰를_작성할_수_없다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
