@@ -15,7 +15,11 @@ public record ProductResponse(
         List<ProductImageResponse> images,
         long wishlistCount,
         boolean wishlisted,
-        boolean carted
+        boolean carted,
+        long reviewCount,
+        Double averageRating,
+        long sellerReviewCount,
+        Double sellerAverageRating
 ) {
 
     public static ProductResponse from(Product product) {
@@ -27,6 +31,19 @@ public record ProductResponse(
     }
 
     public static ProductResponse from(Product product, long wishlistCount, boolean wishlisted, boolean carted) {
+        return from(product, wishlistCount, wishlisted, carted, 0, null, 0, null);
+    }
+
+    public static ProductResponse from(
+            Product product,
+            long wishlistCount,
+            boolean wishlisted,
+            boolean carted,
+            long reviewCount,
+            Double averageRating,
+            long sellerReviewCount,
+            Double sellerAverageRating
+    ) {
         return new ProductResponse(
                 product.getId(),
                 product.getSeller().getId(),
@@ -40,7 +57,11 @@ public record ProductResponse(
                         .toList(),
                 wishlistCount,
                 wishlisted,
-                carted
+                carted,
+                reviewCount,
+                averageRating,
+                sellerReviewCount,
+                sellerAverageRating
         );
     }
 }
