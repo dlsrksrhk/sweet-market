@@ -27,6 +27,19 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @EntityGraph(attributePaths = {"seller", "images"})
     Optional<Product> findWithSellerAndImagesByIdAndStatus(Long id, ProductStatus status);
 
+    @EntityGraph(attributePaths = {"seller", "images"})
+    @Query("""
+            select p
+            from Product p
+            where p.id = :id
+              and p.status in (
+                  com.sweet.market.product.domain.ProductStatus.ON_SALE,
+                  com.sweet.market.product.domain.ProductStatus.RESERVED,
+                  com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+              )
+            """)
+    Optional<Product> findBuyerVisibleDetailById(@Param("id") Long id);
+
     @EntityGraph(attributePaths = "seller")
     Page<Product> findByStatusOrderByIdDesc(ProductStatus status, Pageable pageable);
 

@@ -47,8 +47,9 @@ class OrderApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.canceledAt").doesNotExist());
 
         mockMvc.perform(get("/api/products/{productId}", productId))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(productId))
+                .andExpect(jsonPath("$.data.status").value("RESERVED"));
     }
 
     @Test

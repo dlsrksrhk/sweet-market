@@ -13,6 +13,7 @@ export type OrderSummary = {
   status: OrderStatus;
   productStatus: string;
   orderedAt: string;
+  reviewed: boolean;
 };
 
 export type Order = OrderSummary & {

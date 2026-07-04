@@ -25,6 +25,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @EntityGraph(attributePaths = {"buyer", "product", "product.seller", "product.images"})
     Optional<Order> findWithBuyerAndProductById(Long id);
 
+    @EntityGraph(attributePaths = {"buyer", "product", "product.seller"})
+    Optional<Order> findReviewTargetById(Long id);
+
     @EntityGraph(attributePaths = {"product", "product.seller"})
     @Query("""
             select o

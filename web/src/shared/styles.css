@@ -585,6 +585,80 @@ textarea {
   margin-top: 24px;
 }
 
+.product-review-section {
+  display: grid;
+  gap: 18px;
+  border-top: 1px solid #dfe6ee;
+  padding-top: 22px;
+}
+
+.review-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.review-summary > div {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  padding: 14px;
+  background: #f8fafc;
+}
+
+.review-summary h2 {
+  margin: 0;
+  color: #52616f;
+  font-size: 14px;
+}
+
+.review-summary strong {
+  font-size: 24px;
+  color: #172026;
+}
+
+.review-summary span,
+.review-item time {
+  color: #637282;
+  font-size: 14px;
+}
+
+.review-list {
+  display: grid;
+  gap: 12px;
+}
+
+.review-item {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.review-item-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.review-item-heading strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.review-item-heading span {
+  flex: 0 0 auto;
+}
+
+.review-item p {
+  margin: 0;
+  color: #52616f;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
 .danger-button {
   background: #b42318;
 }
@@ -664,6 +738,68 @@ textarea {
 }
 
 .record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.review-form {
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid #dfe6ee;
+  padding-top: 18px;
+}
+
+.review-form label {
+  display: grid;
+  gap: 8px;
+  color: #52616f;
+  font-weight: 800;
+}
+
+.review-form textarea {
+  width: 100%;
+  min-height: 112px;
+  resize: vertical;
+  border: 1px solid #cfd9e3;
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #172026;
+}
+
+.rating-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.rating-field legend {
+  width: 100%;
+  margin-bottom: 2px;
+  color: #52616f;
+  font-weight: 800;
+}
+
+.rating-button {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #cfd9e3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #52616f;
+  font-weight: 800;
+}
+
+.rating-button-selected {
+  border-color: #172026;
+  background: #172026;
+  color: #ffffff;
+}
+
+.review-form-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -1561,6 +1697,7 @@ a.wishlist-card-main:hover h2 {
 
   .product-grid,
   .product-detail,
+  .review-summary,
   .wishlist-card,
   .wishlist-card-main,
   .product-image-item,

@@ -13,10 +13,15 @@ public record OrderSummaryResponse(
         String sellerNickname,
         String status,
         String productStatus,
-        LocalDateTime orderedAt
+        LocalDateTime orderedAt,
+        boolean reviewed
 ) {
 
     public static OrderSummaryResponse from(Order order) {
+        return from(order, false);
+    }
+
+    public static OrderSummaryResponse from(Order order, boolean reviewed) {
         return new OrderSummaryResponse(
                 order.getId(),
                 order.getProduct().getId(),
@@ -26,7 +31,8 @@ public record OrderSummaryResponse(
                 order.getProduct().getSeller().getNickname(),
                 order.getStatus().name(),
                 order.getProduct().getStatus().name(),
-                order.getOrderedAt()
+                order.getOrderedAt(),
+                reviewed
         );
     }
 }

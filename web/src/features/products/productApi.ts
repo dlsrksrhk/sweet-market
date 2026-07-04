@@ -67,6 +67,10 @@ export type ProductUpdateImageInput =
 export type Product = Omit<ProductSummary, 'thumbnailUrl'> & {
   description: string;
   images: ProductImage[];
+  reviewCount: number;
+  averageRating: number | null;
+  sellerReviewCount: number;
+  sellerAverageRating: number | null;
 };
 
 export type ProductCreateInput = {

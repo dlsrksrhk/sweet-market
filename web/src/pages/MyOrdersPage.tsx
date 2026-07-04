@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { type FormEvent, useRef, useState } from 'react';
 import { completeDelivery, startDelivery } from '../features/deliveries/deliveryApi';
 import { useAuth } from '../features/auth/AuthProvider';
 import { cancelOrder, confirmOrder, getMyOrders, type OrderSummary } from '../features/orders/orderApi';
 import { approvePayment, cancelPayment } from '../features/payments/paymentApi';
+import { createReview } from '../features/reviews/reviewApi';
 import { type ApiError } from '../shared/api/http';
 import { EmptyState, ErrorState } from '../shared/ui/ResourceStates';
 
@@ -14,6 +15,11 @@ const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
 });
 
 type OrderAction = 'approve-payment' | 'cancel-order' | 'cancel-payment' | 'start-delivery' | 'complete-delivery' | 'confirm-order';
+type ReviewMutationInput = {
+  order: OrderSummary;
+  rating: number;
+  content: string;
+};
 
 export function MyOrdersPage() {
   const { member } = useAuth();
@@ -21,6 +27,9 @@ export function MyOrdersPage() {
   const queryClient = useQueryClient();
   const pendingOrderActionIdsRef = useRef(new Set<string>());
   const [pendingOrderActionIds, setPendingOrderActionIds] = useState(() => new Set<string>());
+  const [reviewingOrderId, setReviewingOrderId] = useState<number | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewContent, setReviewContent] = useState('');
   const { data, error, isLoading } = useQuery({
     queryKey: ['my-orders', memberId],
     queryFn: getMyOrders,
@@ -51,6 +60,18 @@ export function MyOrdersPage() {
     mutationFn: (order: OrderSummary) => confirmOrder(order.id),
     onSuccess: (_confirmedOrder, order) => invalidateOrderResources(queryClient, order.productId),
   });
+  const reviewMutation = useMutation({
+    mutationFn: ({ order, rating, content }: ReviewMutationInput) => createReview(order.id, { rating, content }),
+    onSuccess: async (_review, { order }) => {
+      resetReviewForm();
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['products', order.productId] }),
+        queryClient.invalidateQueries({ queryKey: ['product-reviews', order.productId] }),
+      ]);
+    },
+  });
 
   const actionError =
     approveMutation.error ??
@@ -58,7 +79,8 @@ export function MyOrdersPage() {
     cancelPaymentMutation.error ??
     startDeliveryMutation.error ??
     completeDeliveryMutation.error ??
-    confirmMutation.error;
+    confirmMutation.error ??
+    reviewMutation.error;
 
   if (isLoading) {
     return <p className="status-text">주문 목록을 불러오고 있습니다.</p>;
@@ -98,6 +120,30 @@ export function MyOrdersPage() {
 
   function isOrderActionPending(orderId: number, action: OrderAction) {
     return pendingOrderActionIds.has(getOrderActionId(orderId, action));
+  }
+
+  function startReview(orderId: number) {
+    reviewMutation.reset();
+    setReviewingOrderId(orderId);
+    setReviewRating(5);
+    setReviewContent('');
+  }
+
+  function resetReviewForm() {
+    setReviewingOrderId(null);
+    setReviewRating(5);
+    setReviewContent('');
+    reviewMutation.reset();
+  }
+
+  function submitReview(event: FormEvent<HTMLFormElement>, order: OrderSummary) {
+    event.preventDefault();
+
+    if (reviewMutation.isPending) {
+      return;
+    }
+
+    reviewMutation.mutate({ order, rating: reviewRating, content: reviewContent });
   }
 
   function renderOrderActions(order: OrderSummary) {
@@ -177,6 +223,19 @@ export function MyOrdersPage() {
           </button>
         );
       case 'CONFIRMED':
+        if (order.reviewed) {
+          return <span className="muted-text">리뷰 작성 완료</span>;
+        }
+
+        return (
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => startReview(order.id)}
+          >
+            리뷰 작성
+          </button>
+        );
       case 'CANCELED':
         return <span className="muted-text">진행 가능한 작업이 없습니다.</span>;
     }
@@ -218,6 +277,49 @@ export function MyOrdersPage() {
                   </div>
                 </dl>
                 <div className="record-actions">{renderOrderActions(order)}</div>
+                {reviewingOrderId === order.id ? (
+                  <form className="review-form" onSubmit={(event) => submitReview(event, order)}>
+                    <fieldset className="rating-field" disabled={reviewMutation.isPending}>
+                      <legend>평점</legend>
+                      {[1, 2, 3, 4, 5].map((rating) => (
+                        <button
+                          type="button"
+                          className={`rating-button${rating <= reviewRating ? ' rating-button-selected' : ''}`}
+                          aria-pressed={rating <= reviewRating}
+                          onClick={() => setReviewRating(rating)}
+                          key={rating}
+                        >
+                          {rating}
+                        </button>
+                      ))}
+                    </fieldset>
+                    <label>
+                      리뷰 내용
+                      <textarea
+                        value={reviewContent}
+                        minLength={10}
+                        maxLength={500}
+                        required
+                        rows={4}
+                        disabled={reviewMutation.isPending}
+                        onChange={(event) => setReviewContent(event.target.value)}
+                      />
+                    </label>
+                    <div className="review-form-actions">
+                      <button type="submit" className="text-button" disabled={reviewMutation.isPending}>
+                        {reviewMutation.isPending ? '등록 중' : '등록'}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-button secondary-button"
+                        disabled={reviewMutation.isPending}
+                        onClick={resetReviewForm}
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
               </article>
             );
           })}

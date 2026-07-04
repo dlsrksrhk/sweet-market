@@ -6,12 +6,20 @@ import { CartToggle } from '../features/cart/CartToggle';
 import { type CartResponse } from '../features/cart/cartApi';
 import { createOrder } from '../features/orders/orderApi';
 import { getProduct, hideProduct, toProductImageSrc, type WishlistResponse } from '../features/products/productApi';
+import { getProductReviews } from '../features/reviews/reviewApi';
 import { WishlistToggle } from '../features/wishlist/WishlistToggle';
 import { type ApiError } from '../shared/api/http';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
 import { parsePositiveIntegerParam } from '../shared/utils/parseId';
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR');
+const ratingFormatter = new Intl.NumberFormat('ko-KR', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
+const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
+  dateStyle: 'medium',
+});
 
 export function ProductDetailPage() {
   const navigate = useNavigate();
@@ -26,6 +34,11 @@ export function ProductDetailPage() {
   const { data: product, error, isLoading } = useQuery({
     queryKey: ['products', parsedProductId],
     queryFn: () => getProduct(parsedProductId ?? 0),
+    enabled: hasValidProductId,
+  });
+  const { data: reviews, error: reviewsError, isLoading: reviewsLoading } = useQuery({
+    queryKey: ['product-reviews', parsedProductId],
+    queryFn: () => getProductReviews(parsedProductId ?? 0),
     enabled: hasValidProductId,
   });
 
@@ -142,9 +155,51 @@ export function ProductDetailPage() {
         </div>
         {hideMutation.isError ? <p className="error-text">상품을 숨기지 못했습니다.</p> : null}
         {orderMutation.isError ? <p className="error-text">{toErrorMessage(orderMutation.error)}</p> : null}
+        <section className="product-review-section" aria-labelledby="product-review-title">
+          <div className="review-summary">
+            <div>
+              <h2 id="product-review-title">상품 리뷰</h2>
+              <strong>{formatRating(product.averageRating)}</strong>
+              <span>{product.reviewCount}개 리뷰</span>
+            </div>
+            <div>
+              <h2>판매자 평점</h2>
+              <strong>{formatRating(product.sellerAverageRating)}</strong>
+              <span>{product.sellerReviewCount}개 리뷰</span>
+            </div>
+          </div>
+          {reviewsLoading ? (
+            <p className="status-text">리뷰를 불러오고 있습니다.</p>
+          ) : reviewsError ? (
+            <p className="error-text">리뷰를 불러오지 못했습니다.</p>
+          ) : reviews?.content.length ? (
+            <div className="review-list">
+              {reviews.content.map((review) => (
+                <article className="review-item" key={review.reviewId}>
+                  <div className="review-item-heading">
+                    <strong>{review.buyerNickname}</strong>
+                    <span>{formatRating(review.rating)}</span>
+                  </div>
+                  <p>{review.content}</p>
+                  <time dateTime={review.createdAt}>{dateFormatter.format(new Date(review.createdAt))}</time>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="muted-text">아직 작성된 리뷰가 없습니다.</p>
+          )}
+        </section>
       </article>
     </section>
   );
+}
+
+function formatRating(value: number | null) {
+  if (value === null) {
+    return '-';
+  }
+
+  return ratingFormatter.format(value);
 }
 
 function toErrorMessage(error: unknown) {
