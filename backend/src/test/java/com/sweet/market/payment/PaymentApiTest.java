@@ -2,6 +2,7 @@ package com.sweet.market.payment;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.inOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -9,16 +10,26 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.order.repository.OrderRepository;
+import com.sweet.market.payment.repository.PaymentRepository;
 import com.sweet.market.support.IntegrationTestSupport;
 
 class PaymentApiTest extends IntegrationTestSupport {
+
+    @MockitoSpyBean
+    private OrderRepository orderRepository;
+
+    @MockitoSpyBean
+    private PaymentRepository paymentRepository;
 
     @Test
     void 주문자는_결제_승인에_성공한다() throws Exception {
@@ -94,6 +105,23 @@ class PaymentApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/products/{productId}", productId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ON_SALE"));
+    }
+
+    @Test
+    void 결제_취소는_주문을_먼저_잠근_뒤_결제를_잠근다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+        Long orderId = createOrder(buyerToken, productId);
+        approvePayment(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/payments/{orderId}/cancel", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk());
+
+        InOrder lockOrder = inOrder(orderRepository, paymentRepository);
+        lockOrder.verify(orderRepository).findStateChangeTargetById(orderId);
+        lockOrder.verify(paymentRepository).findStateChangeTargetByOrderId(orderId);
     }
 
     private String signupAndLogin(String email, String password, String nickname) throws Exception {

@@ -51,11 +51,13 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse cancel(Long memberId, Long orderId) {
-        Payment payment = paymentRepository.findStateChangeTargetByOrderId(orderId)
+        Order order = orderRepository.findStateChangeTargetById(orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
-        if (!payment.getOrder().isOwnedBy(memberId)) {
+        if (!order.isOwnedBy(memberId)) {
             throw new BusinessException(ErrorCode.PAYMENT_ACCESS_DENIED);
         }
+        Payment payment = paymentRepository.findStateChangeTargetByOrderId(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
 
         try {
             if (payment.getStatus() == PaymentStatus.APPROVED) {
