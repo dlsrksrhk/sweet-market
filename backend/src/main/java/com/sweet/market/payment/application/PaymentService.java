@@ -60,10 +60,15 @@ public class PaymentService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
 
         try {
-            if (payment.getStatus() == PaymentStatus.APPROVED) {
+            if (payment.getStatus() == PaymentStatus.APPROVED && !payment.canCancel()) {
+                throw new BusinessException(ErrorCode.PAYMENT_CANCEL_NOT_ALLOWED);
+            }
+            if (payment.canCancel()) {
                 paymentGateway.cancel(payment.getExternalPaymentId());
             }
             payment.cancel();
+        } catch (BusinessException exception) {
+            throw exception;
         } catch (IllegalStateException exception) {
             throw new BusinessException(ErrorCode.PAYMENT_CANCEL_NOT_ALLOWED);
         }

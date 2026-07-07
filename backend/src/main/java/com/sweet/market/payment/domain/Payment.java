@@ -3,6 +3,7 @@ package com.sweet.market.payment.domain;
 import java.time.LocalDateTime;
 
 import com.sweet.market.order.domain.Order;
+import com.sweet.market.order.domain.OrderStatus;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -55,6 +56,10 @@ public class Payment {
     public static Payment approve(Order order, String externalPaymentId) {
         order.markPaid();
         return new Payment(order, externalPaymentId, PaymentStatus.APPROVED, LocalDateTime.now());
+    }
+
+    public boolean canCancel() {
+        return status == PaymentStatus.APPROVED && order.getStatus() == OrderStatus.PAID;
     }
 
     public void cancel() {
