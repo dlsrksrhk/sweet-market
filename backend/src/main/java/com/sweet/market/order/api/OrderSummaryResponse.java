@@ -3,6 +3,7 @@ package com.sweet.market.order.api;
 import java.time.LocalDateTime;
 
 import com.sweet.market.order.domain.Order;
+import com.sweet.market.refund.domain.RefundRequest;
 
 public record OrderSummaryResponse(
         Long id,
@@ -14,7 +15,11 @@ public record OrderSummaryResponse(
         String status,
         String productStatus,
         LocalDateTime orderedAt,
-        boolean reviewed
+        boolean reviewed,
+        String refundStatus,
+        LocalDateTime refundRequestedAt,
+        LocalDateTime refundHandledAt,
+        String refundRejectReason
 ) {
 
     public static OrderSummaryResponse from(Order order) {
@@ -22,6 +27,10 @@ public record OrderSummaryResponse(
     }
 
     public static OrderSummaryResponse from(Order order, boolean reviewed) {
+        return from(order, reviewed, null);
+    }
+
+    public static OrderSummaryResponse from(Order order, boolean reviewed, RefundRequest refundRequest) {
         return new OrderSummaryResponse(
                 order.getId(),
                 order.getProduct().getId(),
@@ -32,7 +41,11 @@ public record OrderSummaryResponse(
                 order.getStatus().name(),
                 order.getProduct().getStatus().name(),
                 order.getOrderedAt(),
-                reviewed
+                reviewed,
+                refundRequest == null ? null : refundRequest.getStatus().name(),
+                refundRequest == null ? null : refundRequest.getRequestedAt(),
+                refundRequest == null ? null : refundRequest.getHandledAt(),
+                refundRequest == null ? null : refundRequest.getRejectReason()
         );
     }
 }

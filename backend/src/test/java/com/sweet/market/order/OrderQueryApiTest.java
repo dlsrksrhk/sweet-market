@@ -47,6 +47,25 @@ class OrderQueryApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 구매자_주문_목록은_환불_요청_상태를_포함한다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(get("/api/orders/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].id").value(orderId))
+                .andExpect(jsonPath("$.data.content[0].refundStatus").value("REQUESTED"))
+                .andExpect(jsonPath("$.data.content[0].refundRequestedAt").exists())
+                .andExpect(jsonPath("$.data.content[0].refundHandledAt").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].refundRejectReason").doesNotExist());
+    }
+
+    @Test
     void 구매자는_자신의_주문_상세를_조회한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
@@ -68,6 +87,24 @@ class OrderQueryApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.productStatus").value("RESERVED"))
                 .andExpect(jsonPath("$.data.orderedAt").exists())
                 .andExpect(jsonPath("$.data.canceledAt").doesNotExist());
+    }
+
+    @Test
+    void 구매자_주문_상세는_환불_요청_상태를_포함한다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(get("/api/orders/{orderId}", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(orderId))
+                .andExpect(jsonPath("$.data.refundStatus").value("REQUESTED"))
+                .andExpect(jsonPath("$.data.refundRequestedAt").exists())
+                .andExpect(jsonPath("$.data.refundHandledAt").doesNotExist())
+                .andExpect(jsonPath("$.data.refundRejectReason").doesNotExist());
     }
 
     @Test
@@ -178,5 +215,33 @@ class OrderQueryApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("id").asLong();
+    }
+
+    private void createRefundRequest(String accessToken, Long orderId) throws Exception {
+        mockMvc.perform(post("/api/orders/{orderId}/refund-requests", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "상품 상태가 설명과 달라 환불을 요청합니다."
+                                }
+                                """))
+                .andExpect(status().isCreated());
+    }
+
+    private Long createDeliveredOrder(String accessToken, Long productId) throws Exception {
+        Long orderId = createOrder(accessToken, productId);
+
+        mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/deliveries/{orderId}/start", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/deliveries/{orderId}/complete", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
+
+        return orderId;
     }
 }
