@@ -1,7 +1,15 @@
 import { api } from '../../shared/api/http';
 
 export type ProductStatus = 'ON_SALE' | 'RESERVED' | 'SOLD_OUT' | 'HIDDEN';
-export type OrderStatus = 'CREATED' | 'PAID' | 'SHIPPING' | 'DELIVERED' | 'CONFIRMED' | 'CANCELED';
+export type OrderStatus =
+  | 'CREATED'
+  | 'PAID'
+  | 'SHIPPING'
+  | 'DELIVERED'
+  | 'CONFIRMED'
+  | 'CANCELED'
+  | 'REFUND_REQUESTED'
+  | 'REFUNDED';
 export type SettlementStatus = 'READY' | 'COMPLETED' | 'FAILED';
 export type SellerRecentSaleSettlementStatus = SettlementStatus | 'NONE';
 

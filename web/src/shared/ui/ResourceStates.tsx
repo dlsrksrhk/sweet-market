@@ -56,6 +56,10 @@ function formatStatus(status: string) {
       return '구매 확정';
     case 'CANCELED':
       return '취소';
+    case 'REFUND_REQUESTED':
+      return '환불 요청';
+    case 'REFUNDED':
+      return '환불 완료';
     case 'READY':
       return '대기';
     case 'APPROVED':

@@ -350,6 +350,8 @@ export function AdminOperationsPage() {
               <option value="PAID">결제 완료</option>
               <option value="SHIPPING">배송 중</option>
               <option value="DELIVERED">배송 완료</option>
+              <option value="REFUND_REQUESTED">환불 요청</option>
+              <option value="REFUNDED">환불 완료</option>
               <option value="CONFIRMED">구매 확정</option>
               <option value="CANCELED">취소</option>
             </select>

@@ -1,5 +1,7 @@
 package com.sweet.market.refund.application;
 
+import java.util.List;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -89,6 +91,20 @@ public class RefundRequestService {
     public RefundRequestResponse rejectByAdmin(Long adminId, Long refundRequestId, String rejectReason) {
         RefundRequest refundRequest = findHandlingTarget(refundRequestId);
         return reject(refundRequest, adminId, rejectReason);
+    }
+
+    @Transactional(readOnly = true)
+    public List<RefundRequestResponse> findSellerRequests(Long sellerId, RefundRequestStatus status) {
+        return refundRequestRepository.findSellerRequests(sellerId, status).stream()
+                .map(RefundRequestResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<RefundRequestResponse> findAdminRequests(RefundRequestStatus status) {
+        return refundRequestRepository.findAdminRequests(status).stream()
+                .map(RefundRequestResponse::from)
+                .toList();
     }
 
     private RefundRequest findHandlingTarget(Long refundRequestId) {

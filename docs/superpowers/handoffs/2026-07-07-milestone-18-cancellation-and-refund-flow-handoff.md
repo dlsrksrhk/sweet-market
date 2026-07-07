@@ -4,10 +4,12 @@
 
 - Added delivered-order refund requests.
 - Added seller/admin approval and rejection handling for refund requests.
+- Added seller/admin refund request list APIs so handlers can discover refund request IDs.
 - Added pre-delivery paid order cancellation through the order API.
 - Added refund-aware order and payment states.
 - Added confirmation and settlement blocking while refund work is pending or completed.
 - Added Buyer My Orders refund request UI.
+- Added refund-aware admin/report order status typing and shared status labels.
 
 ## Verification
 
@@ -27,11 +29,10 @@
 - Backend Gradle verification was run with `JAVA_HOME` unset in this environment; Gradle toolchain resolution supplied the required JDK because `C:\java\jdk-21` is unavailable here.
 - `backend/src/main/resources/application.yaml` was not touched in this worktree.
 - The local-only `application.yaml` change in the main checkout was not touched.
-- Task 8 did not modify production, test, or web implementation files; this handoff document is the only intended change.
 
 ## Follow-Up Candidates
 
-- Dedicated seller/admin refund queues.
+- Dedicated seller/admin refund management pages.
 - Return shipping workflow.
 - Buyer refund cancellation.
 - Product relisting after refund.
