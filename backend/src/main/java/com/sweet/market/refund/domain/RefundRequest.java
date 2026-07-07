@@ -73,6 +73,8 @@ public class RefundRequest {
     }
 
     public static RefundRequest request(Order order, Member buyer, String reason) {
+        validateOrderBuyer(order, buyer);
+        validateText(reason, 10, 500, "Refund request reason");
         order.requestRefund();
         return new RefundRequest(order, buyer, reason);
     }
@@ -87,6 +89,7 @@ public class RefundRequest {
 
     public void reject(Member handler, String rejectReason) {
         validateRequested();
+        validateText(rejectReason, 5, 500, "Refund reject reason");
         this.status = RefundRequestStatus.REJECTED;
         this.handledBy = handler;
         this.handledAt = LocalDateTime.now();
@@ -101,6 +104,33 @@ public class RefundRequest {
     private void validateRequested() {
         if (status != RefundRequestStatus.REQUESTED) {
             throw new IllegalStateException("Refund request cannot be handled: " + status);
+        }
+    }
+
+    private static void validateOrderBuyer(Order order, Member buyer) {
+        if (order == null) {
+            throw new IllegalArgumentException("Order is required");
+        }
+        if (buyer == null) {
+            throw new IllegalArgumentException("Refund request buyer is required");
+        }
+        Member orderBuyer = order.getBuyer();
+        if (orderBuyer == buyer) {
+            return;
+        }
+        if (orderBuyer.getId() != null && orderBuyer.getId().equals(buyer.getId())) {
+            return;
+        }
+        throw new IllegalArgumentException("Refund request buyer must match order buyer");
+    }
+
+    private static void validateText(String text, int minLength, int maxLength, String fieldName) {
+        if (text == null || text.isBlank()) {
+            throw new IllegalArgumentException(fieldName + " is required");
+        }
+        int length = text.trim().length();
+        if (length < minLength || length > maxLength) {
+            throw new IllegalArgumentException(fieldName + " length must be between " + minLength + " and " + maxLength);
         }
     }
 }
