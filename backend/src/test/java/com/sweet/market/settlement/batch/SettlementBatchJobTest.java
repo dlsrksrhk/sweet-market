@@ -23,7 +23,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
+import com.sweet.market.payment.domain.Payment;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.refund.domain.RefundRequest;
 import com.sweet.market.settlement.domain.Settlement;
 import com.sweet.market.settlement.repository.SettlementRepository;
 import com.sweet.market.support.IntegrationTestSupport;
@@ -80,6 +82,19 @@ class SettlementBatchJobTest extends IntegrationTestSupport {
         createConfirmedOrder("future");
 
         BatchRunResult result = launchSettlementJob(LocalDateTime.now().minusDays(1), 10, 5);
+
+        assertThat(result.status()).isEqualTo(BatchStatus.COMPLETED);
+        assertThat(settlementRepository.count()).isZero();
+        assertThat(result.readCount()).isZero();
+        assertThat(result.writeCount()).isZero();
+    }
+
+    @Test
+    void 환불_요청과_환불완료_주문은_정산하지_않는다() throws Exception {
+        createRefundRequestedOrder("requested");
+        createRefundedOrder("refunded");
+
+        BatchRunResult result = launchSettlementJob(LocalDateTime.now().plusDays(1), 10, 5);
 
         assertThat(result.status()).isEqualTo(BatchStatus.COMPLETED);
         assertThat(settlementRepository.count()).isZero();
@@ -190,6 +205,58 @@ class SettlementBatchJobTest extends IntegrationTestSupport {
             entityManager.persist(order);
             return order;
         });
+    }
+
+    private Order createRefundRequestedOrder(String suffix) {
+        return transactionTemplate.execute(status -> {
+            Order order = createDeliveredOrder(suffix);
+            RefundRequest refundRequest = RefundRequest.request(
+                    order,
+                    order.getBuyer(),
+                    "상품 상태가 설명과 달라 환불을 요청합니다."
+            );
+            entityManager.persist(refundRequest);
+            return order;
+        });
+    }
+
+    private Order createRefundedOrder(String suffix) {
+        return transactionTemplate.execute(status -> {
+            Order order = createDeliveredOrder(suffix);
+            RefundRequest refundRequest = RefundRequest.request(
+                    order,
+                    order.getBuyer(),
+                    "상품 상태가 설명과 달라 환불을 요청합니다."
+            );
+            entityManager.persist(refundRequest);
+            refundRequest.approve(order.getProduct().getSeller());
+
+            Payment payment = entityManager.createQuery(
+                            "select p from Payment p where p.order.id = :orderId",
+                            Payment.class
+                    )
+                    .setParameter("orderId", order.getId())
+                    .getSingleResult();
+            payment.refund();
+            return order;
+        });
+    }
+
+    private Order createDeliveredOrder(String suffix) {
+        Member seller = Member.create("seller-" + suffix + "@example.com", "encoded-password", "seller-" + suffix);
+        Member buyer = Member.create("buyer-" + suffix + "@example.com", "encoded-password", "buyer-" + suffix);
+        entityManager.persist(seller);
+        entityManager.persist(buyer);
+
+        Product product = Product.create(seller, "MacBook Pro " + suffix, "M3 laptop", 2_000_000L);
+        entityManager.persist(product);
+
+        Order order = Order.create(buyer, product);
+        entityManager.persist(order);
+        entityManager.persist(Payment.approve(order, "payment-" + suffix));
+        order.startShipping();
+        order.completeDelivery();
+        return order;
     }
 
     private record BatchRunResult(BatchStatus status, long readCount, long writeCount, long skipCount) {

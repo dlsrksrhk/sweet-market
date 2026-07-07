@@ -49,6 +49,20 @@ class OrderConfirmApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 환불_요청된_주문은_구매확정할_수_없다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/confirm", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORDER_CONFIRM_NOT_ALLOWED"));
+    }
+
+    @Test
     void 주문자가_아니면_구매확정에_실패한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
@@ -157,6 +171,18 @@ class OrderConfirmApiTest extends IntegrationTestSupport {
         startDelivery(accessToken, orderId);
         completeDelivery(accessToken, orderId);
         return orderId;
+    }
+
+    private void createRefundRequest(String accessToken, Long orderId) throws Exception {
+        mockMvc.perform(post("/api/orders/{orderId}/refund-requests", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "상품 상태가 설명과 달라 환불을 요청합니다."
+                                }
+                                """))
+                .andExpect(status().isCreated());
     }
 
     private void approvePayment(String accessToken, Long orderId) throws Exception {

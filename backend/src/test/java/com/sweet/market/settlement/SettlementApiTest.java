@@ -54,6 +54,35 @@ class SettlementApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 환불_요청된_주문은_정산할_수_없다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/settlements/orders/{orderId}", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SETTLEMENT_CREATE_NOT_ALLOWED"));
+    }
+
+    @Test
+    void 환불_완료된_주문은_정산할_수_없다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+        approveRefundRequest(sellerToken, refundRequestId);
+
+        mockMvc.perform(post("/api/settlements/orders/{orderId}", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SETTLEMENT_CREATE_NOT_ALLOWED"));
+    }
+
+    @Test
     void 같은_주문은_중복_정산할_수_없다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
@@ -211,6 +240,30 @@ class SettlementApiTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk());
         return orderId;
+    }
+
+    private Long createRefundRequest(String accessToken, Long orderId) throws Exception {
+        String response = mockMvc.perform(post("/api/orders/{orderId}/refund-requests", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "상품 상태가 설명과 달라 환불을 요청합니다."
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode root = objectMapper.readTree(response);
+        return root.path("data").path("id").asLong();
+    }
+
+    private void approveRefundRequest(String accessToken, Long refundRequestId) throws Exception {
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/approve", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
     }
 
     private Long createSettlement(String accessToken, Long orderId) throws Exception {
