@@ -58,11 +58,22 @@ public class Payment {
     }
 
     public void cancel() {
+        if (status == PaymentStatus.CANCELED) {
+            return;
+        }
         if (status != PaymentStatus.APPROVED) {
             throw new IllegalStateException("Payment cannot be canceled: " + status);
         }
         order.cancelPaidOrder();
         this.status = PaymentStatus.CANCELED;
+        this.canceledAt = LocalDateTime.now();
+    }
+
+    public void refund() {
+        if (status != PaymentStatus.APPROVED) {
+            throw new IllegalStateException("Payment cannot be refunded: " + status);
+        }
+        this.status = PaymentStatus.REFUNDED;
         this.canceledAt = LocalDateTime.now();
     }
 }

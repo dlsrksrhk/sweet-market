@@ -62,6 +62,9 @@ public class Order {
     }
 
     public void cancel() {
+        if (status == OrderStatus.CANCELED) {
+            return;
+        }
         if (status != OrderStatus.CREATED) {
             throw new IllegalStateException("Order cannot be canceled: " + status);
         }
@@ -78,6 +81,9 @@ public class Order {
     }
 
     public void cancelPaidOrder() {
+        if (status == OrderStatus.CANCELED) {
+            return;
+        }
         if (status != OrderStatus.PAID) {
             throw new IllegalStateException("Paid order cannot be canceled: " + status);
         }
@@ -96,6 +102,27 @@ public class Order {
     public void completeDelivery() {
         if (status != OrderStatus.SHIPPING) {
             throw new IllegalStateException("Order cannot complete delivery: " + status);
+        }
+        this.status = OrderStatus.DELIVERED;
+    }
+
+    public void requestRefund() {
+        if (status != OrderStatus.DELIVERED) {
+            throw new IllegalStateException("Order cannot request refund: " + status);
+        }
+        this.status = OrderStatus.REFUND_REQUESTED;
+    }
+
+    public void markRefunded() {
+        if (status != OrderStatus.REFUND_REQUESTED) {
+            throw new IllegalStateException("Order cannot be refunded: " + status);
+        }
+        this.status = OrderStatus.REFUNDED;
+    }
+
+    public void rejectRefund() {
+        if (status != OrderStatus.REFUND_REQUESTED) {
+            throw new IllegalStateException("Order refund cannot be rejected: " + status);
         }
         this.status = OrderStatus.DELIVERED;
     }

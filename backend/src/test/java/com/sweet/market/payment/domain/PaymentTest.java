@@ -1,7 +1,6 @@
 package com.sweet.market.payment.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
@@ -41,14 +40,35 @@ class PaymentTest {
     }
 
     @Test
-    void 승인된_결제만_취소할_수_있다() {
+    void 취소된_결제는_다시_취소해도_상태가_유지된다() {
         Order order = createOrder();
         Payment payment = Payment.approve(order, "pay_123");
         payment.cancel();
 
-        assertThatThrownBy(payment::cancel)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Payment cannot be canceled: CANCELED");
+        payment.cancel();
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELED);
+    }
+
+    @Test
+    void 승인된_결제는_환불완료로_변경할_수_있다() {
+        Order order = createOrder();
+        Payment payment = Payment.approve(order, "pay_123");
+
+        payment.refund();
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+    }
+
+    @Test
+    void 결제_환불은_주문_상태를_변경하지_않는다() {
+        Order order = createOrder();
+        Payment payment = Payment.approve(order, "pay_123");
+
+        payment.refund();
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
     }
 
     private Order createOrder() {

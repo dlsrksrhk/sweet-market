@@ -42,16 +42,17 @@ class OrderTest {
     }
 
     @Test
-    void 이미_취소된_주문은_다시_취소할_수_없다() {
+    void 취소된_주문은_다시_취소해도_상태가_유지된다() {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Member buyer = Member.create("buyer@example.com", "encoded-password", "buyer");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
         Order order = Order.create(buyer, product);
         order.cancel();
 
-        assertThatThrownBy(order::cancel)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Order cannot be canceled: CANCELED");
+        order.cancel();
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELED);
+        assertThat(order.getProduct().getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
     @Test
@@ -146,10 +147,27 @@ class OrderTest {
                 .hasMessage("Order cannot be confirmed: PAID");
     }
 
+    @Test
+    void 환불_요청중인_주문은_구매확정할_수_없다() {
+        Order order = deliveredOrder();
+        order.requestRefund();
+
+        assertThatThrownBy(order::confirm)
+                .isInstanceOf(IllegalStateException.class);
+    }
+
     private Order createOrder() {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Member buyer = Member.create("buyer@example.com", "encoded-password", "buyer");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
         return Order.create(buyer, product);
+    }
+
+    private Order deliveredOrder() {
+        Order order = createOrder();
+        order.markPaid();
+        order.startShipping();
+        order.completeDelivery();
+        return order;
     }
 }
