@@ -155,7 +155,7 @@ class OrderApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void 이미_취소한_주문은_다시_취소할_수_없다() throws Exception {
+    void 이미_취소한_주문은_다시_취소해도_같은_결과를_반환한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
         Long productId = createProduct(sellerToken);
@@ -167,8 +167,9 @@ class OrderApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("ORDER_CANCEL_NOT_ALLOWED"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.productStatus").value("ON_SALE"));
     }
 
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
