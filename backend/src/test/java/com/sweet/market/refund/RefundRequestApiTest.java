@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
 import com.sweet.market.order.repository.OrderRepository;
+import com.sweet.market.refund.repository.RefundRequestRepository;
 import com.sweet.market.support.IntegrationTestSupport;
 
 import jakarta.persistence.LockModeType;
@@ -182,8 +183,214 @@ class RefundRequestApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 판매자는_자신의_상품_환불_요청을_승인할_수_있다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/approve", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.handledById").isNumber())
+                .andExpect(jsonPath("$.data.handledAt").exists());
+
+        assertOrderStatus(orderId, "REFUNDED");
+        assertPaymentStatus(orderId, "REFUNDED");
+    }
+
+    @Test
+    void 판매자는_자신의_상품_환불_요청을_거절할_수_있다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/reject", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "rejectReason": "상품 설명과 다른 부분을 확인할 수 없습니다."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REJECTED"))
+                .andExpect(jsonPath("$.data.handledById").isNumber())
+                .andExpect(jsonPath("$.data.handledAt").exists())
+                .andExpect(jsonPath("$.data.rejectReason").value("상품 설명과 다른 부분을 확인할 수 없습니다."));
+
+        assertOrderStatus(orderId, "DELIVERED");
+        assertPaymentStatus(orderId, "APPROVED");
+    }
+
+    @Test
+    void 판매자는_다른_판매자의_환불_요청을_처리할_수_없다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String otherSellerToken = signupAndLogin("other-seller@example.com", "password123", "otherSeller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/approve", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherSellerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("REFUND_REQUEST_ACCESS_DENIED"));
+
+        assertOrderStatus(orderId, "REFUND_REQUESTED");
+        assertPaymentStatus(orderId, "APPROVED");
+    }
+
+    @Test
+    void 관리자는_모든_환불_요청을_승인할_수_있다() throws Exception {
+        String adminToken = createAdminToken("admin@example.com");
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/admin/refund-requests/{refundRequestId}/approve", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.handledById").isNumber())
+                .andExpect(jsonPath("$.data.handledAt").exists());
+
+        assertOrderStatus(orderId, "REFUNDED");
+        assertPaymentStatus(orderId, "REFUNDED");
+    }
+
+    @Test
+    void 관리자는_모든_환불_요청을_거절할_수_있다() throws Exception {
+        String adminToken = createAdminToken("admin@example.com");
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/admin/refund-requests/{refundRequestId}/reject", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "rejectReason": "상품 설명과 다른 부분을 확인할 수 없습니다."
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REJECTED"))
+                .andExpect(jsonPath("$.data.handledById").isNumber())
+                .andExpect(jsonPath("$.data.handledAt").exists())
+                .andExpect(jsonPath("$.data.rejectReason").value("상품 설명과 다른 부분을 확인할 수 없습니다."));
+
+        assertOrderStatus(orderId, "DELIVERED");
+        assertPaymentStatus(orderId, "APPROVED");
+    }
+
+    @Test
+    void 일반_회원은_관리자_환불_엔드포인트를_호출할_수_없다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/admin/refund-requests/{refundRequestId}/approve", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    void 이미_처리된_환불_요청은_다시_처리할_수_없다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/approve", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/reject", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "rejectReason": "상품 설명과 다른 부분을 확인할 수 없습니다."
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("REFUND_REQUEST_HANDLE_NOT_ALLOWED"));
+    }
+
+    @Test
+    void 존재하지_않는_환불_요청은_처리할_수_없다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/approve", 999L)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("REFUND_REQUEST_NOT_FOUND"));
+    }
+
+    @Test
+    void 결제가_없으면_환불_승인할_수_없다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+        jdbcTemplate.update("delete from payments where order_id = ?", orderId);
+
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/approve", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PAYMENT_NOT_FOUND"));
+
+        assertOrderStatus(orderId, "REFUND_REQUESTED");
+        assertRefundRequestStatus(refundRequestId, "REQUESTED");
+    }
+
+    @Test
+    void 환불_거절_사유는_다섯_글자_이상이어야_한다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/reject", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "rejectReason": "짧음"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
     void 주문_상태_변경_조회는_비관적_쓰기_잠금을_사용한다() throws Exception {
         Method method = OrderRepository.class.getMethod("findStateChangeTargetById", Long.class);
+
+        Lock lock = method.getAnnotation(Lock.class);
+
+        assertThat(lock).isNotNull();
+        assertThat(lock.value()).isEqualTo(LockModeType.PESSIMISTIC_WRITE);
+    }
+
+    @Test
+    void 환불_요청_처리_조회는_비관적_쓰기_잠금을_사용한다() throws Exception {
+        Method method = RefundRequestRepository.class.getMethod("findWithOrderById", Long.class);
 
         Lock lock = method.getAnnotation(Lock.class);
 
@@ -217,6 +424,27 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(signupRequest)))
                 .andExpect(status().isCreated());
+
+        String response = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(loginRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accessToken", not(blankOrNullString())))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        return objectMapper.readTree(response).path("data").path("accessToken").asText();
+    }
+
+    private String createAdminToken(String email) throws Exception {
+        signupAndLogin(email, "password123", "admin");
+        jdbcTemplate.update("update members set role = 'ADMIN' where email = ?", email);
+        return login(email, "password123");
+    }
+
+    private String login(String email, String password) throws Exception {
+        LoginRequest loginRequest = new LoginRequest(email, password);
 
         String response = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -275,6 +503,29 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .getContentAsString();
 
         return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private void assertOrderStatus(Long orderId, String status) {
+        String actual = jdbcTemplate.queryForObject("select status from orders where id = ?", String.class, orderId);
+        assertThat(actual).isEqualTo(status);
+    }
+
+    private void assertPaymentStatus(Long orderId, String status) {
+        String actual = jdbcTemplate.queryForObject(
+                "select status from payments where order_id = ?",
+                String.class,
+                orderId
+        );
+        assertThat(actual).isEqualTo(status);
+    }
+
+    private void assertRefundRequestStatus(Long refundRequestId, String status) {
+        String actual = jdbcTemplate.queryForObject(
+                "select status from refund_requests where id = ?",
+                String.class,
+                refundRequestId
+        );
+        assertThat(actual).isEqualTo(status);
     }
 
     private Long createOrder(String accessToken, Long productId) throws Exception {

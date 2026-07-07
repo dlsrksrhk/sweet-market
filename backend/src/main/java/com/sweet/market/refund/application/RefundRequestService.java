@@ -10,8 +10,11 @@ import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.repository.OrderRepository;
+import com.sweet.market.payment.domain.Payment;
+import com.sweet.market.payment.repository.PaymentRepository;
 import com.sweet.market.refund.api.RefundRequestResponse;
 import com.sweet.market.refund.domain.RefundRequest;
+import com.sweet.market.refund.domain.RefundRequestStatus;
 import com.sweet.market.refund.repository.RefundRequestRepository;
 
 @Service
@@ -20,15 +23,18 @@ public class RefundRequestService {
     private final RefundRequestRepository refundRequestRepository;
     private final OrderRepository orderRepository;
     private final MemberRepository memberRepository;
+    private final PaymentRepository paymentRepository;
 
     public RefundRequestService(
             RefundRequestRepository refundRequestRepository,
             OrderRepository orderRepository,
-            MemberRepository memberRepository
+            MemberRepository memberRepository,
+            PaymentRepository paymentRepository
     ) {
         this.refundRequestRepository = refundRequestRepository;
         this.orderRepository = orderRepository;
         this.memberRepository = memberRepository;
+        this.paymentRepository = paymentRepository;
     }
 
     @Transactional
@@ -52,6 +58,79 @@ public class RefundRequestService {
             throw new BusinessException(ErrorCode.DUPLICATE_REFUND_REQUEST);
         } catch (IllegalArgumentException | IllegalStateException exception) {
             throw new BusinessException(ErrorCode.REFUND_REQUEST_NOT_ALLOWED);
+        }
+    }
+
+    @Transactional
+    public RefundRequestResponse approveBySeller(Long sellerId, Long refundRequestId) {
+        RefundRequest refundRequest = findHandlingTarget(refundRequestId);
+        if (!refundRequest.isSellerOwnedBy(sellerId)) {
+            throw new BusinessException(ErrorCode.REFUND_REQUEST_ACCESS_DENIED);
+        }
+        return approve(refundRequest, sellerId);
+    }
+
+    @Transactional
+    public RefundRequestResponse rejectBySeller(Long sellerId, Long refundRequestId, String rejectReason) {
+        RefundRequest refundRequest = findHandlingTarget(refundRequestId);
+        if (!refundRequest.isSellerOwnedBy(sellerId)) {
+            throw new BusinessException(ErrorCode.REFUND_REQUEST_ACCESS_DENIED);
+        }
+        return reject(refundRequest, sellerId, rejectReason);
+    }
+
+    @Transactional
+    public RefundRequestResponse approveByAdmin(Long adminId, Long refundRequestId) {
+        RefundRequest refundRequest = findHandlingTarget(refundRequestId);
+        return approve(refundRequest, adminId);
+    }
+
+    @Transactional
+    public RefundRequestResponse rejectByAdmin(Long adminId, Long refundRequestId, String rejectReason) {
+        RefundRequest refundRequest = findHandlingTarget(refundRequestId);
+        return reject(refundRequest, adminId, rejectReason);
+    }
+
+    private RefundRequest findHandlingTarget(Long refundRequestId) {
+        return refundRequestRepository.findWithOrderById(refundRequestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REFUND_REQUEST_NOT_FOUND));
+    }
+
+    private RefundRequestResponse approve(RefundRequest refundRequest, Long handlerId) {
+        validateRequested(refundRequest);
+        Member handler = findMember(handlerId);
+        Payment payment = paymentRepository.findWithOrderByOrderId(refundRequest.getOrder().getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
+
+        try {
+            refundRequest.approve(handler);
+            payment.refund();
+            return RefundRequestResponse.from(refundRequest);
+        } catch (IllegalStateException exception) {
+            throw new BusinessException(ErrorCode.REFUND_REQUEST_HANDLE_NOT_ALLOWED);
+        }
+    }
+
+    private RefundRequestResponse reject(RefundRequest refundRequest, Long handlerId, String rejectReason) {
+        validateRequested(refundRequest);
+        Member handler = findMember(handlerId);
+
+        try {
+            refundRequest.reject(handler, rejectReason);
+            return RefundRequestResponse.from(refundRequest);
+        } catch (IllegalArgumentException | IllegalStateException exception) {
+            throw new BusinessException(ErrorCode.REFUND_REQUEST_HANDLE_NOT_ALLOWED);
+        }
+    }
+
+    private Member findMember(Long memberId) {
+        return memberRepository.findById(memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
+    }
+
+    private void validateRequested(RefundRequest refundRequest) {
+        if (refundRequest.getStatus() != RefundRequestStatus.REQUESTED) {
+            throw new BusinessException(ErrorCode.REFUND_REQUEST_HANDLE_NOT_ALLOWED);
         }
     }
 }
