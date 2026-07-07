@@ -1,7 +1,23 @@
 import { api } from '../../shared/api/http';
 import { type Page } from '../products/productApi';
 
-export type OrderStatus = 'CREATED' | 'PAID' | 'SHIPPING' | 'DELIVERED' | 'CONFIRMED' | 'CANCELED';
+export type OrderStatus = 'CREATED' | 'PAID' | 'SHIPPING' | 'DELIVERED' | 'CONFIRMED' | 'CANCELED' | 'REFUND_REQUESTED' | 'REFUNDED';
+
+export type RefundRequestStatus = 'REQUESTED' | 'APPROVED' | 'REJECTED';
+
+export type RefundRequest = {
+  id: number;
+  orderId: number;
+  productId: number;
+  productTitle: string;
+  buyerId: number;
+  reason: string;
+  status: RefundRequestStatus;
+  requestedAt: string;
+  handledById: number | null;
+  handledAt: string | null;
+  rejectReason: string | null;
+};
 
 export type OrderSummary = {
   id: number;
@@ -14,6 +30,10 @@ export type OrderSummary = {
   productStatus: string;
   orderedAt: string;
   reviewed: boolean;
+  refundStatus: RefundRequestStatus | null;
+  refundRequestedAt: string | null;
+  refundHandledAt: string | null;
+  refundRejectReason: string | null;
 };
 
 export type Order = OrderSummary & {
@@ -46,5 +66,12 @@ export function cancelOrder(orderId: number) {
 export function confirmOrder(orderId: number) {
   return api<Order>(`/api/orders/${orderId}/confirm`, {
     method: 'POST',
+  });
+}
+
+export function createRefundRequest(orderId: number, reason: string) {
+  return api<RefundRequest>(`/api/orders/${orderId}/refund-requests`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
   });
 }

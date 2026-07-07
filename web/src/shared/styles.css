@@ -502,19 +502,23 @@ textarea {
 .status-badge-paid,
 .status-badge-approved,
 .status-badge-completed,
-.status-badge-confirmed {
+.status-badge-confirmed,
+.status-badge-refunded {
   background: #e7f5f4;
   color: #0f7b78;
 }
 
 .status-badge-shipping,
-.status-badge-delivered {
+.status-badge-delivered,
+.status-badge-refund_requested,
+.status-badge-requested {
   background: #e8f1ff;
   color: #1f5fbf;
 }
 
 .status-badge-canceled,
-.status-badge-failed {
+.status-badge-failed,
+.status-badge-rejected {
   background: #ffe8e5;
   color: #b42318;
 }

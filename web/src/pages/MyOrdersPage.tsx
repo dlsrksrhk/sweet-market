@@ -2,8 +2,8 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { type FormEvent, useRef, useState } from 'react';
 import { completeDelivery, startDelivery } from '../features/deliveries/deliveryApi';
 import { useAuth } from '../features/auth/AuthProvider';
-import { cancelOrder, confirmOrder, getMyOrders, type OrderSummary } from '../features/orders/orderApi';
-import { approvePayment, cancelPayment } from '../features/payments/paymentApi';
+import { cancelOrder, confirmOrder, createRefundRequest, getMyOrders, type OrderSummary } from '../features/orders/orderApi';
+import { approvePayment } from '../features/payments/paymentApi';
 import { createReview } from '../features/reviews/reviewApi';
 import { type ApiError } from '../shared/api/http';
 import { EmptyState, ErrorState } from '../shared/ui/ResourceStates';
@@ -14,11 +14,15 @@ const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
   timeStyle: 'short',
 });
 
-type OrderAction = 'approve-payment' | 'cancel-order' | 'cancel-payment' | 'start-delivery' | 'complete-delivery' | 'confirm-order';
+type OrderAction = 'approve-payment' | 'cancel-order' | 'start-delivery' | 'complete-delivery' | 'confirm-order';
 type ReviewMutationInput = {
   order: OrderSummary;
   rating: number;
   content: string;
+};
+type RefundRequestMutationInput = {
+  order: OrderSummary;
+  reason: string;
 };
 
 export function MyOrdersPage() {
@@ -30,6 +34,8 @@ export function MyOrdersPage() {
   const [reviewingOrderId, setReviewingOrderId] = useState<number | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewContent, setReviewContent] = useState('');
+  const [refundingOrderId, setRefundingOrderId] = useState<number | null>(null);
+  const [refundReason, setRefundReason] = useState('');
   const { data, error, isLoading } = useQuery({
     queryKey: ['my-orders', memberId],
     queryFn: getMyOrders,
@@ -44,10 +50,6 @@ export function MyOrdersPage() {
     mutationFn: (order: OrderSummary) => cancelOrder(order.id),
     onSuccess: (_canceledOrder, order) => invalidateOrderResources(queryClient, order.productId),
   });
-  const cancelPaymentMutation = useMutation({
-    mutationFn: (order: OrderSummary) => cancelPayment(order.id),
-    onSuccess: (_payment, order) => invalidateOrderResources(queryClient, order.productId),
-  });
   const startDeliveryMutation = useMutation({
     mutationFn: (order: OrderSummary) => startDelivery(order.id),
     onSuccess: (_delivery, order) => invalidateOrderResources(queryClient, order.productId),
@@ -59,6 +61,13 @@ export function MyOrdersPage() {
   const confirmMutation = useMutation({
     mutationFn: (order: OrderSummary) => confirmOrder(order.id),
     onSuccess: (_confirmedOrder, order) => invalidateOrderResources(queryClient, order.productId),
+  });
+  const refundRequestMutation = useMutation({
+    mutationFn: ({ order, reason }: RefundRequestMutationInput) => createRefundRequest(order.id, reason),
+    onSuccess: async (_refundRequest, { order }) => {
+      resetRefundRequestForm();
+      await invalidateOrderResources(queryClient, order.productId);
+    },
   });
   const reviewMutation = useMutation({
     mutationFn: ({ order, rating, content }: ReviewMutationInput) => createReview(order.id, { rating, content }),
@@ -76,10 +85,10 @@ export function MyOrdersPage() {
   const actionError =
     approveMutation.error ??
     cancelOrderMutation.error ??
-    cancelPaymentMutation.error ??
     startDeliveryMutation.error ??
     completeDeliveryMutation.error ??
     confirmMutation.error ??
+    refundRequestMutation.error ??
     reviewMutation.error;
 
   if (isLoading) {
@@ -136,6 +145,18 @@ export function MyOrdersPage() {
     reviewMutation.reset();
   }
 
+  function startRefundRequest(orderId: number) {
+    refundRequestMutation.reset();
+    setRefundingOrderId(orderId);
+    setRefundReason('');
+  }
+
+  function resetRefundRequestForm() {
+    setRefundingOrderId(null);
+    setRefundReason('');
+    refundRequestMutation.reset();
+  }
+
   function submitReview(event: FormEvent<HTMLFormElement>, order: OrderSummary) {
     event.preventDefault();
 
@@ -144,6 +165,16 @@ export function MyOrdersPage() {
     }
 
     reviewMutation.mutate({ order, rating: reviewRating, content: reviewContent });
+  }
+
+  function submitRefundRequest(event: FormEvent<HTMLFormElement>, order: OrderSummary) {
+    event.preventDefault();
+
+    if (refundRequestMutation.isPending) {
+      return;
+    }
+
+    refundRequestMutation.mutate({ order, reason: refundReason.trim() });
   }
 
   function renderOrderActions(order: OrderSummary) {
@@ -174,7 +205,7 @@ export function MyOrdersPage() {
         );
       case 'PAID':
         const startDeliveryPending = isOrderActionPending(order.id, 'start-delivery');
-        const cancelPaymentPending = isOrderActionPending(order.id, 'cancel-payment');
+        const paidCancelOrderPending = isOrderActionPending(order.id, 'cancel-order');
 
         return (
           <>
@@ -189,10 +220,10 @@ export function MyOrdersPage() {
             <button
               type="button"
               className="text-button danger-button"
-              disabled={cancelPaymentPending}
-              onClick={() => runOrderAction(order, 'cancel-payment', cancelPaymentMutation.mutateAsync)}
+              disabled={paidCancelOrderPending}
+              onClick={() => runOrderAction(order, 'cancel-order', cancelOrderMutation.mutateAsync)}
             >
-              결제 취소
+              주문 취소
             </button>
           </>
         );
@@ -213,15 +244,31 @@ export function MyOrdersPage() {
         const confirmPending = isOrderActionPending(order.id, 'confirm-order');
 
         return (
-          <button
-            type="button"
-            className="text-button"
-            disabled={confirmPending}
-            onClick={() => runOrderAction(order, 'confirm-order', confirmMutation.mutateAsync)}
-          >
-            구매 확정
-          </button>
+          <>
+            <button
+              type="button"
+              className="text-button"
+              disabled={confirmPending}
+              onClick={() => runOrderAction(order, 'confirm-order', confirmMutation.mutateAsync)}
+            >
+              구매 확정
+            </button>
+            {order.refundStatus ? null : (
+              <button
+                type="button"
+                className="text-button secondary-button"
+                disabled={refundRequestMutation.isPending}
+                onClick={() => startRefundRequest(order.id)}
+              >
+                환불 요청
+              </button>
+            )}
+          </>
         );
+      case 'REFUND_REQUESTED':
+        return <span className="muted-text">환불 요청 처리 중</span>;
+      case 'REFUNDED':
+        return <span className="muted-text">환불 완료</span>;
       case 'CONFIRMED':
         if (order.reviewed) {
           return <span className="muted-text">리뷰 작성 완료</span>;
@@ -276,7 +323,37 @@ export function MyOrdersPage() {
                     <dd>{formatDate(order.orderedAt)}</dd>
                   </div>
                 </dl>
+                {renderRefundStatusNote(order)}
                 <div className="record-actions">{renderOrderActions(order)}</div>
+                {refundingOrderId === order.id ? (
+                  <form className="review-form" onSubmit={(event) => submitRefundRequest(event, order)}>
+                    <label>
+                      환불 사유
+                      <textarea
+                        value={refundReason}
+                        minLength={10}
+                        maxLength={500}
+                        required
+                        rows={4}
+                        disabled={refundRequestMutation.isPending}
+                        onChange={(event) => setRefundReason(event.target.value)}
+                      />
+                    </label>
+                    <div className="review-form-actions">
+                      <button type="submit" className="text-button" disabled={refundRequestMutation.isPending}>
+                        {refundRequestMutation.isPending ? '요청 중' : '요청'}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-button secondary-button"
+                        disabled={refundRequestMutation.isPending}
+                        onClick={resetRefundRequestForm}
+                      >
+                        취소
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
                 {reviewingOrderId === order.id ? (
                   <form className="review-form" onSubmit={(event) => submitReview(event, order)}>
                     <fieldset className="rating-field" disabled={reviewMutation.isPending}>
@@ -341,6 +418,18 @@ function getOrderActionId(orderId: number, action: OrderAction) {
   return `${orderId}:${action}`;
 }
 
+function renderRefundStatusNote(order: OrderSummary) {
+  if (!order.refundStatus) {
+    return null;
+  }
+
+  return (
+    <p className="status-text">
+      <StatusPill status={order.refundStatus} /> {formatRefundStatusNote(order)}
+    </p>
+  );
+}
+
 function StatusPill({ status }: { status: string }) {
   return <span className={`status-badge status-badge-${status.toLowerCase()}`}>{formatStatus(status)}</span>;
 }
@@ -359,6 +448,16 @@ function formatStatus(status: string) {
       return '구매 확정';
     case 'CANCELED':
       return '취소';
+    case 'REFUND_REQUESTED':
+      return '환불 요청';
+    case 'REFUNDED':
+      return '환불 완료';
+    case 'REQUESTED':
+      return '요청';
+    case 'APPROVED':
+      return '승인';
+    case 'REJECTED':
+      return '거절';
     case 'ON_SALE':
       return '판매중';
     case 'RESERVED':
@@ -369,6 +468,19 @@ function formatStatus(status: string) {
       return '숨김';
     default:
       return status;
+  }
+}
+
+function formatRefundStatusNote(order: OrderSummary) {
+  switch (order.refundStatus) {
+    case 'REQUESTED':
+      return `환불 요청일시 ${formatDate(order.refundRequestedAt)}`;
+    case 'APPROVED':
+      return `환불 처리일시 ${formatDate(order.refundHandledAt)}`;
+    case 'REJECTED':
+      return `환불 거절 사유: ${order.refundRejectReason ?? '확인되지 않았습니다.'}`;
+    default:
+      return '';
   }
 }
 
