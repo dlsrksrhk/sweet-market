@@ -9,7 +9,11 @@ import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.api.OrderResponse;
 import com.sweet.market.order.domain.Order;
+import com.sweet.market.order.domain.OrderStatus;
 import com.sweet.market.order.repository.OrderRepository;
+import com.sweet.market.payment.application.PaymentGateway;
+import com.sweet.market.payment.domain.Payment;
+import com.sweet.market.payment.repository.PaymentRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
 
@@ -19,15 +23,21 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final MemberRepository memberRepository;
+    private final PaymentRepository paymentRepository;
+    private final PaymentGateway paymentGateway;
 
     public OrderService(
             OrderRepository orderRepository,
             ProductRepository productRepository,
-            MemberRepository memberRepository
+            MemberRepository memberRepository,
+            PaymentRepository paymentRepository,
+            PaymentGateway paymentGateway
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.memberRepository = memberRepository;
+        this.paymentRepository = paymentRepository;
+        this.paymentGateway = paymentGateway;
     }
 
     @Transactional
@@ -50,14 +60,29 @@ public class OrderService {
 
     @Transactional
     public OrderResponse cancel(Long buyerId, Long orderId) {
-        Order order = orderRepository.findWithBuyerAndProductById(orderId)
+        Order order = orderRepository.findStateChangeTargetById(orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
         if (!order.isOwnedBy(buyerId)) {
             throw new BusinessException(ErrorCode.ORDER_ACCESS_DENIED);
         }
 
-        try {
+        if (order.getStatus() == OrderStatus.CANCELED) {
+            return OrderResponse.from(order);
+        }
+        if (order.getStatus() == OrderStatus.CREATED) {
             order.cancel();
+            return OrderResponse.from(order);
+        }
+        if (order.getStatus() != OrderStatus.PAID) {
+            throw new BusinessException(ErrorCode.ORDER_CANCEL_NOT_ALLOWED);
+        }
+
+        Payment payment = paymentRepository.findWithOrderByOrderId(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
+
+        try {
+            paymentGateway.cancel(payment.getExternalPaymentId());
+            payment.cancel();
         } catch (IllegalStateException exception) {
             throw new BusinessException(ErrorCode.ORDER_CANCEL_NOT_ALLOWED);
         }

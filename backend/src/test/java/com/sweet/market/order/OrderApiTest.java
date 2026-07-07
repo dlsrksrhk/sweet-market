@@ -155,6 +155,41 @@ class OrderApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 주문자는_결제된_주문을_주문_API로_즉시_취소한다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+        Long orderId = createOrder(buyerToken, productId);
+        approvePayment(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(orderId))
+                .andExpect(jsonPath("$.data.status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.productStatus").value("ON_SALE"))
+                .andExpect(jsonPath("$.data.canceledAt").exists());
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("ON_SALE"));
+    }
+
+    @Test
+    void 결제된_주문에_결제가_없으면_주문_API_취소에_실패한다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+        Long orderId = createOrder(buyerToken, productId);
+        jdbcTemplate.update("update orders set status = 'PAID' where id = ?", orderId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PAYMENT_NOT_FOUND"));
+    }
+
+    @Test
     void 이미_취소한_주문은_다시_취소해도_같은_결과를_반환한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
@@ -253,6 +288,18 @@ class OrderApiTest extends IntegrationTestSupport {
                                 }
                                 """.formatted(productId)))
                 .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode root = objectMapper.readTree(response);
+        return root.path("data").path("id").asLong();
+    }
+
+    private Long approvePayment(String accessToken, Long orderId) throws Exception {
+        String response = mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
