@@ -33,7 +33,7 @@ public class RefundRequestService {
 
     @Transactional
     public RefundRequestResponse create(Long buyerId, Long orderId, String reason) {
-        Order order = orderRepository.findWithBuyerAndProductById(orderId)
+        Order order = orderRepository.findStateChangeTargetById(orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
         if (!order.isOwnedBy(buyerId)) {
             throw new BusinessException(ErrorCode.REFUND_REQUEST_ACCESS_DENIED);

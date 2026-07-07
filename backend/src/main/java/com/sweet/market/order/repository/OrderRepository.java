@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,6 +18,8 @@ import com.sweet.market.order.domain.OrderStatus;
 import com.sweet.market.seller.report.SellerDailySalesResponse;
 import com.sweet.market.seller.report.SellerOrderStatusCountProjection;
 
+import jakarta.persistence.LockModeType;
+
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @EntityGraph(attributePaths = {"product", "product.seller"})
@@ -24,6 +27,15 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @EntityGraph(attributePaths = {"buyer", "product", "product.seller", "product.images"})
     Optional<Order> findWithBuyerAndProductById(Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"buyer", "product", "product.seller", "product.images"})
+    @Query("""
+            select o
+            from Order o
+            where o.id = :id
+            """)
+    Optional<Order> findStateChangeTargetById(@Param("id") Long id);
 
     @EntityGraph(attributePaths = {"buyer", "product", "product.seller"})
     Optional<Order> findReviewTargetById(Long id);

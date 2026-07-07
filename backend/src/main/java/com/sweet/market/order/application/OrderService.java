@@ -67,7 +67,7 @@ public class OrderService {
 
     @Transactional
     public OrderResponse confirm(Long buyerId, Long orderId) {
-        Order order = orderRepository.findWithBuyerAndProductById(orderId)
+        Order order = orderRepository.findStateChangeTargetById(orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
         if (!order.isOwnedBy(buyerId)) {
             throw new BusinessException(ErrorCode.ORDER_ACCESS_DENIED);

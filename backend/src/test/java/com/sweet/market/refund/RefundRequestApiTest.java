@@ -1,5 +1,6 @@
 package com.sweet.market.refund;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -7,7 +8,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.lang.reflect.Method;
+
 import org.junit.jupiter.api.Test;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -15,7 +19,10 @@ import org.springframework.mock.web.MockMultipartFile;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.support.IntegrationTestSupport;
+
+import jakarta.persistence.LockModeType;
 
 class RefundRequestApiTest extends IntegrationTestSupport {
 
@@ -108,7 +115,7 @@ class RefundRequestApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void 환불_요청은_JWT가_필요하다() throws Exception {
+    void 환불_요청은_인증_토큰이_필요하다() throws Exception {
         mockMvc.perform(post("/api/orders/{orderId}/refund-requests", 1L)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -140,6 +147,25 @@ class RefundRequestApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 공백으로_길이만_채운_환불_사유는_요청할_수_없다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/refund-requests", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "reason": "        짧음        "
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("REFUND_REQUEST_NOT_ALLOWED"));
+    }
+
+    @Test
     void 존재하지_않는_주문에는_환불을_요청할_수_없다() throws Exception {
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
 
@@ -153,6 +179,16 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                                 """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ORDER_NOT_FOUND"));
+    }
+
+    @Test
+    void 주문_상태_변경_조회는_비관적_쓰기_잠금을_사용한다() throws Exception {
+        Method method = OrderRepository.class.getMethod("findStateChangeTargetById", Long.class);
+
+        Lock lock = method.getAnnotation(Lock.class);
+
+        assertThat(lock).isNotNull();
+        assertThat(lock.value()).isEqualTo(LockModeType.PESSIMISTIC_WRITE);
     }
 
     private Long createRefundRequest(String accessToken, Long orderId) throws Exception {
