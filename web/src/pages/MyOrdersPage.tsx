@@ -146,6 +146,10 @@ export function MyOrdersPage() {
   }
 
   function startRefundRequest(orderId: number) {
+    if (refundRequestMutation.isPending) {
+      return;
+    }
+
     refundRequestMutation.reset();
     setRefundingOrderId(orderId);
     setRefundReason('');
@@ -242,6 +246,7 @@ export function MyOrdersPage() {
         );
       case 'DELIVERED':
         const confirmPending = isOrderActionPending(order.id, 'confirm-order');
+        const refundRequestInFlight = refundRequestMutation.isPending;
         const refundRequestPending = refundRequestMutation.isPending && refundRequestMutation.variables?.order.id === order.id;
         const refundFormOpen = refundingOrderId === order.id;
 
@@ -259,7 +264,7 @@ export function MyOrdersPage() {
               <button
                 type="button"
                 className="text-button danger-button"
-                disabled={refundRequestPending}
+                disabled={refundRequestInFlight}
                 onClick={() => startRefundRequest(order.id)}
               >
                 환불 요청
