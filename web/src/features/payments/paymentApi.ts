@@ -1,7 +1,7 @@
 import { api } from '../../shared/api/http';
 import { type OrderStatus } from '../orders/orderApi';
 
-export type PaymentStatus = 'READY' | 'APPROVED' | 'CANCELED' | 'FAILED';
+export type PaymentStatus = 'READY' | 'APPROVED' | 'CANCELED' | 'FAILED' | 'REFUNDED';
 
 export type Payment = {
   id: number;

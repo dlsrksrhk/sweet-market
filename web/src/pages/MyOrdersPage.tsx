@@ -242,13 +242,15 @@ export function MyOrdersPage() {
         );
       case 'DELIVERED':
         const confirmPending = isOrderActionPending(order.id, 'confirm-order');
+        const refundRequestPending = refundRequestMutation.isPending && refundRequestMutation.variables?.order.id === order.id;
+        const refundFormOpen = refundingOrderId === order.id;
 
         return (
           <>
             <button
               type="button"
               className="text-button"
-              disabled={confirmPending}
+              disabled={confirmPending || refundFormOpen || refundRequestPending}
               onClick={() => runOrderAction(order, 'confirm-order', confirmMutation.mutateAsync)}
             >
               구매 확정
@@ -256,8 +258,8 @@ export function MyOrdersPage() {
             {order.refundStatus ? null : (
               <button
                 type="button"
-                className="text-button secondary-button"
-                disabled={refundRequestMutation.isPending}
+                className="text-button danger-button"
+                disabled={refundRequestPending}
                 onClick={() => startRefundRequest(order.id)}
               >
                 환불 요청
