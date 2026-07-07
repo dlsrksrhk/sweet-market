@@ -1,7 +1,10 @@
 package com.sweet.market.order;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -13,13 +16,18 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.payment.application.PaymentGateway;
 import com.sweet.market.support.IntegrationTestSupport;
 
 class OrderApiTest extends IntegrationTestSupport {
+
+    @MockitoSpyBean
+    private PaymentGateway paymentGateway;
 
     @Test
     void 주문_생성에_성공한다() throws Exception {
@@ -173,6 +181,40 @@ class OrderApiTest extends IntegrationTestSupport {
         mockMvc.perform(get("/api/products/{productId}", productId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ON_SALE"));
+
+        String paymentStatus = jdbcTemplate.queryForObject(
+                "select status from payments where order_id = ?",
+                String.class,
+                orderId
+        );
+        Object paymentCanceledAt = jdbcTemplate.queryForObject(
+                "select canceled_at from payments where order_id = ?",
+                Object.class,
+                orderId
+        );
+        assertThat(paymentStatus).isEqualTo("CANCELED");
+        assertThat(paymentCanceledAt).isNotNull();
+    }
+
+    @Test
+    void 주문_API로_취소된_결제는_결제_API로_다시_취소해도_외부_취소를_반복하지_않는다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+        Long orderId = createOrder(buyerToken, productId);
+        approvePayment(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/payments/{orderId}/cancel", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELED"))
+                .andExpect(jsonPath("$.data.orderStatus").value("CANCELED"));
+
+        verify(paymentGateway, times(1)).cancel("fake-payment-" + orderId);
     }
 
     @Test

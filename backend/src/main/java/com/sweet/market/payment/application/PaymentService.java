@@ -9,6 +9,7 @@ import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.payment.api.PaymentResponse;
 import com.sweet.market.payment.domain.Payment;
+import com.sweet.market.payment.domain.PaymentStatus;
 import com.sweet.market.payment.repository.PaymentRepository;
 
 @Service
@@ -50,14 +51,16 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse cancel(Long memberId, Long orderId) {
-        Payment payment = paymentRepository.findWithOrderByOrderId(orderId)
+        Payment payment = paymentRepository.findStateChangeTargetByOrderId(orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
         if (!payment.getOrder().isOwnedBy(memberId)) {
             throw new BusinessException(ErrorCode.PAYMENT_ACCESS_DENIED);
         }
 
         try {
-            paymentGateway.cancel(payment.getExternalPaymentId());
+            if (payment.getStatus() == PaymentStatus.APPROVED) {
+                paymentGateway.cancel(payment.getExternalPaymentId());
+            }
             payment.cancel();
         } catch (IllegalStateException exception) {
             throw new BusinessException(ErrorCode.PAYMENT_CANCEL_NOT_ALLOWED);
