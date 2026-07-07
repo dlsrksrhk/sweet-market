@@ -66,6 +66,31 @@ class OrderQueryApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 구매자_주문_목록은_거절된_환불_요청을_구매확정_이후에도_포함한다() throws Exception {
+        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+        rejectRefundRequest(sellerToken, refundRequestId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/confirm", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/orders/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].id").value(orderId))
+                .andExpect(jsonPath("$.data.content[0].status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.data.content[0].refundStatus").value("REJECTED"))
+                .andExpect(jsonPath("$.data.content[0].refundRequestedAt").exists())
+                .andExpect(jsonPath("$.data.content[0].refundHandledAt").exists())
+                .andExpect(jsonPath("$.data.content[0].refundRejectReason").value("상품 설명과 다른 부분을 확인할 수 없습니다."));
+    }
+
+    @Test
     void 구매자는_자신의_주문_상세를_조회한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
@@ -217,8 +242,8 @@ class OrderQueryApiTest extends IntegrationTestSupport {
         return root.path("data").path("id").asLong();
     }
 
-    private void createRefundRequest(String accessToken, Long orderId) throws Exception {
-        mockMvc.perform(post("/api/orders/{orderId}/refund-requests", orderId)
+    private Long createRefundRequest(String accessToken, Long orderId) throws Exception {
+        String response = mockMvc.perform(post("/api/orders/{orderId}/refund-requests", orderId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -226,7 +251,25 @@ class OrderQueryApiTest extends IntegrationTestSupport {
                                   "reason": "상품 상태가 설명과 달라 환불을 요청합니다."
                                 }
                                 """))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JsonNode root = objectMapper.readTree(response);
+        return root.path("data").path("id").asLong();
+    }
+
+    private void rejectRefundRequest(String accessToken, Long refundRequestId) throws Exception {
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/reject", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "rejectReason": "상품 설명과 다른 부분을 확인할 수 없습니다."
+                                }
+                                """))
+                .andExpect(status().isOk());
     }
 
     private Long createDeliveredOrder(String accessToken, Long productId) throws Exception {

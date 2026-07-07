@@ -33,6 +33,7 @@
 ## Follow-Up Candidates
 
 - Dedicated seller/admin refund management pages.
+- Pagination for seller/admin refund request list APIs.
 - Return shipping workflow.
 - Buyer refund cancellation.
 - Product relisting after refund.

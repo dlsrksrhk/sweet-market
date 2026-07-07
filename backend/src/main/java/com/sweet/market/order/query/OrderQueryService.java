@@ -80,6 +80,7 @@ public class OrderQueryService {
         return orders.stream()
                 .map(Order::getStatus)
                 .anyMatch(status -> status == OrderStatus.DELIVERED
+                        || status == OrderStatus.CONFIRMED
                         || status == OrderStatus.REFUND_REQUESTED
                         || status == OrderStatus.REFUNDED);
     }
