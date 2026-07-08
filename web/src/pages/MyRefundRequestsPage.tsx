@@ -108,6 +108,7 @@ export function MyRefundRequestsPage() {
       return;
     }
 
+    resetRejectForm();
     approveMutation.mutate(refundRequestId);
   }
 
@@ -125,7 +126,7 @@ export function MyRefundRequestsPage() {
   return (
     <section className="refund-operations-page">
       <div className="list-page-header">
-        <h1>환불 요청 운영</h1>
+        <h1>환불 요청 관리</h1>
         <p>판매 상품의 환불 요청을 검토하고 승인 또는 거절 처리합니다.</p>
       </div>
 
@@ -151,7 +152,6 @@ export function MyRefundRequestsPage() {
           <div className="refund-operations-table" aria-label="판매자 환불 요청 목록">
             <div className="refund-operations-table-head refund-operations-grid" role="row">
               <span>환불 요청</span>
-              <span>주문</span>
               <span>상품</span>
               <span>구매자</span>
               <span>상태</span>
@@ -164,9 +164,8 @@ export function MyRefundRequestsPage() {
                 rejectingRefundRequestId,
                 rejectReason,
                 approvePendingRefundRequestId: approveMutation.variables,
-                rejectPendingRefundRequestId: rejectMutation.variables?.refundRequestId,
+                rejectPendingRefundRequestId: rejectMutation.isPending ? rejectMutation.variables?.refundRequestId : undefined,
                 isApproving: approveMutation.isPending,
-                isRejecting: rejectMutation.isPending,
                 onApprove: approveRefundRequest,
                 onStartReject: startReject,
                 onCancelReject: resetRejectForm,
@@ -211,7 +210,6 @@ type RefundRequestRowProps = {
   approvePendingRefundRequestId: number | undefined;
   rejectPendingRefundRequestId: number | undefined;
   isApproving: boolean;
-  isRejecting: boolean;
   onApprove: (refundRequestId: number) => void;
   onStartReject: (refundRequestId: number) => void;
   onCancelReject: () => void;
@@ -226,7 +224,6 @@ function renderRefundRequestRow({
   approvePendingRefundRequestId,
   rejectPendingRefundRequestId,
   isApproving,
-  isRejecting,
   onApprove,
   onStartReject,
   onCancelReject,
@@ -235,14 +232,14 @@ function renderRefundRequestRow({
 }: RefundRequestRowProps) {
   const isRejectFormOpen = rejectingRefundRequestId === refundRequest.id;
   const isApprovePending = isApproving && approvePendingRefundRequestId === refundRequest.id;
-  const isRejectPending = isRejecting && rejectPendingRefundRequestId === refundRequest.id;
+  const isRejectPending = rejectPendingRefundRequestId === refundRequest.id;
+  const isRowActionLocked = isApprovePending || isRejectPending;
   const isRejectReasonInvalid = rejectReason.trim().length < 5 || rejectReason.trim().length > 500;
 
   return (
     <article className="refund-operations-row" key={refundRequest.id}>
       <div className="refund-operations-grid">
         <span>#{refundRequest.id}</span>
-        <span>#{refundRequest.orderId}</span>
         <span>
           #{refundRequest.productId} {refundRequest.productTitle}
         </span>
@@ -253,9 +250,23 @@ function renderRefundRequestRow({
           <StatusBadge status={refundRequest.status} />
         </span>
         <span>{formatDate(refundRequest.requestedAt)}</span>
-        <span>{renderRefundRequestActions(refundRequest, isApprovePending, isRejectPending, isRejecting, onApprove, onStartReject)}</span>
+        <span>
+          {renderRefundRequestActions(
+            refundRequest,
+            isApprovePending,
+            isRejectPending,
+            isRejectFormOpen,
+            isRowActionLocked,
+            onApprove,
+            onStartReject,
+          )}
+        </span>
       </div>
       <dl className="refund-operation-detail">
+        <div>
+          <dt>주문 번호</dt>
+          <dd>#{refundRequest.orderId}</dd>
+        </div>
         <div>
           <dt>환불 사유</dt>
           <dd>{refundRequest.reason}</dd>
@@ -305,7 +316,8 @@ function renderRefundRequestActions(
   refundRequest: RefundRequest,
   isApprovePending: boolean,
   isRejectPending: boolean,
-  isRejecting: boolean,
+  isRejectFormOpen: boolean,
+  isRowActionLocked: boolean,
   onApprove: (refundRequestId: number) => void,
   onStartReject: (refundRequestId: number) => void,
 ) {
@@ -318,7 +330,7 @@ function renderRefundRequestActions(
       <button
         type="button"
         className="text-button"
-        disabled={isApprovePending}
+        disabled={isRowActionLocked || isRejectFormOpen}
         onClick={() => onApprove(refundRequest.id)}
       >
         {isApprovePending ? '승인 중' : '승인'}
@@ -326,7 +338,7 @@ function renderRefundRequestActions(
       <button
         type="button"
         className="text-button danger-button"
-        disabled={isRejectPending}
+        disabled={isRowActionLocked || isRejectFormOpen}
         onClick={() => onStartReject(refundRequest.id)}
       >
         {isRejectPending ? '거절 중' : '거절'}
