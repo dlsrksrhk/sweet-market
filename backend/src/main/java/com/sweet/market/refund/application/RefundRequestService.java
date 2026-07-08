@@ -1,8 +1,8 @@
 package com.sweet.market.refund.application;
 
-import java.util.List;
-
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -94,17 +94,15 @@ public class RefundRequestService {
     }
 
     @Transactional(readOnly = true)
-    public List<RefundRequestResponse> findSellerRequests(Long sellerId, RefundRequestStatus status) {
-        return refundRequestRepository.findSellerRequests(sellerId, status).stream()
-                .map(RefundRequestResponse::from)
-                .toList();
+    public Page<RefundRequestResponse> findSellerRequests(Long sellerId, RefundRequestStatus status, Pageable pageable) {
+        return refundRequestRepository.findSellerRequests(sellerId, status, pageable)
+                .map(RefundRequestResponse::from);
     }
 
     @Transactional(readOnly = true)
-    public List<RefundRequestResponse> findAdminRequests(RefundRequestStatus status) {
-        return refundRequestRepository.findAdminRequests(status).stream()
-                .map(RefundRequestResponse::from)
-                .toList();
+    public Page<RefundRequestResponse> findAdminRequests(RefundRequestStatus status, Pageable pageable) {
+        return refundRequestRepository.findAdminRequests(status, pageable)
+                .map(RefundRequestResponse::from);
     }
 
     private RefundRequest findHandlingTarget(Long refundRequestId) {

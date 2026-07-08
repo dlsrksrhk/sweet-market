@@ -2,11 +2,13 @@ import { Route, Routes } from 'react-router-dom';
 import { RequireAdmin } from '../features/auth/RequireAdmin';
 import { RequireAuth } from '../features/auth/RequireAuth';
 import { AdminOperationsPage } from '../pages/AdminOperationsPage';
+import { AdminRefundRequestsPage } from '../pages/AdminRefundRequestsPage';
 import { AdminSettlementBatchPage } from '../pages/AdminSettlementBatchPage';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MyCartPage } from '../pages/MyCartPage';
 import { MyOrdersPage } from '../pages/MyOrdersPage';
+import { MyRefundRequestsPage } from '../pages/MyRefundRequestsPage';
 import { MyReportsPage } from '../pages/MyReportsPage';
 import { MySalesPage } from '../pages/MySalesPage';
 import { MySettlementsPage } from '../pages/MySettlementsPage';
@@ -89,10 +91,26 @@ export function AppRouter() {
           }
         />
         <Route
+          path="me/refunds"
+          element={
+            <RequireAuth>
+              <MyRefundRequestsPage />
+            </RequireAuth>
+          }
+        />
+        <Route
           path="admin/operations"
           element={
             <RequireAdmin>
               <AdminOperationsPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="admin/refunds"
+          element={
+            <RequireAdmin>
+              <AdminRefundRequestsPage />
             </RequireAdmin>
           }
         />

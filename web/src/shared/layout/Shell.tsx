@@ -20,7 +20,13 @@ export function Shell() {
               <NavLink to="/me/sales">내 판매</NavLink>
               <NavLink to="/me/settlements">정산</NavLink>
               <NavLink to="/me/reports">리포트</NavLink>
-              {member.role === 'ADMIN' ? <NavLink to="/admin/operations">관리자</NavLink> : null}
+              <NavLink to="/me/refunds">환불 관리</NavLink>
+              {member.role === 'ADMIN' ? (
+                <>
+                  <NavLink to="/admin/operations">관리자</NavLink>
+                  <NavLink to="/admin/refunds">관리자 환불</NavLink>
+                </>
+              ) : null}
             </>
           ) : null}
         </nav>

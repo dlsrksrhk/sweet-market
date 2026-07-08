@@ -62,8 +62,12 @@ function formatStatus(status: string) {
       return '환불 완료';
     case 'READY':
       return '대기';
+    case 'REQUESTED':
+      return '요청';
     case 'APPROVED':
       return '승인';
+    case 'REJECTED':
+      return '거절';
     case 'COMPLETED':
       return '완료';
     case 'FAILED':

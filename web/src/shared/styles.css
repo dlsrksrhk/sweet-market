@@ -1558,6 +1558,111 @@ a.wishlist-card-main:hover h2 {
   font-weight: 800;
 }
 
+.refund-operations-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.refund-operations-table {
+  overflow: hidden;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.refund-operations-table-head,
+.refund-operations-row {
+  border-bottom: 1px solid #edf2f7;
+}
+
+.refund-operations-table-head {
+  background: #f4f7fa;
+  color: #52616f;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.refund-operations-row:last-child {
+  border-bottom: 0;
+}
+
+.refund-operations-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(70px, 0.7fr) minmax(180px, 1.5fr) minmax(130px, 1fr) minmax(90px, 0.8fr)
+    minmax(140px, 1fr) minmax(150px, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+}
+
+.refund-operations-grid span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.refund-operations-grid > span:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.refund-operation-detail {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0 1rem 1rem;
+  color: #334155;
+}
+
+.refund-operation-detail div {
+  min-width: 0;
+}
+
+.refund-operation-detail dt {
+  color: #637282;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.refund-operation-detail dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.refund-reject-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0 1rem 1rem;
+  padding: 0.85rem;
+  border: 1px solid #f4b4ad;
+  border-radius: 8px;
+  background: #fff8f7;
+}
+
+.refund-reject-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: #7f1d1d;
+  font-weight: 800;
+}
+
+.refund-reject-form textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.refund-reject-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .admin-execution-row {
   display: grid;
   grid-template-columns: minmax(120px, 1.2fr) minmax(76px, auto) repeat(4, minmax(82px, 1fr));
@@ -1661,6 +1766,26 @@ a.wishlist-card-main:hover h2 {
   .admin-search-form {
     grid-template-columns: repeat(3, minmax(140px, 1fr));
   }
+
+  .nav-links,
+  .account-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 960px) {
+  .refund-operations-table-head {
+    display: none;
+  }
+
+  .refund-operations-grid,
+  .refund-operation-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .refund-operations-grid {
+    gap: 0.45rem;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1668,11 +1793,6 @@ a.wishlist-card-main:hover h2 {
     align-items: flex-start;
     flex-direction: column;
     padding: 18px 20px;
-  }
-
-  .nav-links,
-  .account-actions {
-    flex-wrap: wrap;
   }
 
   .page-content {
