@@ -1564,18 +1564,6 @@ a.wishlist-card-main:hover h2 {
   gap: 1rem;
 }
 
-.refund-status-filter {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.selected-filter-button {
-  border-color: #1d4ed8;
-  color: #1d4ed8;
-  background: #eff6ff;
-}
-
 .refund-operations-table {
   overflow: hidden;
   border: 1px solid #dfe6ee;
@@ -1614,8 +1602,7 @@ a.wishlist-card-main:hover h2 {
   overflow-wrap: anywhere;
 }
 
-.refund-row-actions,
-.refund-operations-grid span:last-child {
+.refund-operations-grid > span:last-child {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -1779,6 +1766,11 @@ a.wishlist-card-main:hover h2 {
   .admin-search-form {
     grid-template-columns: repeat(3, minmax(140px, 1fr));
   }
+
+  .nav-links,
+  .account-actions {
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 960px) {
@@ -1801,11 +1793,6 @@ a.wishlist-card-main:hover h2 {
     align-items: flex-start;
     flex-direction: column;
     padding: 18px 20px;
-  }
-
-  .nav-links,
-  .account-actions {
-    flex-wrap: wrap;
   }
 
   .page-content {

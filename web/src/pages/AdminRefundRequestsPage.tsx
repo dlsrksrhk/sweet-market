@@ -55,6 +55,8 @@ export function AdminRefundRequestsPage() {
   });
 
   const refundRequests = refundRequestsQuery.data?.content ?? [];
+  const shouldShowPagination = Boolean(refundRequestsQuery.data && refundRequestsQuery.data.totalElements > 0);
+  const isActionPending = approveMutation.isPending || rejectMutation.isPending;
   const actionError = approveMutation.error ?? rejectMutation.error;
 
   function invalidateRefundOperationResources() {
@@ -84,7 +86,7 @@ export function AdminRefundRequestsPage() {
   }
 
   function startReject(refundRequestId: number) {
-    if (rejectMutation.isPending) {
+    if (isActionPending) {
       return;
     }
 
@@ -101,6 +103,10 @@ export function AdminRefundRequestsPage() {
   }
 
   function approveRefundRequest(refundRequestId: number) {
+    if (isActionPending) {
+      return;
+    }
+
     approveMutation.reset();
     rejectMutation.reset();
 
@@ -115,7 +121,7 @@ export function AdminRefundRequestsPage() {
   function submitReject(event: FormEvent<HTMLFormElement>, refundRequestId: number) {
     event.preventDefault();
 
-    if (rejectMutation.isPending) {
+    if (isActionPending) {
       return;
     }
 
@@ -166,6 +172,7 @@ export function AdminRefundRequestsPage() {
                 approvePendingRefundRequestId: approveMutation.variables,
                 rejectPendingRefundRequestId: rejectMutation.isPending ? rejectMutation.variables?.refundRequestId : undefined,
                 isApproving: approveMutation.isPending,
+                isActionPending,
                 onApprove: approveRefundRequest,
                 onStartReject: startReject,
                 onCancelReject: resetRejectForm,
@@ -174,10 +181,10 @@ export function AdminRefundRequestsPage() {
               }),
             )}
           </div>
-          {refundRequestsQuery.data ? (
-            renderPagination(refundRequestsQuery.data, refundRequestsQuery.isFetching, movePage)
-          ) : null}
         </>
+      ) : null}
+      {shouldShowPagination && refundRequestsQuery.data ? (
+        renderPagination(refundRequestsQuery.data, refundRequestsQuery.isFetching, movePage)
       ) : null}
     </section>
   );
@@ -210,6 +217,7 @@ type RefundRequestRowProps = {
   approvePendingRefundRequestId: number | undefined;
   rejectPendingRefundRequestId: number | undefined;
   isApproving: boolean;
+  isActionPending: boolean;
   onApprove: (refundRequestId: number) => void;
   onStartReject: (refundRequestId: number) => void;
   onCancelReject: () => void;
@@ -224,6 +232,7 @@ function renderRefundRequestRow({
   approvePendingRefundRequestId,
   rejectPendingRefundRequestId,
   isApproving,
+  isActionPending,
   onApprove,
   onStartReject,
   onCancelReject,
@@ -233,7 +242,6 @@ function renderRefundRequestRow({
   const isRejectFormOpen = rejectingRefundRequestId === refundRequest.id;
   const isApprovePending = isApproving && approvePendingRefundRequestId === refundRequest.id;
   const isRejectPending = rejectPendingRefundRequestId === refundRequest.id;
-  const isRowActionLocked = isApprovePending || isRejectPending;
   const isRejectReasonInvalid = rejectReason.trim().length < 5 || rejectReason.trim().length > 500;
 
   return (
@@ -256,7 +264,7 @@ function renderRefundRequestRow({
             isApprovePending,
             isRejectPending,
             isRejectFormOpen,
-            isRowActionLocked,
+            isActionPending,
             onApprove,
             onStartReject,
           )}
@@ -294,15 +302,15 @@ function renderRefundRequestRow({
               maxLength={500}
               required
               rows={4}
-              disabled={isRejectPending}
+              disabled={isActionPending}
               onChange={(event) => onRejectReasonChange(event.target.value)}
             />
           </label>
           <div className="refund-reject-actions">
-            <button type="submit" className="text-button danger-button" disabled={isRejectPending || isRejectReasonInvalid}>
+            <button type="submit" className="text-button danger-button" disabled={isActionPending || isRejectReasonInvalid}>
               {isRejectPending ? '거절 처리 중' : '거절 처리'}
             </button>
-            <button type="button" className="text-button secondary-button" disabled={isRejectPending} onClick={onCancelReject}>
+            <button type="button" className="text-button secondary-button" disabled={isActionPending} onClick={onCancelReject}>
               취소
             </button>
           </div>
@@ -317,7 +325,7 @@ function renderRefundRequestActions(
   isApprovePending: boolean,
   isRejectPending: boolean,
   isRejectFormOpen: boolean,
-  isRowActionLocked: boolean,
+  isActionPending: boolean,
   onApprove: (refundRequestId: number) => void,
   onStartReject: (refundRequestId: number) => void,
 ) {
@@ -330,7 +338,7 @@ function renderRefundRequestActions(
       <button
         type="button"
         className="text-button"
-        disabled={isRowActionLocked || isRejectFormOpen}
+        disabled={isActionPending || isRejectFormOpen}
         onClick={() => onApprove(refundRequest.id)}
       >
         {isApprovePending ? '승인 중' : '승인'}
@@ -338,7 +346,7 @@ function renderRefundRequestActions(
       <button
         type="button"
         className="text-button danger-button"
-        disabled={isRowActionLocked || isRejectFormOpen}
+        disabled={isActionPending || isRejectFormOpen}
         onClick={() => onStartReject(refundRequest.id)}
       >
         {isRejectPending ? '거절 중' : '거절'}
