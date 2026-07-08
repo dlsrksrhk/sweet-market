@@ -49,8 +49,9 @@ export function AdminRefundRequestsPage() {
     mutationFn: ({ refundRequestId, rejectReason }: RejectMutationInput) =>
       rejectAdminRefundRequest(refundRequestId, rejectReason),
     onSuccess: async () => {
-      resetRejectForm();
+      closeRejectForm();
       await invalidateRefundOperationResources();
+      rejectMutation.reset();
     },
   });
 
@@ -96,9 +97,13 @@ export function AdminRefundRequestsPage() {
     setRejectReason('');
   }
 
-  function resetRejectForm() {
+  function closeRejectForm() {
     setRejectingRefundRequestId(null);
     setRejectReason('');
+  }
+
+  function resetRejectForm() {
+    closeRejectForm();
     rejectMutation.reset();
   }
 
@@ -358,6 +363,8 @@ function renderRefundRequestActions(
 function renderPagination(data: RefundRequestPage, isFetching: boolean, onMovePage: (page: number) => void) {
   const currentPage = data.number;
   const totalPages = data.totalPages;
+  const displayTotalPages = Math.max(totalPages, 1);
+  const displayPage = Math.min(currentPage + 1, displayTotalPages);
   const hasPreviousPage = currentPage > 0;
   const hasNextPage = totalPages > currentPage + 1;
 
@@ -372,7 +379,7 @@ function renderPagination(data: RefundRequestPage, isFetching: boolean, onMovePa
         이전
       </button>
       <span>
-        {currentPage + 1} / {Math.max(totalPages, 1)}
+        {displayPage} / {displayTotalPages}
       </span>
       <button
         type="button"
