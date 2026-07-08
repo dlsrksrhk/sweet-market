@@ -49,6 +49,7 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.productId").value(productId))
                 .andExpect(jsonPath("$.data.productTitle").value("MacBook Pro"))
                 .andExpect(jsonPath("$.data.buyerId").isNumber())
+                .andExpect(jsonPath("$.data.buyerNickname").value("buyer"))
                 .andExpect(jsonPath("$.data.reason").value("상품 상태가 설명과 달라 환불을 요청합니다."))
                 .andExpect(jsonPath("$.data.status").value("REQUESTED"))
                 .andExpect(jsonPath("$.data.requestedAt").exists())
@@ -247,11 +248,11 @@ class RefundRequestApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void 판매자는_자신의_상품_환불_요청_목록만_조회할_수_있다() throws Exception {
-        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
-        String otherSellerToken = signupAndLogin("other-seller@example.com", "password123", "otherSeller");
-        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
-        String otherBuyerToken = signupAndLogin("other-buyer@example.com", "password123", "otherBuyer");
+    void 판매자는_자신의_상품_환불_요청_목록만_페이지로_조회할_수_있다() throws Exception {
+        String sellerToken = signupAndLogin("seller-list@example.com", "password123", "seller");
+        String otherSellerToken = signupAndLogin("other-seller-list@example.com", "password123", "otherSeller");
+        String buyerToken = signupAndLogin("buyer-list@example.com", "password123", "buyer");
+        String otherBuyerToken = signupAndLogin("other-buyer-list@example.com", "password123", "otherBuyer");
         Long productId = createProduct(sellerToken, "MacBook Pro");
         Long otherProductId = createProduct(otherSellerToken, "iPad Pro");
         Long orderId = createDeliveredOrder(buyerToken, productId);
@@ -261,15 +262,67 @@ class RefundRequestApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(get("/api/seller/refund-requests")
                         .param("status", "REQUESTED")
+                        .param("page", "0")
+                        .param("size", "10")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(1))
-                .andExpect(jsonPath("$.data[0].id").value(refundRequestId))
-                .andExpect(jsonPath("$.data[0].orderId").value(orderId))
-                .andExpect(jsonPath("$.data[0].productId").value(productId))
-                .andExpect(jsonPath("$.data[0].productTitle").value("MacBook Pro"))
-                .andExpect(jsonPath("$.data[0].status").value("REQUESTED"))
-                .andExpect(jsonPath("$.data[0].reason").value("상품 상태가 설명과 달라 환불을 요청합니다."));
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(refundRequestId))
+                .andExpect(jsonPath("$.data.content[0].orderId").value(orderId))
+                .andExpect(jsonPath("$.data.content[0].productId").value(productId))
+                .andExpect(jsonPath("$.data.content[0].productTitle").value("MacBook Pro"))
+                .andExpect(jsonPath("$.data.content[0].buyerId").isNumber())
+                .andExpect(jsonPath("$.data.content[0].buyerNickname").value("buyer"))
+                .andExpect(jsonPath("$.data.content[0].status").value("REQUESTED"))
+                .andExpect(jsonPath("$.data.content[0].reason").value("상품 상태가 설명과 달라 환불을 요청합니다."))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.totalPages").value(1))
+                .andExpect(jsonPath("$.data.number").value(0))
+                .andExpect(jsonPath("$.data.size").value(10));
+    }
+
+    @Test
+    void 판매자는_환불_요청_상태로_목록을_필터링할_수_있다() throws Exception {
+        String sellerToken = signupAndLogin("seller-filter@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer-filter-requested@example.com", "password123", "buyerRequested");
+        String approvedBuyerToken = signupAndLogin("buyer-filter-approved@example.com", "password123", "buyerApproved");
+        String rejectedBuyerToken = signupAndLogin("buyer-filter-rejected@example.com", "password123", "buyerRejected");
+        Long requestedProductId = createProduct(sellerToken, "Requested Product");
+        Long approvedProductId = createProduct(sellerToken, "Approved Product");
+        Long rejectedProductId = createProduct(sellerToken, "Rejected Product");
+        Long requestedOrderId = createDeliveredOrder(buyerToken, requestedProductId);
+        Long approvedOrderId = createDeliveredOrder(approvedBuyerToken, approvedProductId);
+        Long rejectedOrderId = createDeliveredOrder(rejectedBuyerToken, rejectedProductId);
+        Long requestedRefundRequestId = createRefundRequest(buyerToken, requestedOrderId);
+        Long approvedRefundRequestId = createRefundRequest(approvedBuyerToken, approvedOrderId);
+        Long rejectedRefundRequestId = createRefundRequest(rejectedBuyerToken, rejectedOrderId);
+
+        approveRefundRequest(sellerToken, approvedRefundRequestId);
+        rejectRefundRequest(sellerToken, rejectedRefundRequestId);
+
+        mockMvc.perform(get("/api/seller/refund-requests")
+                        .param("status", "REQUESTED")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(requestedRefundRequestId))
+                .andExpect(jsonPath("$.data.content[0].status").value("REQUESTED"));
+
+        mockMvc.perform(get("/api/seller/refund-requests")
+                        .param("status", "APPROVED")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(approvedRefundRequestId))
+                .andExpect(jsonPath("$.data.content[0].status").value("APPROVED"));
+
+        mockMvc.perform(get("/api/seller/refund-requests")
+                        .param("status", "REJECTED")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(rejectedRefundRequestId))
+                .andExpect(jsonPath("$.data.content[0].status").value("REJECTED"));
     }
 
     @Test
@@ -320,12 +373,12 @@ class RefundRequestApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void 관리자는_모든_환불_요청_목록을_조회할_수_있다() throws Exception {
-        String adminToken = createAdminToken("admin@example.com");
-        String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
-        String otherSellerToken = signupAndLogin("other-seller@example.com", "password123", "otherSeller");
-        String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
-        String otherBuyerToken = signupAndLogin("other-buyer@example.com", "password123", "otherBuyer");
+    void 관리자는_모든_환불_요청_목록을_페이지로_조회할_수_있다() throws Exception {
+        String adminToken = createAdminToken("admin-list@example.com");
+        String sellerToken = signupAndLogin("seller-admin-list@example.com", "password123", "seller");
+        String otherSellerToken = signupAndLogin("other-seller-admin-list@example.com", "password123", "otherSeller");
+        String buyerToken = signupAndLogin("buyer-admin-list@example.com", "password123", "buyer");
+        String otherBuyerToken = signupAndLogin("other-buyer-admin-list@example.com", "password123", "otherBuyer");
         Long productId = createProduct(sellerToken, "MacBook Pro");
         Long otherProductId = createProduct(otherSellerToken, "iPad Pro");
         Long orderId = createDeliveredOrder(buyerToken, productId);
@@ -334,15 +387,69 @@ class RefundRequestApiTest extends IntegrationTestSupport {
         Long otherRefundRequestId = createRefundRequest(otherBuyerToken, otherOrderId);
 
         mockMvc.perform(get("/api/admin/refund-requests")
+                        .param("page", "0")
+                        .param("size", "10")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(2))
-                .andExpect(jsonPath("$.data[0].id").value(otherRefundRequestId))
-                .andExpect(jsonPath("$.data[0].orderId").value(otherOrderId))
-                .andExpect(jsonPath("$.data[0].productTitle").value("iPad Pro"))
-                .andExpect(jsonPath("$.data[1].id").value(refundRequestId))
-                .andExpect(jsonPath("$.data[1].orderId").value(orderId))
-                .andExpect(jsonPath("$.data[1].productTitle").value("MacBook Pro"));
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andExpect(jsonPath("$.data.content[0].id").value(otherRefundRequestId))
+                .andExpect(jsonPath("$.data.content[0].orderId").value(otherOrderId))
+                .andExpect(jsonPath("$.data.content[0].productTitle").value("iPad Pro"))
+                .andExpect(jsonPath("$.data.content[0].buyerNickname").value("otherBuyer"))
+                .andExpect(jsonPath("$.data.content[1].id").value(refundRequestId))
+                .andExpect(jsonPath("$.data.content[1].orderId").value(orderId))
+                .andExpect(jsonPath("$.data.content[1].productTitle").value("MacBook Pro"))
+                .andExpect(jsonPath("$.data.content[1].buyerNickname").value("buyer"))
+                .andExpect(jsonPath("$.data.totalElements").value(2))
+                .andExpect(jsonPath("$.data.totalPages").value(1))
+                .andExpect(jsonPath("$.data.number").value(0))
+                .andExpect(jsonPath("$.data.size").value(10));
+    }
+
+    @Test
+    void 관리자는_상태_없이_전체_환불_요청을_최신순으로_페이지_조회한다() throws Exception {
+        String adminToken = createAdminToken("admin-page-order@example.com");
+        String sellerToken = signupAndLogin("seller-page-order@example.com", "password123", "seller");
+        String firstBuyerToken = signupAndLogin("buyer-page-order-1@example.com", "password123", "firstBuyer");
+        String secondBuyerToken = signupAndLogin("buyer-page-order-2@example.com", "password123", "secondBuyer");
+        String thirdBuyerToken = signupAndLogin("buyer-page-order-3@example.com", "password123", "thirdBuyer");
+        Long firstProductId = createProduct(sellerToken, "First Product");
+        Long secondProductId = createProduct(sellerToken, "Second Product");
+        Long thirdProductId = createProduct(sellerToken, "Third Product");
+        Long firstOrderId = createDeliveredOrder(firstBuyerToken, firstProductId);
+        Long secondOrderId = createDeliveredOrder(secondBuyerToken, secondProductId);
+        Long thirdOrderId = createDeliveredOrder(thirdBuyerToken, thirdProductId);
+        Long firstRefundRequestId = createRefundRequest(firstBuyerToken, firstOrderId);
+        Long secondRefundRequestId = createRefundRequest(secondBuyerToken, secondOrderId);
+        Long thirdRefundRequestId = createRefundRequest(thirdBuyerToken, thirdOrderId);
+
+        approveRefundRequest(sellerToken, secondRefundRequestId);
+        rejectRefundRequest(sellerToken, thirdRefundRequestId);
+
+        mockMvc.perform(get("/api/admin/refund-requests")
+                        .param("page", "0")
+                        .param("size", "2")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andExpect(jsonPath("$.data.content[0].id").value(thirdRefundRequestId))
+                .andExpect(jsonPath("$.data.content[1].id").value(secondRefundRequestId))
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.number").value(0))
+                .andExpect(jsonPath("$.data.size").value(2));
+
+        mockMvc.perform(get("/api/admin/refund-requests")
+                        .param("page", "1")
+                        .param("size", "2")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(firstRefundRequestId))
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.number").value(1))
+                .andExpect(jsonPath("$.data.size").value(2));
     }
 
     @Test
@@ -477,6 +584,24 @@ class RefundRequestApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("id").asLong();
+    }
+
+    private void approveRefundRequest(String accessToken, Long refundRequestId) throws Exception {
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/approve", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
+    }
+
+    private void rejectRefundRequest(String accessToken, Long refundRequestId) throws Exception {
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/reject", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "rejectReason": "상품 설명과 다른 부분을 확인할 수 없습니다."
+                                }
+                                """))
+                .andExpect(status().isOk());
     }
 
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
