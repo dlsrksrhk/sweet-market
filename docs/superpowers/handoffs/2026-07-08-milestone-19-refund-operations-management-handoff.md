@@ -10,6 +10,9 @@
 - Added admin refund management page at `/admin/refunds`.
 - Added inline approve and reject actions with rejection reason input.
 - Refetched refund and order query data after approve/reject mutations.
+- Kept pagination usable after the last item on a refund page is approved or rejected.
+- Disabled refund operation actions while another approve/reject mutation is pending.
+- Adjusted navigation wrapping for the additional refund operation links.
 - Added backend tests for pagination, filtering, ordering, response fields, seller ownership, and admin access.
 
 ## Verification
@@ -23,9 +26,16 @@
   - `cd web`
   - `npm run build`
   - Result: `vite build` completed successfully in `1.43s`
+- Web build after final UI hardening passed:
+  - `cd web`
+  - `npm run build`
+  - Result: passed
 - Repo hygiene passed:
   - `git diff --check`
   - Result: no output
+- Repo hygiene after final UI hardening passed:
+  - `git diff --check`
+  - Result: no whitespace errors
 
 ## Local Notes
 
