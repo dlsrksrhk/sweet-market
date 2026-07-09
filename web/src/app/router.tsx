@@ -8,6 +8,7 @@ import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MyCartPage } from '../pages/MyCartPage';
 import { MyOrdersPage } from '../pages/MyOrdersPage';
+import { MyRefundHistoryPage } from '../pages/MyRefundHistoryPage';
 import { MyReportsPage } from '../pages/MyReportsPage';
 import { MySalesPage } from '../pages/MySalesPage';
 import { MySettlementsPage } from '../pages/MySettlementsPage';
@@ -63,6 +64,14 @@ export function AppRouter() {
           element={
             <RequireAuth>
               <MyOrdersPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="me/refunds"
+          element={
+            <RequireAuth>
+              <MyRefundHistoryPage />
             </RequireAuth>
           }
         />
