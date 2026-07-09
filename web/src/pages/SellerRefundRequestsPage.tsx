@@ -26,7 +26,7 @@ type RejectMutationInput = {
 
 const statusFilters: RefundRequestStatusFilter[] = ['REQUESTED', 'APPROVED', 'REJECTED', 'ALL'];
 
-export function MyRefundRequestsPage() {
+export function SellerRefundRequestsPage() {
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState<RefundRequestSearchInput>({
     status: 'REQUESTED',
@@ -137,8 +137,8 @@ export function MyRefundRequestsPage() {
   return (
     <section className="refund-operations-page">
       <div className="list-page-header">
-        <h1>환불 요청 관리</h1>
-        <p>판매 상품의 환불 요청을 검토하고 승인 또는 거절 처리합니다.</p>
+        <h1>판매 환불 관리</h1>
+        <p>내 판매 상품의 환불 요청을 검토하고 승인 또는 거절 처리합니다.</p>
       </div>
 
       <div className="admin-panel-heading-row">

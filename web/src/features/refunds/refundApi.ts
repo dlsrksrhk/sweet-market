@@ -11,6 +11,8 @@ export type RefundRequest = {
   productTitle: string;
   buyerId: number;
   buyerNickname: string;
+  sellerId: number;
+  sellerNickname: string;
   reason: string;
   status: RefundRequestStatus;
   requestedAt: string;
@@ -46,6 +48,10 @@ export function getSellerRefundRequests(input: RefundRequestSearchInput) {
 
 export function getAdminRefundRequests(input: RefundRequestSearchInput) {
   return api<RefundRequestPage>(`/api/admin/refund-requests?${buildRefundRequestSearchParams(input)}`);
+}
+
+export function getMyRefundRequests(input: RefundRequestSearchInput) {
+  return api<RefundRequestPage>(`/api/refund-requests/me?${buildRefundRequestSearchParams(input)}`);
 }
 
 export function approveSellerRefundRequest(refundRequestId: number) {

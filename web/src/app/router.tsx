@@ -8,13 +8,13 @@ import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MyCartPage } from '../pages/MyCartPage';
 import { MyOrdersPage } from '../pages/MyOrdersPage';
-import { MyRefundRequestsPage } from '../pages/MyRefundRequestsPage';
 import { MyReportsPage } from '../pages/MyReportsPage';
 import { MySalesPage } from '../pages/MySalesPage';
 import { MySettlementsPage } from '../pages/MySettlementsPage';
 import { MyWishlistPage } from '../pages/MyWishlistPage';
 import { ProductDetailPage } from '../pages/ProductDetailPage';
 import { ProductFormPage } from '../pages/ProductFormPage';
+import { SellerRefundRequestsPage } from '../pages/SellerRefundRequestsPage';
 import { SignupPage } from '../pages/SignupPage';
 import { Shell } from '../shared/layout/Shell';
 
@@ -91,10 +91,10 @@ export function AppRouter() {
           }
         />
         <Route
-          path="me/refunds"
+          path="me/sales/refunds"
           element={
             <RequireAuth>
-              <MyRefundRequestsPage />
+              <SellerRefundRequestsPage />
             </RequireAuth>
           }
         />
