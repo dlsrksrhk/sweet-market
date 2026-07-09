@@ -372,18 +372,30 @@ class RefundRequestApiTest extends IntegrationTestSupport {
     void 구매자는_환불_요청_상태로_내역을_필터링할_수_있다() throws Exception {
         String sellerToken = signupAndLogin("seller-buyer-filter@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer-refund-filter@example.com", "password123", "buyer");
+        String otherBuyerToken = signupAndLogin("other-buyer-refund-filter@example.com", "password123", "otherBuyer");
         Long requestedProductId = createProduct(sellerToken, "Requested Product");
         Long approvedProductId = createProduct(sellerToken, "Approved Product");
         Long rejectedProductId = createProduct(sellerToken, "Rejected Product");
+        Long otherRequestedProductId = createProduct(sellerToken, "Other Requested Product");
+        Long otherApprovedProductId = createProduct(sellerToken, "Other Approved Product");
+        Long otherRejectedProductId = createProduct(sellerToken, "Other Rejected Product");
         Long requestedOrderId = createDeliveredOrder(buyerToken, requestedProductId);
         Long approvedOrderId = createDeliveredOrder(buyerToken, approvedProductId);
         Long rejectedOrderId = createDeliveredOrder(buyerToken, rejectedProductId);
+        Long otherRequestedOrderId = createDeliveredOrder(otherBuyerToken, otherRequestedProductId);
+        Long otherApprovedOrderId = createDeliveredOrder(otherBuyerToken, otherApprovedProductId);
+        Long otherRejectedOrderId = createDeliveredOrder(otherBuyerToken, otherRejectedProductId);
         Long requestedRefundRequestId = createRefundRequest(buyerToken, requestedOrderId);
         Long approvedRefundRequestId = createRefundRequest(buyerToken, approvedOrderId);
         Long rejectedRefundRequestId = createRefundRequest(buyerToken, rejectedOrderId);
+        createRefundRequest(otherBuyerToken, otherRequestedOrderId);
+        Long otherApprovedRefundRequestId = createRefundRequest(otherBuyerToken, otherApprovedOrderId);
+        Long otherRejectedRefundRequestId = createRefundRequest(otherBuyerToken, otherRejectedOrderId);
 
         approveRefundRequest(sellerToken, approvedRefundRequestId);
         rejectRefundRequest(sellerToken, rejectedRefundRequestId);
+        approveRefundRequest(sellerToken, otherApprovedRefundRequestId);
+        rejectRefundRequest(sellerToken, otherRejectedRefundRequestId);
 
         mockMvc.perform(get("/api/refund-requests/me")
                         .param("status", "REQUESTED")
@@ -391,7 +403,10 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content.length()").value(1))
                 .andExpect(jsonPath("$.data.content[0].id").value(requestedRefundRequestId))
-                .andExpect(jsonPath("$.data.content[0].status").value("REQUESTED"));
+                .andExpect(jsonPath("$.data.content[0].status").value("REQUESTED"))
+                .andExpect(jsonPath("$.data.content[0].handledById").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].handledAt").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].rejectReason").doesNotExist());
 
         mockMvc.perform(get("/api/refund-requests/me")
                         .param("status", "APPROVED")
@@ -401,7 +416,8 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].id").value(approvedRefundRequestId))
                 .andExpect(jsonPath("$.data.content[0].status").value("APPROVED"))
                 .andExpect(jsonPath("$.data.content[0].handledById").isNumber())
-                .andExpect(jsonPath("$.data.content[0].handledAt").exists());
+                .andExpect(jsonPath("$.data.content[0].handledAt").exists())
+                .andExpect(jsonPath("$.data.content[0].rejectReason").doesNotExist());
 
         mockMvc.perform(get("/api/refund-requests/me")
                         .param("status", "REJECTED")
