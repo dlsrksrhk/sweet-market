@@ -406,7 +406,9 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].status").value("REQUESTED"))
                 .andExpect(jsonPath("$.data.content[0].handledById").doesNotExist())
                 .andExpect(jsonPath("$.data.content[0].handledAt").doesNotExist())
-                .andExpect(jsonPath("$.data.content[0].rejectReason").doesNotExist());
+                .andExpect(jsonPath("$.data.content[0].rejectReason").doesNotExist())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.totalPages").value(1));
 
         mockMvc.perform(get("/api/refund-requests/me")
                         .param("status", "APPROVED")
@@ -417,7 +419,9 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].status").value("APPROVED"))
                 .andExpect(jsonPath("$.data.content[0].handledById").isNumber())
                 .andExpect(jsonPath("$.data.content[0].handledAt").exists())
-                .andExpect(jsonPath("$.data.content[0].rejectReason").doesNotExist());
+                .andExpect(jsonPath("$.data.content[0].rejectReason").doesNotExist())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.totalPages").value(1));
 
         mockMvc.perform(get("/api/refund-requests/me")
                         .param("status", "REJECTED")
@@ -428,7 +432,9 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].status").value("REJECTED"))
                 .andExpect(jsonPath("$.data.content[0].handledById").isNumber())
                 .andExpect(jsonPath("$.data.content[0].handledAt").exists())
-                .andExpect(jsonPath("$.data.content[0].rejectReason").value("상품 설명과 다른 부분을 확인할 수 없습니다."));
+                .andExpect(jsonPath("$.data.content[0].rejectReason").value("상품 설명과 다른 부분을 확인할 수 없습니다."))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.totalPages").value(1));
     }
 
     @Test
