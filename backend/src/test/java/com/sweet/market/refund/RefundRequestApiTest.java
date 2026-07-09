@@ -50,6 +50,8 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.productTitle").value("MacBook Pro"))
                 .andExpect(jsonPath("$.data.buyerId").isNumber())
                 .andExpect(jsonPath("$.data.buyerNickname").value("buyer"))
+                .andExpect(jsonPath("$.data.sellerId").isNumber())
+                .andExpect(jsonPath("$.data.sellerNickname").value("seller"))
                 .andExpect(jsonPath("$.data.reason").value("상품 상태가 설명과 달라 환불을 요청합니다."))
                 .andExpect(jsonPath("$.data.status").value("REQUESTED"))
                 .andExpect(jsonPath("$.data.requestedAt").exists())
@@ -273,6 +275,8 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].productTitle").value("MacBook Pro"))
                 .andExpect(jsonPath("$.data.content[0].buyerId").isNumber())
                 .andExpect(jsonPath("$.data.content[0].buyerNickname").value("buyer"))
+                .andExpect(jsonPath("$.data.content[0].sellerId").isNumber())
+                .andExpect(jsonPath("$.data.content[0].sellerNickname").value("seller"))
                 .andExpect(jsonPath("$.data.content[0].status").value("REQUESTED"))
                 .andExpect(jsonPath("$.data.content[0].reason").value("상품 상태가 설명과 달라 환불을 요청합니다."))
                 .andExpect(jsonPath("$.data.totalElements").value(1))
@@ -323,6 +327,142 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content.length()").value(1))
                 .andExpect(jsonPath("$.data.content[0].id").value(rejectedRefundRequestId))
                 .andExpect(jsonPath("$.data.content[0].status").value("REJECTED"));
+    }
+
+    @Test
+    void 구매자는_자신의_환불_요청_목록만_페이지로_조회할_수_있다() throws Exception {
+        String sellerToken = signupAndLogin("seller-buyer-list@example.com", "password123", "seller");
+        String otherSellerToken = signupAndLogin("other-seller-buyer-list@example.com", "password123", "otherSeller");
+        String buyerToken = signupAndLogin("buyer-refund-list@example.com", "password123", "buyer");
+        String otherBuyerToken = signupAndLogin("other-buyer-refund-list@example.com", "password123", "otherBuyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long otherProductId = createProduct(otherSellerToken, "iPad Pro");
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long otherOrderId = createDeliveredOrder(otherBuyerToken, otherProductId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+        createRefundRequest(otherBuyerToken, otherOrderId);
+
+        mockMvc.perform(get("/api/refund-requests/me")
+                        .param("page", "0")
+                        .param("size", "10")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(refundRequestId))
+                .andExpect(jsonPath("$.data.content[0].orderId").value(orderId))
+                .andExpect(jsonPath("$.data.content[0].productId").value(productId))
+                .andExpect(jsonPath("$.data.content[0].productTitle").value("MacBook Pro"))
+                .andExpect(jsonPath("$.data.content[0].buyerId").isNumber())
+                .andExpect(jsonPath("$.data.content[0].buyerNickname").value("buyer"))
+                .andExpect(jsonPath("$.data.content[0].sellerId").isNumber())
+                .andExpect(jsonPath("$.data.content[0].sellerNickname").value("seller"))
+                .andExpect(jsonPath("$.data.content[0].status").value("REQUESTED"))
+                .andExpect(jsonPath("$.data.content[0].reason").value("상품 상태가 설명과 달라 환불을 요청합니다."))
+                .andExpect(jsonPath("$.data.content[0].requestedAt").exists())
+                .andExpect(jsonPath("$.data.content[0].handledById").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].handledAt").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].rejectReason").doesNotExist())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.totalPages").value(1))
+                .andExpect(jsonPath("$.data.number").value(0))
+                .andExpect(jsonPath("$.data.size").value(10));
+    }
+
+    @Test
+    void 구매자는_환불_요청_상태로_내역을_필터링할_수_있다() throws Exception {
+        String sellerToken = signupAndLogin("seller-buyer-filter@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer-refund-filter@example.com", "password123", "buyer");
+        Long requestedProductId = createProduct(sellerToken, "Requested Product");
+        Long approvedProductId = createProduct(sellerToken, "Approved Product");
+        Long rejectedProductId = createProduct(sellerToken, "Rejected Product");
+        Long requestedOrderId = createDeliveredOrder(buyerToken, requestedProductId);
+        Long approvedOrderId = createDeliveredOrder(buyerToken, approvedProductId);
+        Long rejectedOrderId = createDeliveredOrder(buyerToken, rejectedProductId);
+        Long requestedRefundRequestId = createRefundRequest(buyerToken, requestedOrderId);
+        Long approvedRefundRequestId = createRefundRequest(buyerToken, approvedOrderId);
+        Long rejectedRefundRequestId = createRefundRequest(buyerToken, rejectedOrderId);
+
+        approveRefundRequest(sellerToken, approvedRefundRequestId);
+        rejectRefundRequest(sellerToken, rejectedRefundRequestId);
+
+        mockMvc.perform(get("/api/refund-requests/me")
+                        .param("status", "REQUESTED")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(requestedRefundRequestId))
+                .andExpect(jsonPath("$.data.content[0].status").value("REQUESTED"));
+
+        mockMvc.perform(get("/api/refund-requests/me")
+                        .param("status", "APPROVED")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(approvedRefundRequestId))
+                .andExpect(jsonPath("$.data.content[0].status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.content[0].handledById").isNumber())
+                .andExpect(jsonPath("$.data.content[0].handledAt").exists());
+
+        mockMvc.perform(get("/api/refund-requests/me")
+                        .param("status", "REJECTED")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(rejectedRefundRequestId))
+                .andExpect(jsonPath("$.data.content[0].status").value("REJECTED"))
+                .andExpect(jsonPath("$.data.content[0].handledById").isNumber())
+                .andExpect(jsonPath("$.data.content[0].handledAt").exists())
+                .andExpect(jsonPath("$.data.content[0].rejectReason").value("상품 설명과 다른 부분을 확인할 수 없습니다."));
+    }
+
+    @Test
+    void 구매자는_상태_없이_전체_환불_내역을_최신순으로_페이지_조회한다() throws Exception {
+        String sellerToken = signupAndLogin("seller-buyer-page-order@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer-refund-page-order@example.com", "password123", "buyer");
+        Long firstProductId = createProduct(sellerToken, "First Product");
+        Long secondProductId = createProduct(sellerToken, "Second Product");
+        Long thirdProductId = createProduct(sellerToken, "Third Product");
+        Long firstOrderId = createDeliveredOrder(buyerToken, firstProductId);
+        Long secondOrderId = createDeliveredOrder(buyerToken, secondProductId);
+        Long thirdOrderId = createDeliveredOrder(buyerToken, thirdProductId);
+        Long firstRefundRequestId = createRefundRequest(buyerToken, firstOrderId);
+        Long secondRefundRequestId = createRefundRequest(buyerToken, secondOrderId);
+        Long thirdRefundRequestId = createRefundRequest(buyerToken, thirdOrderId);
+
+        approveRefundRequest(sellerToken, secondRefundRequestId);
+        rejectRefundRequest(sellerToken, thirdRefundRequestId);
+
+        mockMvc.perform(get("/api/refund-requests/me")
+                        .param("page", "0")
+                        .param("size", "2")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andExpect(jsonPath("$.data.content[0].id").value(thirdRefundRequestId))
+                .andExpect(jsonPath("$.data.content[1].id").value(secondRefundRequestId))
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.number").value(0))
+                .andExpect(jsonPath("$.data.size").value(2));
+
+        mockMvc.perform(get("/api/refund-requests/me")
+                        .param("page", "1")
+                        .param("size", "2")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(firstRefundRequestId))
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.data.number").value(1))
+                .andExpect(jsonPath("$.data.size").value(2));
+    }
+
+    @Test
+    void 환불_내역_조회는_인증_토큰이_필요하다() throws Exception {
+        mockMvc.perform(get("/api/refund-requests/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
     }
 
     @Test
@@ -396,10 +536,12 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].orderId").value(otherOrderId))
                 .andExpect(jsonPath("$.data.content[0].productTitle").value("iPad Pro"))
                 .andExpect(jsonPath("$.data.content[0].buyerNickname").value("otherBuyer"))
+                .andExpect(jsonPath("$.data.content[0].sellerNickname").value("otherSeller"))
                 .andExpect(jsonPath("$.data.content[1].id").value(refundRequestId))
                 .andExpect(jsonPath("$.data.content[1].orderId").value(orderId))
                 .andExpect(jsonPath("$.data.content[1].productTitle").value("MacBook Pro"))
                 .andExpect(jsonPath("$.data.content[1].buyerNickname").value("buyer"))
+                .andExpect(jsonPath("$.data.content[1].sellerNickname").value("seller"))
                 .andExpect(jsonPath("$.data.totalElements").value(2))
                 .andExpect(jsonPath("$.data.totalPages").value(1))
                 .andExpect(jsonPath("$.data.number").value(0))
