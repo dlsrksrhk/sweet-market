@@ -94,6 +94,12 @@ public class RefundRequestService {
     }
 
     @Transactional(readOnly = true)
+    public Page<RefundRequestResponse> findBuyerRequests(Long buyerId, RefundRequestStatus status, Pageable pageable) {
+        return refundRequestRepository.findBuyerRequests(buyerId, status, pageable)
+                .map(RefundRequestResponse::from);
+    }
+
+    @Transactional(readOnly = true)
     public Page<RefundRequestResponse> findSellerRequests(Long sellerId, RefundRequestStatus status, Pageable pageable) {
         return refundRequestRepository.findSellerRequests(sellerId, status, pageable)
                 .map(RefundRequestResponse::from);

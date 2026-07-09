@@ -42,6 +42,28 @@ public interface RefundRequestRepository extends JpaRepository<RefundRequest, Lo
             value = """
                     select r
                     from RefundRequest r
+                    where r.buyer.id = :buyerId
+                      and (:status is null or r.status = :status)
+                    order by r.requestedAt desc, r.id desc
+                    """,
+            countQuery = """
+                    select count(r)
+                    from RefundRequest r
+                    where r.buyer.id = :buyerId
+                      and (:status is null or r.status = :status)
+                    """
+    )
+    Page<RefundRequest> findBuyerRequests(
+            @Param("buyerId") Long buyerId,
+            @Param("status") RefundRequestStatus status,
+            Pageable pageable
+    );
+
+    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.seller", "buyer", "handledBy"})
+    @Query(
+            value = """
+                    select r
+                    from RefundRequest r
                     join r.order o
                     join o.product p
                     where p.seller.id = :sellerId
