@@ -49,6 +49,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 store.id,
                 store.publicName,
                 store.type,
+                owner.id,
+                owner.nickname,
                 p.title,
                 p.price,
                 p.status,
@@ -104,6 +106,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             )
             from Product p
             join p.store store
+            join store.ownerMember owner
             where p.status = :status
               and (store.type <> com.sweet.market.store.domain.StoreType.BUSINESS
                    or store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE)
@@ -129,6 +132,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 store.id,
                 store.publicName,
                 store.type,
+                owner.id,
+                owner.nickname,
                 p.title,
                 p.price,
                 p.status,
@@ -159,6 +164,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             )
             from Product p
             join p.store store
+            join store.ownerMember owner
             where store.ownerMember.id = :sellerId
             order by p.id desc
             """,

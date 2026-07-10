@@ -10,6 +10,8 @@ public record ProductSummaryResponse(
         Long storeId,
         String storeName,
         String storeType,
+        Long sellerId,
+        String sellerNickname,
         String title,
         long price,
         String status,
@@ -24,12 +26,14 @@ public record ProductSummaryResponse(
             Long storeId,
             String storeName,
             StoreType storeType,
+            Long sellerId,
+            String sellerNickname,
             String title,
             long price,
             ProductStatus status,
             String thumbnailUrl
     ) {
-        this(id, storeId, storeName, storeType.name(), title, price, status.name(), thumbnailUrl, 0, false, false);
+        this(id, storeId, storeName, storeType.name(), sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, 0, false, false);
     }
 
     public ProductSummaryResponse(
@@ -37,6 +41,8 @@ public record ProductSummaryResponse(
             Long storeId,
             String storeName,
             StoreType storeType,
+            Long sellerId,
+            String sellerNickname,
             String title,
             long price,
             ProductStatus status,
@@ -45,7 +51,7 @@ public record ProductSummaryResponse(
             boolean wishlisted,
             boolean carted
     ) {
-        this(id, storeId, storeName, storeType.name(), title, price, status.name(), thumbnailUrl, wishlistCount, wishlisted, carted);
+        this(id, storeId, storeName, storeType.name(), sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, wishlistCount, wishlisted, carted);
     }
 
     public ProductSummaryResponse(
@@ -53,12 +59,14 @@ public record ProductSummaryResponse(
             Long storeId,
             String storeName,
             String storeType,
+            Long sellerId,
+            String sellerNickname,
             String title,
             long price,
             ProductStatus status,
             String thumbnailUrl
     ) {
-        this(id, storeId, storeName, storeType, title, price, status.name(), thumbnailUrl, 0, false, false);
+        this(id, storeId, storeName, storeType, sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, 0, false, false);
     }
 
     public ProductSummaryResponse(
@@ -66,6 +74,8 @@ public record ProductSummaryResponse(
             Long storeId,
             String storeName,
             String storeType,
+            Long sellerId,
+            String sellerNickname,
             String title,
             long price,
             ProductStatus status,
@@ -74,7 +84,7 @@ public record ProductSummaryResponse(
             boolean wishlisted,
             boolean carted
     ) {
-        this(id, storeId, storeName, storeType, title, price, status.name(), thumbnailUrl, wishlistCount, wishlisted, carted);
+        this(id, storeId, storeName, storeType, sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, wishlistCount, wishlisted, carted);
     }
 
     public static ProductSummaryResponse from(Product product) {
@@ -103,6 +113,8 @@ public record ProductSummaryResponse(
                 product.getStore().getId(),
                 product.getStore().getPublicName(),
                 product.getStore().getType().name(),
+                product.getStore().getOwnerMember().getId(),
+                product.getStore().getOwnerMember().getNickname(),
                 product.getTitle(),
                 product.getPrice(),
                 product.getStatus().name(),

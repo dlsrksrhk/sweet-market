@@ -8,6 +8,9 @@ import com.sweet.market.refund.domain.RefundRequest;
 public record OrderSummaryResponse(
         Long id,
         Long productId,
+        Long storeId,
+        String storeName,
+        String storeType,
         String productTitle,
         long productPrice,
         Long sellerId,
@@ -34,6 +37,9 @@ public record OrderSummaryResponse(
         return new OrderSummaryResponse(
                 order.getId(),
                 order.getProduct().getId(),
+                order.getProduct().getStore().getId(),
+                order.getProduct().getStore().getPublicName(),
+                order.getProduct().getStore().getType().name(),
                 order.getProduct().getTitle(),
                 order.getProduct().getPrice(),
                 order.getSeller().getId(),

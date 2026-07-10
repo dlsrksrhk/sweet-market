@@ -115,6 +115,40 @@ class OrderQueryApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 주문_응답은_주문_판매자와_상점_정보를_일관되게_반환한다() throws Exception {
+        String sellerToken = signupAndLogin("seller-response@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("buyer-response@example.com", "password123", "buyer");
+        Long storeId = activePersonalStoreId(sellerToken);
+        Long sellerId = jdbcTemplate.queryForObject(
+                "select owner_member_id from stores where id = ?",
+                Long.class,
+                storeId
+        );
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long orderId = createOrder(buyerToken, productId);
+
+        mockMvc.perform(get("/api/orders/{orderId}", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.storeId").value(storeId))
+                .andExpect(jsonPath("$.data.storeName").value("seller의 상점"))
+                .andExpect(jsonPath("$.data.storeType").value("PERSONAL"))
+                .andExpect(jsonPath("$.data.sellerId").value(sellerId))
+                .andExpect(jsonPath("$.data.sellerNickname").value("seller"));
+
+        mockMvc.perform(get("/api/orders/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].id").value(orderId))
+                .andExpect(jsonPath("$.data.content[0].storeId").value(storeId))
+                .andExpect(jsonPath("$.data.content[0].storeName").value("seller의 상점"))
+                .andExpect(jsonPath("$.data.content[0].storeType").value("PERSONAL"))
+                .andExpect(jsonPath("$.data.content[0].sellerId").value(sellerId))
+                .andExpect(jsonPath("$.data.content[0].sellerNickname").value("seller"));
+    }
+
+    @Test
     void 구매자_주문_상세는_환불_요청_상태를_포함한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");

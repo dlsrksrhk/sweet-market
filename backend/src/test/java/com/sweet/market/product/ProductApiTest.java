@@ -639,6 +639,36 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 상품_응답은_상점과_판매자_식별자를_일관되게_반환한다() throws Exception {
+        String sellerToken = signupAndLogin("seller-response@example.com", "password123", "seller");
+        Long storeId = activePersonalStoreId(sellerToken);
+        Long sellerId = jdbcTemplate.queryForObject(
+                "select owner_member_id from stores where id = ?",
+                Long.class,
+                storeId
+        );
+        Long productId = createProduct(sellerToken);
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.storeId").value(storeId))
+                .andExpect(jsonPath("$.data.storeName").value("seller의 상점"))
+                .andExpect(jsonPath("$.data.storeType").value("PERSONAL"))
+                .andExpect(jsonPath("$.data.sellerId").value(sellerId))
+                .andExpect(jsonPath("$.data.sellerNickname").value("seller"));
+
+        mockMvc.perform(get("/api/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].id").value(productId))
+                .andExpect(jsonPath("$.data.content[0].storeId").value(storeId))
+                .andExpect(jsonPath("$.data.content[0].storeName").value("seller의 상점"))
+                .andExpect(jsonPath("$.data.content[0].storeType").value("PERSONAL"))
+                .andExpect(jsonPath("$.data.content[0].sellerId").value(sellerId))
+                .andExpect(jsonPath("$.data.content[0].sellerNickname").value("seller"));
+    }
+
+    @Test
     void 숨김_상품은_공개_목록과_상세_조회에서_제외된다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long productId = createProduct(sellerToken);
