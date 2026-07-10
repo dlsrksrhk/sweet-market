@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -46,6 +47,9 @@ class StoreApiTest extends IntegrationTestSupport {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Autowired
     private StoreAccessService storeAccessService;
