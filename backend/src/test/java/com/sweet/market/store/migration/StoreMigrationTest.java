@@ -6,8 +6,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.UUID;
 
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.FlywayException;
+import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -123,6 +126,63 @@ class StoreMigrationTest {
                     """))
                     .isInstanceOf(SQLException.class);
         }
+    }
+
+    @Test
+    void 중복_사업자_상점이_있는_업그레이드는_데이터를_보존하고_중단한다() throws SQLException {
+        String schema = "business_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+        try (Connection connection = DriverManager.getConnection(
+                POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword()
+        )) {
+            connection.createStatement().execute("CREATE SCHEMA " + schema);
+            connection.createStatement().execute("""
+                    CREATE TABLE %s.members (
+                        id BIGINT PRIMARY KEY,
+                        nickname VARCHAR(30) NOT NULL,
+                        role VARCHAR(20) NOT NULL
+                    )
+                    """.formatted(schema));
+            connection.createStatement().execute("""
+                    INSERT INTO %s.members (id, nickname, role) VALUES (1, '기존 회원', 'MEMBER')
+                    """.formatted(schema));
+        }
+        Flyway versionOne = configureFlyway(schema).target("1").load();
+        versionOne.migrate();
+
+        try (Connection connection = DriverManager.getConnection(
+                POSTGRESQL.getJdbcUrl(),
+                POSTGRESQL.getUsername(),
+                POSTGRESQL.getPassword()
+        )) {
+            connection.createStatement().execute("""
+                    INSERT INTO %s.stores (owner_member_id, type, public_name, introduction, status)
+                    VALUES (1, 'BUSINESS', '기존 사업자 상점 1', '', 'PENDING'),
+                           (1, 'BUSINESS', '기존 사업자 상점 2', '', 'PENDING')
+                    """.formatted(schema));
+
+            assertThatThrownBy(() -> configureFlyway(schema).load().migrate())
+                    .isInstanceOf(FlywayException.class)
+                    .hasMessageContaining("Duplicate BUSINESS stores");
+            assertThat(queryLong(connection, "SELECT COUNT(*) FROM %s.stores WHERE type = 'BUSINESS'".formatted(schema)))
+                    .isEqualTo(2);
+        } finally {
+            try (Connection connection = DriverManager.getConnection(
+                    POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword()
+            )) {
+                connection.createStatement().execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+            }
+        }
+    }
+
+    private FluentConfiguration configureFlyway(String schema) {
+        return Flyway.configure()
+                .dataSource(POSTGRESQL.getJdbcUrl(), POSTGRESQL.getUsername(), POSTGRESQL.getPassword())
+                .schemas(schema)
+                .defaultSchema(schema)
+                .createSchemas(true)
+                .baselineOnMigrate(true)
+                .baselineVersion("0")
+                .locations("classpath:db/migration");
     }
 
     private long queryLong(Connection connection, String sql) throws SQLException {

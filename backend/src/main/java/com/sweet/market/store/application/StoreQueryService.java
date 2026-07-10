@@ -24,7 +24,7 @@ public class StoreQueryService {
 
     @Transactional(readOnly = true)
     public List<StorePrivateResponse> findOwnedStores(Long memberId) {
-        return storeRepository.findAllByOwnerMemberId(memberId).stream()
+        return storeRepository.findAllOwnedByOwnerMemberIdInMyStoreOrder(memberId).stream()
                 .map(StorePrivateResponse::from)
                 .toList();
     }
