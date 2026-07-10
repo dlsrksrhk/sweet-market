@@ -53,6 +53,24 @@ class StoreTest {
     }
 
     @Test
+    void 사업자_상점_반려_사유는_비어_있을_수_없다() {
+        Store store = businessStore();
+
+        assertThatThrownBy(() -> store.reject("  "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Store rejection reason must be provided");
+    }
+
+    @Test
+    void 사업자_상점_반려_사유는_null일_수_없다() {
+        Store store = businessStore();
+
+        assertThatThrownBy(() -> store.reject(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Store rejection reason must be provided");
+    }
+
+    @Test
     void 반려된_사업자_상점은_재신청할_수_있다() {
         Store store = businessStore();
         store.reject("반려 사유");

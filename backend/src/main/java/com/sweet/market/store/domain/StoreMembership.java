@@ -56,6 +56,9 @@ public class StoreMembership {
     }
 
     public static StoreMembership createOwner(Store store, Member member) {
+        if (!store.getOwnerMember().equals(member)) {
+            throw new IllegalArgumentException("Store owner membership must match the store owner");
+        }
         return new StoreMembership(store, member, StoreMemberRole.OWNER);
     }
 

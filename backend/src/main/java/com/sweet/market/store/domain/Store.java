@@ -112,6 +112,9 @@ public class Store {
 
     public void reject(String rejectionReason) {
         validateStatus(StoreStatus.PENDING, "rejected");
+        if (rejectionReason == null || rejectionReason.isBlank()) {
+            throw new IllegalArgumentException("Store rejection reason must be provided");
+        }
         this.status = StoreStatus.REJECTED;
         this.rejectionReason = rejectionReason;
     }
