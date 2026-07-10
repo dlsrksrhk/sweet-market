@@ -68,6 +68,28 @@ class StoreApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 회원가입_후_사업자_상점을_신청하면_내_상점에_개인과_사업자_상점이_함께_조회된다() throws Exception {
+        String email = "signup-business@example.com";
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"signup-business@example.com\",\"password\":\"password123\",\"nickname\":\"가입회원\"}"))
+                .andExpect(status().isCreated());
+        String token = login(email);
+
+        mockMvc.perform(post("/api/stores/business-applications")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(businessApplicationJson("사업자 상점", "소개", "스위트 주식회사", "123-45-67890")))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/stores/me").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(2)))
+                .andExpect(jsonPath("$.data[0].type").value("PERSONAL"))
+                .andExpect(jsonPath("$.data[1].type").value("BUSINESS"));
+    }
+
+    @Test
     void 사업자_상점은_소유자당_하나만_신청할_수_있다() throws Exception {
         Member owner = saveMember("duplicate@example.com", "owner");
         String token = login(owner.getEmail());

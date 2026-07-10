@@ -1,5 +1,6 @@
 package com.sweet.market.store.application;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,9 +45,14 @@ public class StoreGovernanceService {
         }
         Member owner = memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
-        Store store = storeRepository.save(Store.applyBusiness(
-                owner, request.publicName(), request.introduction(), request.legalBusinessName(), request.businessRegistrationId()
-        ));
+        Store store;
+        try {
+            store = storeRepository.saveAndFlush(Store.applyBusiness(
+                    owner, request.publicName(), request.introduction(), request.legalBusinessName(), request.businessRegistrationId()
+            ));
+        } catch (DataIntegrityViolationException exception) {
+            throw new BusinessException(ErrorCode.DUPLICATE_BUSINESS_STORE);
+        }
         storeMembershipRepository.save(StoreMembership.createOwner(store, owner));
         return StorePrivateResponse.from(store);
     }

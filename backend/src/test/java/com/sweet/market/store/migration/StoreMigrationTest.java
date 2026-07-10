@@ -1,6 +1,7 @@
 package com.sweet.market.store.migration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -22,7 +23,7 @@ class StoreMigrationTest {
             .withPassword("market");
 
     @Test
-    void 기존_판매자별_상점으로_상품_주문을_이관하고_재실행해도_중복되지_않는다() throws SQLException {
+    void 기존_판매자별_상점으로_상품_주문을_이관하고_사업자_상점은_소유자당_하나만_생성된다() throws SQLException {
         try (Connection connection = DriverManager.getConnection(
                 POSTGRESQL.getJdbcUrl(),
                 POSTGRESQL.getUsername(),
@@ -111,6 +112,16 @@ class StoreMigrationTest {
                     .isEqualTo(2);
             assertThat(queryLong(connection, "SELECT COUNT(*) FROM stores WHERE version = 0"))
                     .isEqualTo(2);
+
+            connection.createStatement().execute("""
+                    INSERT INTO stores (owner_member_id, type, public_name, introduction, status)
+                    VALUES (1, 'BUSINESS', '첫 사업자 상점', '', 'PENDING')
+                    """);
+            assertThatThrownBy(() -> connection.createStatement().execute("""
+                    INSERT INTO stores (owner_member_id, type, public_name, introduction, status)
+                    VALUES (1, 'BUSINESS', '중복 사업자 상점', '', 'PENDING')
+                    """))
+                    .isInstanceOf(SQLException.class);
         }
     }
 

@@ -22,6 +22,9 @@ public class StoreAccessService {
         this.storeMembershipRepository = storeMembershipRepository;
     }
 
+    /**
+     * Task 3의 상품 카탈로그 생성·수정·숨김 API에서 이 권한 검사를 사용한다.
+     */
     @Transactional(readOnly = true)
     public Store requireCatalogOperator(Long memberId, Long storeId) {
         Store store = findStore(storeId);
