@@ -339,14 +339,14 @@ class ProductTest {
     }
 
     @Test
-    void 비활성_사업자_상점에는_상품을_등록할_수_없다() {
+    void 비활성_사업자_상점에는_상품을_등록할_수_없다_도메인_상태() {
         Store store = Store.applyBusiness(Member.create("owner@example.com", "encoded-password", "owner"), "사업자", "", "법인", "1");
 
         assertThat(store.getStatus().name()).isEqualTo("PENDING");
     }
 
     @Test
-    void 비활성_사업자_상점_상품은_공개_목록에서_제외된다() {
+    void 비활성_사업자_상점_상품은_공개_목록에서_제외된다_도메인_상태() {
         Store store = Store.applyBusiness(Member.create("owner@example.com", "encoded-password", "owner"), "사업자", "", "법인", "1");
         Product product = Product.create(store, "상품", "설명", 10_000L);
 
@@ -354,14 +354,14 @@ class ProductTest {
     }
 
     @Test
-    void 비활성_사업자_상점_상품의_직접_조회는_구매_불가를_반환한다() {
+    void 비활성_사업자_상점_상품의_직접_조회는_구매_불가를_반환한다_도메인_상태() {
         Store store = Store.applyBusiness(Member.create("owner@example.com", "encoded-password", "owner"), "사업자", "", "법인", "1");
 
         assertThat(Product.create(store, "상품", "설명", 10_000L).isPurchasable()).isFalse();
     }
 
     @Test
-    void 비활성_사업자_상점_상품은_장바구니에_담거나_주문할_수_없다() {
+    void 비활성_사업자_상점_상품은_장바구니에_담거나_주문할_수_없다_도메인_상태() {
         Store store = Store.applyBusiness(Member.create("owner@example.com", "encoded-password", "owner"), "사업자", "", "법인", "1");
         Product product = Product.create(store, "상품", "설명", 10_000L);
 
@@ -386,5 +386,8 @@ class ProductTest {
         RefundRequest refund = RefundRequest.request(order, order.getBuyer(), "환불 사유는 충분히 깁니다");
 
         assertThat(refund.isSellerOwnedBy(1L)).isTrue();
+        Order settledOrder = Order.create(Member.create("buyer2@example.com", "encoded-password", "buyer2"), Product.create(Store.createPersonal(owner, "상점2", ""), "상품2", "설명", 10_000L));
+        settledOrder.markPaid(); settledOrder.startShipping(); settledOrder.completeDelivery(); settledOrder.confirm();
+        assertThat(Settlement.create(settledOrder).getSeller()).isSameAs(owner);
     }
 }
