@@ -1,8 +1,8 @@
-# Hybrid Used Marketplace Roadmap: Milestones 25-31
+# Hybrid Used Marketplace Roadmap: Milestones 21-31
 
 ## Purpose
 
-This document is the long-range reference for the next product phase after the Store, catalog, and inventory foundations are in place. It turns Sweet Market from a personal used-goods marketplace into a hybrid marketplace where both individual sellers and business stores sell inspected used goods.
+This document is the long-range reference for the next product phase. It starts with Store, catalog, and inventory foundations, then turns Sweet Market from a personal used-goods marketplace into a hybrid marketplace where both individual sellers and business stores sell inspected used goods.
 
 It is deliberately a roadmap, not an implementation plan. Start each milestone in a new session by creating its own design spec, then its own implementation plan. Do not treat every API, table, or class name below as a mandatory implementation detail when the surrounding code suggests a cleaner fit.
 
@@ -92,6 +92,321 @@ DRAFT -> SCHEDULED -> ACTIVE -> ENDED
 ```
 
 Only `ACTIVE` campaigns can issue coupons or affect a quote. Ending or pausing a campaign blocks new issuance and new use; it does not erase historical issued-coupon or order-price records. Details such as whether a previously issued coupon remains usable after a campaign pause must be fixed in each milestone design. The default recommendation is: pause blocks new issue and new redemption immediately.
+
+## Milestone 21: Store Foundation And Business Seller Governance
+
+### Product Goal
+
+Every seller operates through a public store. Individuals receive a simple personal store, while businesses can operate a branded, verified store with legal business information and multiple operators. Buyers can tell who they are buying from without exposing a private individual seller's unnecessary information.
+
+### Learning Goal
+
+Practice aggregate boundary migration, one-to-many membership authorization, ownership backfill, role-scoped queries, compatibility-aware API evolution, and transactional creation of dependent defaults.
+
+### Scope
+
+- Add a `Store` aggregate with stable public identifier, display name, store type, status, introduction, and creation/update timestamps.
+- Support `PERSONAL` and `BUSINESS` store types. Business stores hold legal business name, registration identifier, public brand name, and verification status. Treat the registration identifier as sensitive operational data; it is not a buyer-facing field.
+- Add `StoreMembership` or an equivalent relationship. Start with `OWNER` and `MANAGER` roles; a member can operate a store only through an active membership.
+- Create one personal store when a new ordinary member is created. Backfill one personal store for every existing seller member without creating duplicates on repeated startup or migration runs.
+- Let a personal-store owner request conversion or creation of a business store. An administrator approves, rejects, suspends, or reactivates the business store according to an explicit status transition table.
+- Move product ownership from a direct member seller relationship to a store relationship. Preserve the historical member information required by existing orders, settlements, refunds, reviews, and response contracts while each affected read model is migrated deliberately.
+- Extend product and order responses with `storeId`, `storeName`, and `storeType`. Keep legacy seller id/nickname fields temporarily only when consumers still need them; document their deprecation rather than returning contradictory identities indefinitely.
+- Add buyer-facing store identity to product detail and product summaries.
+- Add a minimal My Store settings page and an administrator business-store review list/detail flow.
+
+### Store States And Authorization
+
+Recommended store status model:
+
+```text
+PERSONAL: ACTIVE, SUSPENDED
+BUSINESS: PENDING_VERIFICATION, ACTIVE, REJECTED, SUSPENDED
+```
+
+- A personal store is active after automatic creation unless an administrator suspends it.
+- A business store cannot publish new products or issue future store campaigns until it is `ACTIVE`.
+- `OWNER` can manage store profile, membership, and future commercial policies. `MANAGER` can manage catalog and operational work but cannot change ownership or sensitive business information.
+- An administrator alone approves, rejects, suspends, or reactivates a business store. A rejection includes a non-public operator-visible reason.
+- Every store-owned write checks membership in the database-backed authorization path; the client route is not an authorization boundary.
+
+### Migration And Compatibility Rules
+
+The current application models `Product` as owned by one `Member`. M21 is allowed to make this migration because every later milestone needs store ownership, but it must protect existing commerce history:
+
+- Existing products move to the default personal store of their current seller.
+- Existing orders, payments, settlements, refunds, and reviews preserve their historical seller/member relationship until a later explicit migration has a tested reason to change it.
+- New product operations resolve their operating member from store membership and their commercial owner from the store.
+- Public responses should present store information where available without breaking existing buyer, seller, admin, settlement, and refund views in the same change.
+- Demo data and integration-test helpers create stores through the same application path or a focused fixture factory; no test should depend on a hidden database-only shortcut.
+
+### Web Experience
+
+- Product cards and detail pages show a clickable store name and a compact type/trust label. Personal sellers do not expose business-style registration information.
+- My Store settings separates public profile fields from business verification fields and explains status with concise operational copy.
+- Business application/review is a practical form-and-detail flow, not a marketing onboarding page.
+- The administrator page is a table-plus-detail operational surface with status, applicant/store identifiers, dates, reason input, and explicit approve/reject/suspend actions.
+- Existing personal sellers continue to reach their current product management routes during the transition; redirect only after the replacement route is usable.
+
+### Suggested Domain Boundaries
+
+- `Store`: public identity, type, lifecycle, profile, and business verification fields.
+- `StoreMembership`: member-to-store role and active state.
+- `StoreGovernanceService`: business application and administrator state transitions.
+- `StoreAccessService`: reusable store-role resolution for store-owned commands.
+- Product ownership resolution: one clear relation from product to store; do not scatter `storeId` primitives across unrelated aggregates.
+
+### JPA And Database Focus
+
+- Enforce the one-personal-store-per-member invariant with a database constraint or an equivalent unique ownership model; do not rely only on registration code.
+- Index membership lookups by member/store and store-role queries according to the final authorization access pattern.
+- Use explicit projections for administrator review list pages and avoid loading all memberships or products for each store row.
+- Plan the product/store migration query shape before updating repository entity graphs. Product catalog and order history must not gain a new N+1 store lookup.
+- Run the migration/backfill path against PostgreSQL/Testcontainers or a production-shaped local database snapshot where feasible.
+
+### Verification And Exit Criteria
+
+- Tests cover automatic personal-store creation, idempotent backfill, business application, approval/rejection/suspension, and owner/manager/outsider authorization.
+- Existing products appear under exactly one migrated store and remain visible through existing product/order/refund read paths.
+- Existing seller-owned operations still reject an unrelated member after the ownership migration.
+- Buyer product responses show consistent seller/store information; no response maps a product to a different store and member without an explicit historical reason.
+- Backend full suite, web build, and `git diff --check` pass.
+
+### Explicitly Out Of Scope
+
+- Subscription plans, store fees, legal KYC integration, tax invoices, multiple warehouses, and staff invitation email delivery.
+- Store follow/subscribe, chat, offers, and public seller reputation redesign.
+- Promotions, coupons, inventory quantity, and large-scale search. These have later dedicated milestones.
+
+### Handoff To M22
+
+M22 uses the store public identity and operator authorization to build a buyer storefront and a durable catalog-management console. It must not create a second, parallel seller profile model.
+
+## Milestone 22: Storefront And Core Store Operations Console
+
+### Product Goal
+
+Buyers can inspect a store as a coherent selling surface, and personal/business store operators can manage their catalog from a focused, efficient workspace rather than scattered product forms.
+
+### Learning Goal
+
+Practice role-specific read models, paged store catalog queries, operator workspace information architecture, aggregate action authorization, and frontend query invalidation across public and private views.
+
+### Prerequisites
+
+- M21 store, membership, business-store status, and product-to-store ownership migration.
+- Existing product image, wishlist, cart, order, review, settlement, and seller report behavior remains available.
+
+### Scope
+
+- Add a public store route such as `/stores/{storeId}` with store profile, verification/type signal, active product summary, ratings/review summary where already supported, and paginated store catalog.
+- Add store catalog filtering by product availability and a basic sort contract. Keep rich global search and keyset browsing for M24.
+- Add an operator route such as `/me/store` with summary counts, product list, visibility/status controls, product creation/edit entry points, and direct links to existing sales/refund/settlement/report work.
+- Add batch-safe catalog actions appropriate to the current product model, such as hide/show selected products. Do not add inventory bulk adjustment before M23 establishes its rules.
+- Allow owner-managed operator membership list and manager removal, but keep owner transfer and invitation delivery outside this milestone.
+- Update existing product forms and product ownership checks to use store access instead of direct seller id equality.
+- Make personal and business store presentation differ only where the business data adds value; do not force a personal seller to fill in corporate-style fields.
+
+### Storefront Rules
+
+- Buyers see only products visible under the existing product visibility/status rules.
+- A suspended or rejected business store is not presented as a normal active commercial storefront. Define whether its historical products are hidden or show a clear unavailable state during the milestone design.
+- Store product count reflects buyer-visible products on public pages, not all drafts/hidden catalog rows.
+- The public store page never exposes membership records, private business registration data, admin notes, or staff identifiers.
+- Store operators may manage only their own store; manager permissions must be narrower than owner permissions where M21 specified that difference.
+
+### Web Experience
+
+- The storefront begins with actual store identity, verification signal, representative products, and useful catalog controls. It is a commerce destination, not a generic profile card.
+- Store catalog cards use the same visual language as the buyer home/catalog experience so product comparison remains easy.
+- The operator console is dense but readable: summary strip, status-aware product table/grid, filters, bulk action controls, and clearly separated public-store preview link.
+- On mobile, catalog management collapses dense columns into scan-friendly rows without hiding status or primary actions.
+- Existing seller report, sales, settlement, and refund routes become reachable from the store workspace navigation without duplicating their business logic.
+
+### Suggested Read And Write Boundaries
+
+- `StorefrontQueryService`: public store profile and buyer-visible product projection.
+- `StoreCatalogQueryService`: role-scoped operator catalog projection, separate from public visibility filtering.
+- `StoreCatalogCommandService`: product visibility and bulk-operation commands after `StoreAccessService` authorization.
+- Reuse existing product application services where their aggregate rules fit. Do not make the store console directly write repository state.
+
+### JPA And Performance Focus
+
+- Use an explicit projection for public store catalog cards, including one representative image and store summary without loading all product images/reviews.
+- Add or verify indexes for store id, product status, and the chosen deterministic catalog ordering.
+- Do not apply a fetch join to a to-many image collection inside a paginated query. Use representative-image projection or a bounded second query.
+- Test query count for a full public-store page and a full operator page; membership/authorization lookup must not occur once per product row.
+
+### Verification And Exit Criteria
+
+- Public pages show correct active-store identity and do not leak private store/operator data.
+- Owner/manager/outsider permissions are covered for catalog operations and membership actions.
+- Personal and business stores can create, edit, hide, and display products through the intended flows.
+- Storefront pagination and operator filtering produce deterministic results with no duplicate/missing rows across page boundaries.
+- Existing product detail, wishlists, cart, order, settlement, refund, and review tests keep their prior behavior.
+
+### Explicitly Out Of Scope
+
+- Stock quantity and inventory reservation.
+- Advanced global search, recommendations, popularity, cache, and load testing.
+- Promotions, coupons, events, bulk imports, CSV upload, and multi-store operator organizations.
+
+### Handoff To M23
+
+M23 adds a sales policy to the store-owned product catalog. The storefront and console must render the new availability distinction without hardcoding business-store assumptions into personal-store flows.
+
+## Milestone 23: Product Sales Policy And Stock-Managed Used Inventory
+
+### Product Goal
+
+The marketplace supports both one-off personal used goods and repeatable inspected inventory from business stores, while preserving clear buyer availability and practical operator stock management.
+
+### Learning Goal
+
+Practice domain polymorphism through explicit policy rather than inheritance sprawl, inventory aggregate modeling, state transitions, validation across order/cart/product boundaries, and audit-friendly stock adjustments.
+
+### Scope
+
+- Add a product sales policy such as `SINGLE_ITEM` and `STOCK_MANAGED`.
+- Existing products migrate to `SINGLE_ITEM` with their current `ON_SALE -> RESERVED -> SOLD_OUT` lifecycle.
+- `STOCK_MANAGED` products hold a managed available quantity. Start without color/size/condition variants; one listing represents one inspected grade/specification and one quantity pool.
+- Restrict stock-managed listing creation to active business stores unless the milestone design deliberately permits verified high-volume personal sellers.
+- Add operator stock adjustment with required adjustment reason, resulting quantity, actor, timestamp, and optional reference note.
+- Display availability on product cards/detail, cart, storefront, and operator console. Buyers may see `재고 있음`, `품절`, or a permitted low-stock count; exact quantity display is a store policy, not a default privacy requirement.
+- Update cart/order prechecks so a sold-out stock-managed item cannot be added or purchased in ordinary sequential use.
+- Preserve a simple sequential reserve/release behavior needed for functional ordering. M29 replaces its contention-sensitive implementation with a measured concurrency-safe strategy.
+- Add inventory history page or operator panel sufficient to understand manual adjustments and order-driven reservation/release changes.
+
+### Availability Model
+
+Recommended minimum fields/concepts:
+
+```text
+Product sales policy: SINGLE_ITEM | STOCK_MANAGED
+Inventory: available quantity, reserved quantity, version/audit boundary
+Stock adjustment: before quantity, delta, after quantity, reason, actor, occurred at
+```
+
+For `SINGLE_ITEM`, the existing product status remains the availability source. For `STOCK_MANAGED`, quantity is the availability source and product status is derived or coordinated so buyer reads cannot contradict stock. The milestone design must choose one authoritative representation; do not maintain independent mutable `availableQuantity` and `ON_SALE/SOLD_OUT` fields with no invariant.
+
+### Core Rules
+
+- Quantity is a non-negative integer. Manual adjustment cannot reduce it below active reservations.
+- A stock-managed product with zero available units is not purchasable.
+- A new order reserves one unit; cancellation or eligible payment failure releases one unit exactly once.
+- Inventory adjustment is blocked or requires an explicit conflict result when it would violate active reservations.
+- Single-item products cannot be transformed into stock-managed products after an order exists without a separate audited migration process. For this phase, make the sales policy immutable after product publishing.
+- Product visibility and inventory availability are distinct: a hidden product cannot be bought even when it has positive stock.
+
+### Web Experience
+
+- Product registration makes the sales policy explicit with a segmented control and shows only the relevant inputs. A personal one-off listing does not display an irrelevant quantity control.
+- Business operator inventory views emphasize available, reserved, and adjustment history in a work-focused table, with an explicit adjustment modal and reason input.
+- Buyer-facing availability language stays concise and does not expose internal reserved counts or operator notes.
+- Cart/order flows revalidate availability and report a product becoming unavailable in a way that lets the buyer continue with other cart items.
+
+### Suggested Domain Boundaries
+
+- `ProductSalesPolicy`: business decision for single versus quantity-managed selling.
+- `Inventory`: quantity and reservation/adjustment invariants for a stock-managed product.
+- `InventoryAdjustment`: immutable audit record.
+- `InventoryService`: commands for setup, adjustment, sequential reservation, and release. It should not become a general product-edit service.
+
+### JPA And Database Focus
+
+- Enforce one inventory row per stock-managed product and protect quantity integrity with database constraints where supported.
+- Use an entity version on the inventory boundary for ordinary operator adjustment conflicts. M29 will compare this with conditional updates under high contention.
+- Fetch inventory only on product/admin paths that need it; public product grids should project a lightweight availability value.
+- Index inventory lookup by product id and inventory-history query by product/time. Avoid an eager audit collection on the product aggregate.
+
+### Verification And Exit Criteria
+
+- Existing items migrate to `SINGLE_ITEM` and retain their current reservation/confirmation behavior.
+- Stock-managed products reject negative initial quantity, invalid manual adjustments, purchases at zero availability, and cross-store operator actions.
+- Sequential order/cancel scenarios reserve and restore exactly one stock unit.
+- Product, cart, order, storefront, and operator responses present availability consistently.
+- Inventory history is immutable and attributes adjustments to the responsible operator.
+
+### Explicitly Out Of Scope
+
+- High-contention locking comparison, flash-sale load tests, variants/SKUs, warehouse locations, serial-number tracking, and backorders.
+- Bulk file import and external ERP synchronization.
+- Promotion/coupon price rules and global search.
+
+### Handoff To M24
+
+M24 consumes public product/store/availability projections. It must filter out unavailable or hidden products correctly and must not load the full inventory history as part of catalog search.
+
+## Milestone 24: Catalog Discovery, Search, And Buyer UX
+
+### Product Goal
+
+Buyers can find used goods through a fast, credible browsing experience that distinguishes personal listings from business-store inventory and supports practical filters for condition, price, availability, seller type, and store.
+
+### Learning Goal
+
+Practice production-shaped catalog query contracts, dynamic predicates, DTO projections, representative-image selection, keyset pagination, URL-backed frontend state, and query-plan-based indexing.
+
+### Scope
+
+- Replace the basic buyer product list with a responsive catalog surface that supports keyword, category, price range, availability, sales policy, store type, and store filters.
+- Add a bounded product category taxonomy appropriate for used goods, such as computers, mobile devices, home appliances, vehicles, and other. Keep it one-level in this phase.
+- Add sort modes with explicit deterministic secondary keys. Recommended starting modes: newest, price low-to-high, price high-to-low, and popularity-ready placeholder only when M30 supplies real ranking data.
+- Use keyset/cursor pagination for the buyer catalog and store catalog paths that support sequential browsing. Keep an explicit order/cursor contract in the URL.
+- Add keyword search against title and description with the PostgreSQL capability appropriate to the project. Start with an indexed simple search if full-text relevance would distract from catalog correctness; do not introduce an external search service.
+- Add clear empty, loading, invalid-filter, and stale-cursor handling states.
+- Preserve wishlist/cart personalization without turning the public catalog query into a per-row member lookup.
+- Add search/filter analytics only as lightweight server logs/metrics required for M30; no user profiling or tracking platform is needed.
+
+### Catalog Rules
+
+- Public discovery returns only buyer-visible products from active stores under the visibility and availability policies of M21-M23.
+- A `SINGLE_ITEM` reserved/sold product is excluded from normal availability search but can remain visible through direct historical order links according to existing rules.
+- A `STOCK_MANAGED` product is excluded from available-only search at zero purchasable quantity.
+- Cursor is valid only for the selected sort and filter fingerprint. A mismatched or malformed cursor returns a structured validation result, not an arbitrary page.
+- Every sort includes a stable id tie-breaker so records do not duplicate or disappear across adjacent pages when prices/timestamps match.
+- The API validates price range and category values before querying; frontend controls mirror but do not replace this validation.
+
+### Web Experience
+
+- The catalog is the primary buyer screen, not a landing-page hero. It prioritizes product imagery, scanable price/condition/store cues, filters, sort, and stable result density.
+- Desktop uses a persistent filter area and responsive grid; mobile uses an accessible filter drawer while retaining current search/sort context.
+- Search, filters, sort, and cursor state appear in the URL so a shared or refreshed link reproduces the result set as closely as data changes allow.
+- Product cards show representative image, title, current price, list price only when later promotions apply, availability, store brand/type, and personalized wishlist/cart affordances.
+- Error and empty states tell the buyer whether no results match, the cursor is stale, or a retry is appropriate. They do not expose raw database errors.
+
+### Suggested Query Boundaries
+
+- `CatalogSearchRequest`: validated input with filter and cursor data.
+- `CatalogProductCardResponse`: lightweight projection for the exact fields rendered by one card.
+- `CatalogSearchQueryService`: public visibility, store, availability, filters, sort, and cursor rules.
+- `CatalogCursorCodec`: opaque signed/validated cursor representation owned by the catalog boundary rather than assembled in the client.
+
+### JPA And Performance Focus
+
+- Build catalog queries with projections rather than loading `Product` entities plus images/store/inventory associations.
+- Compare offset and keyset query plans at shallow and deep positions using realistic fixture volume. Document why keyset is chosen for buyer feeds and where offset remains appropriate.
+- Use indexed predicates matching the final filters and sort order. Candidate indexes must be justified by `EXPLAIN ANALYZE`, not added preemptively for every field.
+- Prevent N+1 queries for representative images, store identity, availability, wishlist state, and cart state. Use bounded secondary lookups for member-specific flags when a single query would multiply rows.
+- Define query-count and response-time baseline measurements that M30 will later extend under load.
+
+### Verification And Exit Criteria
+
+- Integration tests cover visibility, active/suspended store filtering, each filter, combined filters, sort order, cursor boundaries, invalid cursor, and stable tie breaking.
+- Buyer personalization is correct for the authenticated buyer and absent/anonymous-safe where required.
+- Web tests or manual browser verification cover desktop/mobile filters, URL restoration, loading/empty/error states, and no layout overflow.
+- Query inspection demonstrates bounded queries for a catalog page and no to-many fetch-join pagination regression.
+- Existing direct product, cart, wishlist, order, store, and admin workflows remain compatible.
+
+### Explicitly Out Of Scope
+
+- Search cluster, external recommendation engine, semantic/vector search, autocomplete service, and personalized ranking.
+- Promotions, coupons, first-come events, cache, high-volume load tools, and performance dashboard. M25-M31 add these over the stable catalog contract.
+- Cross-store checkout and shipping fee comparison.
+
+### Handoff To M25
+
+M25 extends catalog price cards with an effective promotion read model. It must preserve M24 filter/cursor contracts and add price data without reintroducing entity-graph or per-card query problems.
 
 ## Milestone 25: Store Promotions And Price Policy
 
