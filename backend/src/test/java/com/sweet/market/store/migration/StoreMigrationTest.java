@@ -12,11 +12,14 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.FlywayException;
 import org.flywaydb.core.api.configuration.FluentConfiguration;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
+@TestMethodOrder(OrderAnnotation.class)
 class StoreMigrationTest {
 
     @Container
@@ -26,6 +29,7 @@ class StoreMigrationTest {
             .withPassword("market");
 
     @Test
+    @org.junit.jupiter.api.Order(2)
     void 기존_판매자별_상점으로_상품_주문을_이관하고_사업자_상점은_소유자당_하나만_생성된다() throws SQLException {
         try (Connection connection = DriverManager.getConnection(
                 POSTGRESQL.getJdbcUrl(),
@@ -138,6 +142,7 @@ class StoreMigrationTest {
     }
 
     @Test
+    @org.junit.jupiter.api.Order(1)
     void 중복_사업자_상점이_있는_업그레이드는_데이터를_보존하고_중단한다() throws SQLException {
         String schema = "business_upgrade_" + UUID.randomUUID().toString().replace("-", "");
         try (Connection connection = DriverManager.getConnection(

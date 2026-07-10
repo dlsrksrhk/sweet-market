@@ -25,6 +25,7 @@ class WishlistApiTest extends IntegrationTestSupport {
     @Test
     void 내_찜_목록은_최근_찜한_순서로_조회된다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        Long storeId = activePersonalStoreId(sellerToken);
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
         String otherBuyerToken = signupAndLogin("other-buyer@example.com", "password123", "otherBuyer");
         Long buyerId = findMemberIdByEmail("buyer@example.com");
@@ -94,6 +95,7 @@ class WishlistApiTest extends IntegrationTestSupport {
     @Test
     void 내_찜_목록은_대표_이미지를_썸네일로_응답한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
+        Long storeId = activePersonalStoreId(sellerToken);
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
         ProductImageUploadFixture firstImage = uploadProductImage(sellerToken, "wishlist-first.jpg");
         ProductImageUploadFixture representativeImage = uploadProductImage(sellerToken, "wishlist-representative.jpg");
@@ -103,6 +105,7 @@ class WishlistApiTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "storeId": %d,
                                   "title": "Wishlist Thumbnail Product",
                                   "description": "M3 laptop",
                                   "price": 2000000,
@@ -119,7 +122,7 @@ class WishlistApiTest extends IntegrationTestSupport {
                                     }
                                   ]
                                 }
-                                """.formatted(firstImage.id(), representativeImage.id())))
+                                """.formatted(storeId, firstImage.id(), representativeImage.id())))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
@@ -367,6 +370,7 @@ class WishlistApiTest extends IntegrationTestSupport {
     }
 
     private Long createProduct(String accessToken, String title, String fileName) throws Exception {
+        Long storeId = activePersonalStoreId(accessToken);
         Long uploadId = uploadImage(accessToken, fileName);
 
         String response = mockMvc.perform(post("/api/products")
@@ -374,6 +378,7 @@ class WishlistApiTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "storeId": %d,
                                   "title": "%s",
                                   "description": "M3 laptop",
                                   "price": 2000000,
@@ -385,7 +390,7 @@ class WishlistApiTest extends IntegrationTestSupport {
                                     }
                                   ]
                                 }
-                                """.formatted(title, uploadId)))
+                                """.formatted(storeId, title, uploadId)))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()

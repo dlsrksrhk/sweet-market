@@ -176,6 +176,7 @@ class OrderQueryApiTest extends IntegrationTestSupport {
     }
 
     private Long createProduct(String accessToken, String title) throws Exception {
+        Long storeId = activePersonalStoreId(accessToken);
         Long uploadId = uploadImage(accessToken, title.replace(" ", "-").toLowerCase() + ".jpg");
 
         String response = mockMvc.perform(post("/api/products")
@@ -183,6 +184,7 @@ class OrderQueryApiTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "storeId": %d,
                                   "title": "%s",
                                   "description": "M3 laptop",
                                   "price": 2000000,
@@ -194,7 +196,7 @@ class OrderQueryApiTest extends IntegrationTestSupport {
                                     }
                                   ]
                                 }
-                                """.formatted(title, uploadId)))
+                                """.formatted(storeId, title, uploadId)))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()

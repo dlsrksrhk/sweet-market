@@ -38,7 +38,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_personal_store_owner
 
 DO $$
 BEGIN
-    IF to_regclass(format('%I.members', current_schema())) IS NOT NULL
+    IF to_regclass('public.members') IS NOT NULL
        AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stores_owner_member') THEN
         ALTER TABLE stores
             ADD CONSTRAINT fk_stores_owner_member
@@ -51,7 +51,7 @@ BEGIN
             FOREIGN KEY (store_id) REFERENCES stores (id);
     END IF;
 
-    IF to_regclass(format('%I.members', current_schema())) IS NOT NULL
+    IF to_regclass('public.members') IS NOT NULL
        AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_store_memberships_member') THEN
         ALTER TABLE store_memberships
             ADD CONSTRAINT fk_store_memberships_member
@@ -84,11 +84,7 @@ BEGIN
                 AND s.type = 'PERSONAL'
           );
 
-        IF to_regclass(format('%I.products', current_schema())) IS NOT NULL
-           AND EXISTS (
-               SELECT 1 FROM information_schema.columns
-               WHERE table_schema = current_schema() AND table_name = 'products' AND column_name = 'seller_id'
-           ) THEN
+        IF to_regclass('public.products') IS NOT NULL THEN
             INSERT INTO stores (
                 owner_member_id,
                 type,
@@ -127,11 +123,7 @@ END $$;
 
 DO $$
 BEGIN
-    IF to_regclass(format('%I.products', current_schema())) IS NOT NULL
-       AND EXISTS (
-           SELECT 1 FROM information_schema.columns
-           WHERE table_schema = current_schema() AND table_name = 'products' AND column_name = 'seller_id'
-       ) THEN
+    IF to_regclass('public.products') IS NOT NULL THEN
         ALTER TABLE products ADD COLUMN IF NOT EXISTS store_id BIGINT;
 
         UPDATE products p
@@ -150,14 +142,10 @@ BEGIN
         CREATE INDEX IF NOT EXISTS idx_products_store_id ON products (store_id);
     END IF;
 
-    IF to_regclass(format('%I.orders', current_schema())) IS NOT NULL THEN
+    IF to_regclass('public.orders') IS NOT NULL THEN
         ALTER TABLE orders ADD COLUMN IF NOT EXISTS seller_id BIGINT;
 
-        IF to_regclass(format('%I.products', current_schema())) IS NOT NULL
-           AND EXISTS (
-               SELECT 1 FROM information_schema.columns
-               WHERE table_schema = current_schema() AND table_name = 'products' AND column_name = 'seller_id'
-           ) THEN
+        IF to_regclass('public.products') IS NOT NULL THEN
             UPDATE orders o
             SET seller_id = p.seller_id
             FROM products p
@@ -165,7 +153,7 @@ BEGIN
               AND o.product_id = p.id;
         END IF;
 
-        IF to_regclass(format('%I.members', current_schema())) IS NOT NULL
+        IF to_regclass('public.members') IS NOT NULL
            AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_orders_seller') THEN
             ALTER TABLE orders
                 ADD CONSTRAINT fk_orders_seller

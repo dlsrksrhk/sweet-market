@@ -69,6 +69,15 @@ public abstract class IntegrationTestSupport {
         return objectMapper.writeValueAsString(value);
     }
 
+    protected Long activePersonalStoreId(String accessToken) throws Exception {
+        String response = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/stores/me")
+                        .header(org.springframework.http.HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(response).path("data").get(0).path("storeId").asLong();
+    }
+
     private void deleteTestProductImages() {
         Path uploadRoot = Path.of("build/test-product-images");
         if (!Files.exists(uploadRoot)) {

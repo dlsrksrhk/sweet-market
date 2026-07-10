@@ -324,6 +324,7 @@ class CartApiTest extends IntegrationTestSupport {
     }
 
     private Long createProduct(String accessToken, String title, String fileName) throws Exception {
+        Long storeId = activePersonalStoreId(accessToken);
         Long uploadId = uploadImage(accessToken, fileName);
 
         String response = mockMvc.perform(post("/api/products")
@@ -331,6 +332,7 @@ class CartApiTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "storeId": %d,
                                   "title": "%s",
                                   "description": "M3 laptop",
                                   "price": 2000000,
@@ -342,7 +344,7 @@ class CartApiTest extends IntegrationTestSupport {
                                     }
                                   ]
                                 }
-                                """.formatted(title, uploadId)))
+                                """.formatted(storeId, title, uploadId)))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
