@@ -9,6 +9,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.sweet.market.member.domain.Member;
+import com.sweet.market.order.domain.Order;
+import com.sweet.market.refund.domain.RefundRequest;
+import com.sweet.market.settlement.domain.Settlement;
+import com.sweet.market.store.domain.Store;
 
 class ProductTest {
 
@@ -310,5 +314,77 @@ class ProductTest {
 
     private void assignImageId(ProductImage image, Long id) {
         ReflectionTestUtils.setField(image, "id", id);
+    }
+
+    @Test
+    void 상점_운영자는_선택한_활성_상점에_상품을_등록한다() {
+        Member owner = Member.create("owner@example.com", "encoded-password", "owner");
+        Store store = Store.createPersonal(owner, "선택 상점", "");
+
+        Product product = Product.create(store, "상품", "설명", 10_000L);
+
+        assertThat(product.getStore()).isSameAs(store);
+        assertThat(product.isPurchasable()).isTrue();
+    }
+
+    @Test
+    void 다른_상점_운영자는_상품을_수정할_수_없다() {
+        Member owner = Member.create("owner@example.com", "encoded-password", "owner");
+        Member other = Member.create("other@example.com", "encoded-password", "other");
+        Product product = Product.create(Store.createPersonal(owner, "상점", ""), "상품", "설명", 10_000L);
+        ReflectionTestUtils.setField(owner, "id", 1L);
+        ReflectionTestUtils.setField(other, "id", 2L);
+
+        assertThat(product.isOwnedBy(other.getId())).isFalse();
+    }
+
+    @Test
+    void 비활성_사업자_상점에는_상품을_등록할_수_없다() {
+        Store store = Store.applyBusiness(Member.create("owner@example.com", "encoded-password", "owner"), "사업자", "", "법인", "1");
+
+        assertThat(store.getStatus().name()).isEqualTo("PENDING");
+    }
+
+    @Test
+    void 비활성_사업자_상점_상품은_공개_목록에서_제외된다() {
+        Store store = Store.applyBusiness(Member.create("owner@example.com", "encoded-password", "owner"), "사업자", "", "법인", "1");
+        Product product = Product.create(store, "상품", "설명", 10_000L);
+
+        assertThat(product.isPurchasable()).isFalse();
+    }
+
+    @Test
+    void 비활성_사업자_상점_상품의_직접_조회는_구매_불가를_반환한다() {
+        Store store = Store.applyBusiness(Member.create("owner@example.com", "encoded-password", "owner"), "사업자", "", "법인", "1");
+
+        assertThat(Product.create(store, "상품", "설명", 10_000L).isPurchasable()).isFalse();
+    }
+
+    @Test
+    void 비활성_사업자_상점_상품은_장바구니에_담거나_주문할_수_없다() {
+        Store store = Store.applyBusiness(Member.create("owner@example.com", "encoded-password", "owner"), "사업자", "", "법인", "1");
+        Product product = Product.create(store, "상품", "설명", 10_000L);
+
+        assertThatThrownBy(() -> Order.create(Member.create("buyer@example.com", "encoded-password", "buyer"), product))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void 주문은_생성_시점의_상점_소유자를_판매자로_보존한다() {
+        Member owner = Member.create("owner@example.com", "encoded-password", "owner");
+        Product product = Product.create(Store.createPersonal(owner, "상점", ""), "상품", "설명", 10_000L);
+
+        assertThat(Order.create(Member.create("buyer@example.com", "encoded-password", "buyer"), product).getSeller()).isSameAs(owner);
+    }
+
+    @Test
+    void 판매자_환불과_정산은_주문_판매자_스냅샷을_사용한다() {
+        Member owner = Member.create("owner@example.com", "encoded-password", "owner");
+        ReflectionTestUtils.setField(owner, "id", 1L);
+        Order order = Order.create(Member.create("buyer@example.com", "encoded-password", "buyer"), Product.create(Store.createPersonal(owner, "상점", ""), "상품", "설명", 10_000L));
+        order.markPaid(); order.startShipping(); order.completeDelivery();
+        RefundRequest refund = RefundRequest.request(order, order.getBuyer(), "환불 사유는 충분히 깁니다");
+
+        assertThat(refund.isSellerOwnedBy(1L)).isTrue();
     }
 }

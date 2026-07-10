@@ -53,6 +53,8 @@ class StoreFreshDatabaseStartupTest {
         assertThat(columnExists("orders", "seller_id")).isTrue();
         assertThat(indexExists("idx_products_store_status_id")).isTrue();
         assertThat(indexExists("idx_orders_seller_id")).isTrue();
+        assertThat(foreignKeyExists("products", "store_id", "stores", "id")).isTrue();
+        assertThat(foreignKeyExists("orders", "seller_id", "members", "id")).isTrue();
     }
 
     private boolean tableExists(String tableName) {
@@ -84,6 +86,25 @@ class StoreFreshDatabaseStartupTest {
                 "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname = ?",
                 Integer.class,
                 indexName
+        );
+        return count != null && count == 1;
+    }
+
+    private boolean foreignKeyExists(String tableName, String columnName, String referencedTable, String referencedColumn) {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.table_constraints tc
+                        JOIN information_schema.key_column_usage kcu
+                          ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema
+                        JOIN information_schema.constraint_column_usage ccu
+                          ON tc.constraint_name = ccu.constraint_name AND tc.table_schema = ccu.table_schema
+                        WHERE tc.constraint_type = 'FOREIGN KEY'
+                          AND tc.table_schema = 'public'
+                          AND tc.table_name = ? AND kcu.column_name = ?
+                          AND ccu.table_name = ? AND ccu.column_name = ?
+                        """,
+                Integer.class, tableName, columnName, referencedTable, referencedColumn
         );
         return count != null && count == 1;
     }
