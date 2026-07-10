@@ -38,6 +38,69 @@ class ProductApiTest extends IntegrationTestSupport {
     private FailingImageConfirmService failingImageConfirmService;
 
     @Test
+    void 비활성_사업자_상점에는_상품을_등록할_수_없다() throws Exception {
+        String token = signupAndLogin("inactive-create@example.com", "password123", "seller");
+        Long storeId = createInactiveBusinessStore("inactive-create@example.com");
+        Long uploadId = uploadImage(token, "inactive.jpg");
+
+        mockMvc.perform(post("/api/products").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"storeId\":%d,\"title\":\"상품\",\"description\":\"설명\",\"price\":10000,\"images\":[{\"uploadId\":%d,\"sortOrder\":0,\"representative\":true}]}".formatted(storeId, uploadId)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+    }
+
+    @Test
+    void 비활성_사업자_상점_상품은_공개_목록에서_제외된다() throws Exception {
+        Long productId = createInactiveBusinessProduct("inactive-list@example.com");
+
+        mockMvc.perform(get("/api/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(0)));
+        assertThat(productId).isPositive();
+    }
+
+    @Test
+    void 비활성_사업자_상점_상품의_직접_조회는_구매_불가를_반환한다() throws Exception {
+        Long productId = createInactiveBusinessProduct("inactive-detail@example.com");
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.purchasable").value(false));
+    }
+
+    @Test
+    void 비활성_사업자_상점_상품은_장바구니에_담거나_주문할_수_없다() throws Exception {
+        Long productId = createInactiveBusinessProduct("inactive-cart@example.com");
+        String buyerToken = signupAndLogin("inactive-buyer@example.com", "password123", "buyer");
+
+        mockMvc.perform(post("/api/products/{productId}/cart", productId).header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/orders").header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"productId\":%d}".formatted(productId)))
+                .andExpect(status().isConflict());
+    }
+
+    private Long createInactiveBusinessStore(String email) {
+        Long memberId = jdbcTemplate.queryForObject("select id from members where email = ?", Long.class, email);
+        Long storeId = jdbcTemplate.queryForObject("""
+                insert into stores (version, owner_member_id, type, public_name, introduction, status, created_at, updated_at)
+                values (0, ?, 'BUSINESS', '비활성 사업자 상점', '', 'PENDING', current_timestamp, current_timestamp) returning id
+                """, Long.class, memberId);
+        jdbcTemplate.update("insert into store_memberships (store_id, member_id, role, active, created_at) values (?, ?, 'OWNER', true, current_timestamp)", storeId, memberId);
+        return storeId;
+    }
+
+    private Long createInactiveBusinessProduct(String email) throws Exception {
+        signupAndLogin(email, "password123", "seller");
+        Long storeId = createInactiveBusinessStore(email);
+        return jdbcTemplate.queryForObject("""
+                insert into products (version, store_id, title, description, price, status)
+                values (0, ?, '비활성 상품', '설명', 10000, 'ON_SALE') returning id
+                """, Long.class, storeId);
+    }
+
+    @Test
     void 상품_등록에_성공한다() throws Exception {
         String accessToken = signupAndLogin("seller@example.com", "password123", "seller");
         Long storeId = activePersonalStoreId(accessToken);
