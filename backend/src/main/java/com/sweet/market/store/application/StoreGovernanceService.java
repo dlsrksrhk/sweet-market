@@ -6,55 +6,40 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
-import com.sweet.market.member.domain.Member;
-import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.store.api.BusinessStoreApplicationRequest;
 import com.sweet.market.store.api.StorePrivateResponse;
 import com.sweet.market.store.api.StoreProfileUpdateRequest;
 import com.sweet.market.store.domain.Store;
-import com.sweet.market.store.domain.StoreMembership;
 import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.domain.StoreType;
-import com.sweet.market.store.repository.StoreMembershipRepository;
 import com.sweet.market.store.repository.StoreRepository;
 
 @Service
 public class StoreGovernanceService {
 
-    private final MemberRepository memberRepository;
     private final StoreRepository storeRepository;
-    private final StoreMembershipRepository storeMembershipRepository;
     private final StoreAccessService storeAccessService;
+    private final BusinessStoreApplicationPersistenceService businessStoreApplicationPersistenceService;
 
     public StoreGovernanceService(
-            MemberRepository memberRepository,
             StoreRepository storeRepository,
-            StoreMembershipRepository storeMembershipRepository,
-            StoreAccessService storeAccessService
+            StoreAccessService storeAccessService,
+            BusinessStoreApplicationPersistenceService businessStoreApplicationPersistenceService
     ) {
-        this.memberRepository = memberRepository;
         this.storeRepository = storeRepository;
-        this.storeMembershipRepository = storeMembershipRepository;
         this.storeAccessService = storeAccessService;
+        this.businessStoreApplicationPersistenceService = businessStoreApplicationPersistenceService;
     }
 
-    @Transactional
     public StorePrivateResponse applyBusiness(Long memberId, BusinessStoreApplicationRequest request) {
         if (!storeRepository.findBusinessByOwnerMemberId(memberId).isEmpty()) {
             throw new BusinessException(ErrorCode.DUPLICATE_BUSINESS_STORE);
         }
-        Member owner = memberRepository.findById(memberId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
-        Store store;
         try {
-            store = storeRepository.saveAndFlush(Store.applyBusiness(
-                    owner, request.publicName(), request.introduction(), request.legalBusinessName(), request.businessRegistrationId()
-            ));
+            return businessStoreApplicationPersistenceService.persist(memberId, request);
         } catch (DataIntegrityViolationException exception) {
             throw new BusinessException(ErrorCode.DUPLICATE_BUSINESS_STORE);
         }
-        storeMembershipRepository.save(StoreMembership.createOwner(store, owner));
-        return StorePrivateResponse.from(store);
     }
 
     @Transactional

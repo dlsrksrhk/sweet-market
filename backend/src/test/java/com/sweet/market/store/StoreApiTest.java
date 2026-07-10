@@ -9,6 +9,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -105,6 +111,41 @@ class StoreApiTest extends IntegrationTestSupport {
                         .content(businessApplicationJson("둘째 상점", "소개", "법인", "222-22-22222")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("DUPLICATE_BUSINESS_STORE"));
+    }
+
+    @Test
+    void 동시_사업자_상점_신청은_하나는_성공하고_하나는_중복_오류를_반환한다() throws Exception {
+        String email = "concurrent-business@example.com";
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"concurrent-business@example.com\",\"password\":\"password123\",\"nickname\":\"동시회원\"}"))
+                .andExpect(status().isCreated());
+        String token = login(email);
+        jdbcTemplate.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_business_store_owner
+                ON stores (owner_member_id)
+                WHERE type = 'BUSINESS'
+                """);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            List<Future<ConcurrentApplicationResult>> results = List.of(
+                    executor.submit(() -> requestConcurrentBusinessApplication(token, ready, start)),
+                    executor.submit(() -> requestConcurrentBusinessApplication(token, ready, start))
+            );
+            ready.await();
+            start.countDown();
+
+            List<ConcurrentApplicationResult> applicationResults = List.of(results.get(0).get(), results.get(1).get());
+            org.assertj.core.api.Assertions.assertThat(applicationResults.stream().map(ConcurrentApplicationResult::status).toList())
+                    .containsExactlyInAnyOrder(200, 409);
+            org.assertj.core.api.Assertions.assertThat(applicationResults.stream().map(ConcurrentApplicationResult::errorCode).toList())
+                    .contains("DUPLICATE_BUSINESS_STORE");
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
@@ -258,6 +299,24 @@ class StoreApiTest extends IntegrationTestSupport {
         return objectMapper.readTree(response).path("data").path("storeId").asLong();
     }
 
+    private ConcurrentApplicationResult requestConcurrentBusinessApplication(
+            String token,
+            CountDownLatch ready,
+            CountDownLatch start
+    ) throws Exception {
+        ready.countDown();
+        start.await();
+        var mvcResult = mockMvc.perform(post("/api/stores/business-applications")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(businessApplicationJson("동시 신청 상점", "소개", "동시 법인", "777-77-77777")))
+                .andReturn();
+        return new ConcurrentApplicationResult(
+                mvcResult.getResponse().getStatus(),
+                objectMapper.readTree(mvcResult.getResponse().getContentAsString()).path("code").asText(null)
+        );
+    }
+
     private StoreFixture activeBusinessStore(String email) throws Exception {
         Member owner = saveMember(email, "owner");
         Store store = storeRepository.save(Store.applyBusiness(owner, "공개 상점", "공개 소개", "비공개 법인", "999-99-99999"));
@@ -298,5 +357,8 @@ class StoreApiTest extends IntegrationTestSupport {
     }
 
     private record StoreFixture(Store store, String ownerToken) {
+    }
+
+    private record ConcurrentApplicationResult(int status, String errorCode) {
     }
 }
