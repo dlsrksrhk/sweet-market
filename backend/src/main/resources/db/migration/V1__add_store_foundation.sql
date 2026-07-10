@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS stores (
     id BIGSERIAL PRIMARY KEY,
+    version BIGINT NOT NULL DEFAULT 0,
     owner_member_id BIGINT NOT NULL,
     type VARCHAR(20) NOT NULL,
     public_name VARCHAR(100) NOT NULL,
@@ -13,6 +14,8 @@ CREATE TABLE IF NOT EXISTS stores (
     CONSTRAINT chk_stores_type CHECK (type IN ('PERSONAL', 'BUSINESS')),
     CONSTRAINT chk_stores_status CHECK (status IN ('PENDING', 'ACTIVE', 'REJECTED', 'SUSPENDED'))
 );
+
+ALTER TABLE stores ADD COLUMN IF NOT EXISTS version BIGINT NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS store_memberships (
     id BIGSERIAL PRIMARY KEY,
@@ -80,6 +83,30 @@ BEGIN
               WHERE s.owner_member_id = m.id
                 AND s.type = 'PERSONAL'
           );
+
+        IF to_regclass('public.products') IS NOT NULL THEN
+            INSERT INTO stores (
+                owner_member_id,
+                type,
+                public_name,
+                introduction,
+                status
+            )
+            SELECT DISTINCT
+                m.id,
+                'PERSONAL',
+                m.nickname || '의 상점',
+                '',
+                'ACTIVE'
+            FROM members m
+            JOIN products p ON p.seller_id = m.id
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM stores s
+                WHERE s.owner_member_id = m.id
+                  AND s.type = 'PERSONAL'
+            );
+        END IF;
 
         INSERT INTO store_memberships (store_id, member_id, role, active)
         SELECT s.id, s.owner_member_id, 'OWNER', TRUE
