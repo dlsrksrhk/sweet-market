@@ -49,6 +49,7 @@ public abstract class IntegrationTestSupport {
         registry.add("spring.datasource.username", POSTGRESQL::getUsername);
         registry.add("spring.datasource.password", POSTGRESQL::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create");
+        registry.add("spring.flyway.enabled", () -> "false");
         registry.add("spring.batch.jdbc.initialize-schema", () -> "never");
         registry.add("jwt.secret", () -> "sweet-market-test-secret-key-32bytes-minimum");
         registry.add("jwt.access-token-validity-seconds", () -> "3600");
@@ -60,7 +61,7 @@ public abstract class IntegrationTestSupport {
 
     @AfterEach
     void cleanUp() {
-        jdbcTemplate.execute("TRUNCATE TABLE settlements, deliveries, refund_requests, payments, reviews, orders, cart_items, wishlist_items, product_image_uploads, product_images, products, members RESTART IDENTITY CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE store_memberships, stores, settlements, deliveries, refund_requests, payments, reviews, orders, cart_items, wishlist_items, product_image_uploads, product_images, products, members RESTART IDENTITY CASCADE");
         deleteTestProductImages();
     }
 

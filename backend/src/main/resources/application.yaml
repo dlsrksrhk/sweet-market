@@ -19,6 +19,10 @@ spring:
     username: ${DB_USERNAME:market}
     password: ${DB_PASSWORD:market}
     driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
   jpa:
     hibernate:
       ddl-auto: create-drop
