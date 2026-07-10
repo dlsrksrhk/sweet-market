@@ -20,7 +20,7 @@ class SettlementTest {
         Settlement settlement = Settlement.create(order);
 
         assertThat(settlement.getOrder()).isSameAs(order);
-        assertThat(settlement.getSeller()).isSameAs(order.getProduct().getSeller());
+        assertThat(settlement.getSeller()).isSameAs(order.getSeller());
         assertThat(settlement.getAmount()).isEqualTo(order.getProduct().getPrice());
         assertThat(settlement.getStatus()).isEqualTo(SettlementStatus.COMPLETED);
         assertThat(settlement.getSettledAt()).isNotNull();

@@ -25,6 +25,8 @@ import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.settlement.domain.Settlement;
 import com.sweet.market.settlement.repository.SettlementRepository;
+import com.sweet.market.store.domain.Store;
+import com.sweet.market.store.repository.StoreRepository;
 
 @Component
 @Profile({"local", "dev"})
@@ -62,6 +64,7 @@ public class DemoDataInitializer implements ApplicationRunner {
     private final PaymentRepository paymentRepository;
     private final DeliveryRepository deliveryRepository;
     private final SettlementRepository settlementRepository;
+    private final StoreRepository storeRepository;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbcTemplate;
 
@@ -72,6 +75,7 @@ public class DemoDataInitializer implements ApplicationRunner {
             PaymentRepository paymentRepository,
             DeliveryRepository deliveryRepository,
             SettlementRepository settlementRepository,
+            StoreRepository storeRepository,
             PasswordEncoder passwordEncoder,
             JdbcTemplate jdbcTemplate
     ) {
@@ -81,6 +85,7 @@ public class DemoDataInitializer implements ApplicationRunner {
         this.paymentRepository = paymentRepository;
         this.deliveryRepository = deliveryRepository;
         this.settlementRepository = settlementRepository;
+        this.storeRepository = storeRepository;
         this.passwordEncoder = passwordEncoder;
         this.jdbcTemplate = jdbcTemplate;
     }
@@ -110,11 +115,13 @@ public class DemoDataInitializer implements ApplicationRunner {
     private List<Member> createSellers(String encodedPassword) {
         List<Member> sellers = new ArrayList<>();
         for (int index = 1; index <= SELLER_COUNT; index++) {
-            sellers.add(memberRepository.save(Member.create(
+            Member seller = memberRepository.save(Member.create(
                     "seller" + index + "@example.com",
                     encodedPassword,
                     "seller" + index
-            )));
+            ));
+            storeRepository.save(Store.createPersonal(seller, seller.getNickname() + "의 상점", ""));
+            sellers.add(seller);
         }
         return sellers;
     }
@@ -136,7 +143,7 @@ public class DemoDataInitializer implements ApplicationRunner {
             Member seller = pick(sellers, index);
             String group = PRODUCT_GROUPS.get((index - 1) % PRODUCT_GROUPS.size());
             Product product = productRepository.save(Product.create(
-                    seller,
+                    personalStore(seller),
                     group + " Demo Item " + index,
                     "Local demo " + group.toLowerCase() + " listing number " + index + ".",
                     priceFor(index)
@@ -257,6 +264,11 @@ public class DemoDataInitializer implements ApplicationRunner {
 
         flushTimelineEntities();
         backfillScenarioTimestamps(scenario, order, payment, delivery, settlement, sequence, orderedAt, completedAt, today);
+    }
+
+    private Store personalStore(Member seller) {
+        return storeRepository.findPersonalByOwnerMemberId(seller.getId())
+                .orElseThrow();
     }
 
     private void flushTimelineEntities() {
@@ -398,7 +410,7 @@ public class DemoDataInitializer implements ApplicationRunner {
 
     private Product createProduct(Member seller, String title, long price) {
         return productRepository.save(Product.create(
-                seller,
+                personalStore(seller),
                 title,
                 "Local demo product for " + title + ".",
                 price

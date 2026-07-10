@@ -66,17 +66,21 @@ public interface WishlistItemRepository extends JpaRepository<WishlistItem, Long
             )
             from WishlistItem wi
             join wi.product p
-            join p.seller seller
+            join p.store store
+            join store.ownerMember seller
             where wi.buyer.id = :buyerId
               and p.status in :visibleStatuses
+              and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
             order by wi.createdAt desc, wi.id desc
             """,
             countQuery = """
             select count(wi)
             from WishlistItem wi
             join wi.product p
+            join p.store store
             where wi.buyer.id = :buyerId
               and p.status in :visibleStatuses
+              and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
             """)
     Page<WishlistItemResponse> findPageByBuyerIdAndProductStatusIn(
             @Param("buyerId") Long buyerId,

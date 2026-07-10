@@ -31,7 +31,7 @@ public class AdminProductQueryService {
 
     @Transactional(readOnly = true)
     public AdminProductDetailResponse findDetail(Long productId) {
-        Product product = productRepository.findWithSellerAndImagesById(productId)
+        Product product = productRepository.findWithStoreAndImagesById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
         return AdminProductDetailResponse.from(product);
     }

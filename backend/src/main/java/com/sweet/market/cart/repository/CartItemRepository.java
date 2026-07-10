@@ -57,6 +57,7 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
                 ci.createdAt,
                 case
                     when p.status = com.sweet.market.product.domain.ProductStatus.ON_SALE
+                     and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
                      and seller.id <> :buyerId then true
                     else false
                 end,
@@ -70,7 +71,8 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
             )
             from CartItem ci
             join ci.product p
-            join p.seller seller
+            join p.store store
+            join store.ownerMember seller
             where ci.buyer.id = :buyerId
             order by ci.createdAt desc, ci.id desc
             """,
@@ -81,6 +83,6 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
             """)
     Page<CartItemResponse> findPageByBuyerId(@Param("buyerId") Long buyerId, Pageable pageable);
 
-    @EntityGraph(attributePaths = {"buyer", "product", "product.seller", "product.images"})
+    @EntityGraph(attributePaths = {"buyer", "product", "product.store", "product.store.ownerMember", "product.images"})
     List<CartItem> findAllWithBuyerProductSellerImagesByIdIn(List<Long> ids);
 }

@@ -15,6 +15,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -22,7 +23,7 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "orders")
+@Table(name = "orders", indexes = @Index(name = "idx_orders_seller_id", columnList = "seller_id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Order {
 
@@ -38,6 +39,10 @@ public class Order {
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "seller_id", nullable = false)
+    private Member seller;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private OrderStatus status;
@@ -49,16 +54,20 @@ public class Order {
 
     private LocalDateTime confirmedAt;
 
-    private Order(Member buyer, Product product, OrderStatus status, LocalDateTime orderedAt) {
+    private Order(Member buyer, Product product, Member seller, OrderStatus status, LocalDateTime orderedAt) {
         this.buyer = buyer;
         this.product = product;
+        this.seller = seller;
         this.status = status;
         this.orderedAt = orderedAt;
     }
 
     public static Order create(Member buyer, Product product) {
+        if (!product.isPurchasable()) {
+            throw new IllegalStateException("Product is not purchasable");
+        }
         product.reserve();
-        return new Order(buyer, product, OrderStatus.CREATED, LocalDateTime.now());
+        return new Order(buyer, product, product.getStore().getOwnerMember(), OrderStatus.CREATED, LocalDateTime.now());
     }
 
     public void cancel() {

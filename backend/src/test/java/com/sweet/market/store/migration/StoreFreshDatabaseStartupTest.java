@@ -44,11 +44,15 @@ class StoreFreshDatabaseStartupTest {
 
     @Test
     void 빈_PostgreSQL에서도_Flyway와_JPA_업데이트로_애플리케이션이_시작된다() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("2");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
         assertThat(tableExists("stores")).isTrue();
         assertThat(tableExists("members")).isTrue();
         assertThat(tableExists("products")).isTrue();
         assertThat(tableExists("orders")).isTrue();
+        assertThat(columnExists("products", "store_id")).isTrue();
+        assertThat(columnExists("orders", "seller_id")).isTrue();
+        assertThat(indexExists("idx_products_store_status_id")).isTrue();
+        assertThat(indexExists("idx_orders_seller_id")).isTrue();
     }
 
     private boolean tableExists(String tableName) {
@@ -61,6 +65,25 @@ class StoreFreshDatabaseStartupTest {
                         """,
                 Integer.class,
                 tableName
+        );
+        return count != null && count == 1;
+    }
+
+    private boolean columnExists(String tableName, String columnName) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? AND column_name = ?",
+                Integer.class,
+                tableName,
+                columnName
+        );
+        return count != null && count == 1;
+    }
+
+    private boolean indexExists(String indexName) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pg_indexes WHERE schemaname = 'public' AND indexname = ?",
+                Integer.class,
+                indexName
         );
         return count != null && count == 1;
     }

@@ -20,7 +20,7 @@ class ProductTest {
         product.addImage("https://example.com/macbook-1.jpg");
         product.addImage("https://example.com/macbook-2.jpg");
 
-        assertThat(product.getSeller()).isSameAs(seller);
+        assertThat(product.getStore().getOwnerMember()).isSameAs(seller);
         assertThat(product.getTitle()).isEqualTo("MacBook Pro");
         assertThat(product.getDescription()).isEqualTo("M3 laptop");
         assertThat(product.getPrice()).isEqualTo(2_000_000L);

@@ -70,7 +70,7 @@ class RefundRequestTest {
     @Test
     void 환불_요청은_상품_판매자_소유인지_확인할_수_있다() {
         Order order = deliveredOrder();
-        ReflectionTestUtils.setField(order.getProduct().getSeller(), "id", 10L);
+        ReflectionTestUtils.setField(order.getSeller(), "id", 10L);
         RefundRequest refundRequest = RefundRequest.request(order, order.getBuyer(), "상품 상태가 설명과 달라 환불을 요청합니다.");
 
         assertThat(refundRequest.isSellerOwnedBy(10L)).isTrue();

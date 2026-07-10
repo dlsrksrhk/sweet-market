@@ -23,7 +23,6 @@ import com.sweet.market.order.api.OrderSummaryResponse;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
-import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.product.repository.ProductRepository;
 
 @Service
@@ -51,7 +50,7 @@ public class CartService {
     }
 
     public CartResponse add(Long buyerId, Long productId) {
-        Product product = productRepository.findWithSellerById(productId)
+        Product product = productRepository.findWithStoreById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
 
         if (cartItemRepository.existsByBuyerIdAndProductId(buyerId, productId)) {
@@ -125,13 +124,13 @@ public class CartService {
         if (product.isOwnedBy(buyerId)) {
             throw new BusinessException(ErrorCode.CART_OWN_PRODUCT_NOT_ALLOWED);
         }
-        if (product.getStatus() != ProductStatus.ON_SALE) {
+        if (!product.isPurchasable()) {
             throw new BusinessException(ErrorCode.CART_PRODUCT_NOT_ON_SALE);
         }
     }
 
     private boolean isCheckoutNotAllowed(Long buyerId, CartItem cartItem) {
         Product product = cartItem.getProduct();
-        return product.isOwnedBy(buyerId) || product.getStatus() != ProductStatus.ON_SALE;
+        return product.isOwnedBy(buyerId) || !product.isPurchasable();
     }
 }

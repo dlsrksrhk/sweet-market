@@ -16,7 +16,7 @@ import com.sweet.market.order.domain.OrderStatus;
 
 public interface DeliveryRepository extends JpaRepository<Delivery, Long> {
 
-    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.seller", "order.product.images"})
+    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.store", "order.product.store.ownerMember", "order.product.images", "order.seller"})
     Optional<Delivery> findWithOrderByOrderId(Long orderId);
 
     @EntityGraph(attributePaths = {"order", "order.product"})

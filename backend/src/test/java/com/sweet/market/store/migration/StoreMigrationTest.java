@@ -42,7 +42,8 @@ class StoreMigrationTest {
             connection.createStatement().execute("""
                     CREATE TABLE products (
                         id BIGINT PRIMARY KEY,
-                        seller_id BIGINT NOT NULL
+                        seller_id BIGINT NOT NULL,
+                        status VARCHAR(20) NOT NULL DEFAULT 'ON_SALE'
                     )
                     """);
             connection.createStatement().execute("""
@@ -115,6 +116,14 @@ class StoreMigrationTest {
                     .isEqualTo(2);
             assertThat(queryLong(connection, "SELECT COUNT(*) FROM stores WHERE version = 0"))
                     .isEqualTo(2);
+            assertThat(queryLong(connection, "SELECT COUNT(*) FROM products WHERE store_id IS NULL"))
+                    .isZero();
+            assertThat(queryLong(connection, "SELECT COUNT(*) FROM information_schema.columns "
+                    + "WHERE table_name = 'products' AND column_name = 'seller_id'"))
+                    .isZero();
+            assertThat(queryLong(connection, "SELECT COUNT(*) FROM pg_indexes "
+                    + "WHERE tablename = 'products' AND indexname = 'idx_products_store_status_id'"))
+                    .isEqualTo(1);
 
             connection.createStatement().execute("""
                     INSERT INTO stores (owner_member_id, type, public_name, introduction, status)

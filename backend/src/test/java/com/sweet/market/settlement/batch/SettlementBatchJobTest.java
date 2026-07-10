@@ -229,7 +229,7 @@ class SettlementBatchJobTest extends IntegrationTestSupport {
                     "상품 상태가 설명과 달라 환불을 요청합니다."
             );
             entityManager.persist(refundRequest);
-            refundRequest.approve(order.getProduct().getSeller());
+            refundRequest.approve(order.getSeller());
 
             Payment payment = entityManager.createQuery(
                             "select p from Payment p where p.order.id = :orderId",

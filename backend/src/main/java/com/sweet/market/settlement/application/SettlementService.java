@@ -29,7 +29,7 @@ public class SettlementService {
     public SettlementResponse create(Long sellerId, Long orderId) {
         Order order = orderRepository.findWithBuyerAndProductById(orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
-        if (!order.getProduct().isOwnedBy(sellerId)) {
+        if (!order.getSeller().getId().equals(sellerId)) {
             throw new BusinessException(ErrorCode.SETTLEMENT_ACCESS_DENIED);
         }
         if (settlementRepository.existsByOrderId(orderId)) {

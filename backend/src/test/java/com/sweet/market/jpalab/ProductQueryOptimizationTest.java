@@ -49,7 +49,7 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
                 .setParameter("status", ProductStatus.ON_SALE)
                 .getResultStream()) {
             sellerNicknames = products
-                    .map(product -> product.getSeller().getNickname())
+                    .map(product -> product.getStore().getOwnerMember().getNickname())
                     .toList();
         }
 
@@ -70,7 +70,7 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
                 )
                 .getContent()
                 .stream()
-                .map(product -> product.getSeller().getNickname())
+                .map(product -> product.getStore().getOwnerMember().getNickname())
                 .toList();
 
         assertThat(sellerNicknames).hasSize(3);
@@ -93,7 +93,7 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
         assertThat(products).hasSize(3);
         assertThat(products)
                 .allSatisfy(product -> {
-                    assertThat(persistenceUnitUtil.isLoaded(product, "seller")).isTrue();
+                    assertThat(persistenceUnitUtil.isLoaded(product, "store")).isTrue();
                     assertThat(persistenceUnitUtil.isLoaded(product, "images")).isFalse();
                 });
     }

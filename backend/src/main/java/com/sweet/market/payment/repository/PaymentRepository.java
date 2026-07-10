@@ -14,11 +14,11 @@ import jakarta.persistence.LockModeType;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
-    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.seller", "order.product.images"})
+    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.store", "order.product.store.ownerMember", "order.product.images", "order.seller"})
     Optional<Payment> findWithOrderByOrderId(Long orderId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.seller", "order.product.images"})
+    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.store", "order.product.store.ownerMember", "order.product.images", "order.seller"})
     @Query("""
             select p
             from Payment p

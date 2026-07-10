@@ -64,7 +64,7 @@ public class Settlement {
         }
         return new Settlement(
                 order,
-                order.getProduct().getSeller(),
+                order.getSeller(),
                 order.getProduct().getPrice(),
                 SettlementStatus.COMPLETED,
                 LocalDateTime.now()
