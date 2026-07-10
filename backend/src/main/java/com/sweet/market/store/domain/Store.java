@@ -130,6 +130,14 @@ public class Store {
         rejectionReason = null;
     }
 
+    public void changeLegalBusinessInformationForResubmission(String legalBusinessName, String businessRegistrationId) {
+        if (type != StoreType.BUSINESS || status != StoreStatus.REJECTED) {
+            throw new IllegalStateException("Only rejected business stores can update an application");
+        }
+        this.legalBusinessName = legalBusinessName;
+        this.businessRegistrationId = businessRegistrationId;
+    }
+
     public void suspend() {
         validateStatus(StoreStatus.ACTIVE, "suspended");
         status = StoreStatus.SUSPENDED;
@@ -149,10 +157,14 @@ public class Store {
         if (type != StoreType.BUSINESS) {
             throw new IllegalStateException("Personal store does not have business information");
         }
-        validateStatus(StoreStatus.ACTIVE, "changed legal business information for");
+        if (status != StoreStatus.ACTIVE && status != StoreStatus.PENDING) {
+            throw new IllegalStateException("Store cannot change legal business information for: " + status);
+        }
         this.legalBusinessName = legalBusinessName;
         this.businessRegistrationId = businessRegistrationId;
-        this.status = StoreStatus.PENDING;
+        if (status == StoreStatus.ACTIVE) {
+            this.status = StoreStatus.PENDING;
+        }
         this.rejectionReason = null;
     }
 

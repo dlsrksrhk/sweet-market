@@ -14,6 +14,7 @@ import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.store.application.StoreProvisioningService;
 
 @Service
 public class AuthService {
@@ -21,15 +22,18 @@ public class AuthService {
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final StoreProvisioningService storeProvisioningService;
 
     public AuthService(
             MemberRepository memberRepository,
             PasswordEncoder passwordEncoder,
-            JwtProvider jwtProvider
+            JwtProvider jwtProvider,
+            StoreProvisioningService storeProvisioningService
     ) {
         this.memberRepository = memberRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtProvider = jwtProvider;
+        this.storeProvisioningService = storeProvisioningService;
     }
 
     @Transactional
@@ -47,6 +51,7 @@ public class AuthService {
 
         try {
             Member savedMember = memberRepository.saveAndFlush(member);
+            storeProvisioningService.provisionPersonalStore(savedMember);
             return MemberResponse.from(savedMember);
         } catch (DataIntegrityViolationException exception) {
             throw new BusinessException(ErrorCode.DUPLICATE_EMAIL);

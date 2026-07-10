@@ -3,6 +3,8 @@ package com.sweet.market.store.repository;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.sweet.market.store.domain.Store;
@@ -14,6 +16,8 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
 
     List<Store> findAllByOwnerMemberIdAndType(Long ownerMemberId, StoreType type);
 
+    List<Store> findAllByOwnerMemberId(Long ownerMemberId);
+
     default Optional<Store> findPersonalByOwnerMemberId(Long ownerMemberId) {
         return findByOwnerMemberIdAndType(ownerMemberId, StoreType.PERSONAL);
     }
@@ -21,4 +25,6 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
     default List<Store> findBusinessByOwnerMemberId(Long ownerMemberId) {
         return findAllByOwnerMemberIdAndType(ownerMemberId, StoreType.BUSINESS);
     }
+
+    Page<Store> findAllByType(StoreType type, Pageable pageable);
 }

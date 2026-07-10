@@ -12,9 +12,14 @@ import org.springframework.http.MediaType;
 
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import com.sweet.market.support.IntegrationTestSupport;
 
 class AuthApiTest extends IntegrationTestSupport {
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     private static final String EMAIL = "buyer@example.com";
     private static final String PASSWORD = "password123";
@@ -31,6 +36,41 @@ class AuthApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.id").isNumber())
                 .andExpect(jsonPath("$.data.email").value(EMAIL))
                 .andExpect(jsonPath("$.data.nickname").value(NICKNAME));
+    }
+
+    @Test
+    void 회원가입하면_활성_개인_상점과_소유자_멤버십이_생성된다() throws Exception {
+        SignupRequest request = new SignupRequest(EMAIL, PASSWORD, NICKNAME);
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(request)))
+                .andExpect(status().isCreated());
+
+        Integer storeCount = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM stores s
+                JOIN members m ON m.id = s.owner_member_id
+                WHERE m.email = ? AND s.type = 'PERSONAL' AND s.status = 'ACTIVE'
+                """,
+                Integer.class,
+                EMAIL
+        );
+        Integer ownerMembershipCount = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM store_memberships sm
+                JOIN stores s ON s.id = sm.store_id
+                JOIN members m ON m.id = sm.member_id
+                WHERE m.email = ? AND s.type = 'PERSONAL' AND sm.role = 'OWNER' AND sm.active = TRUE
+                """,
+                Integer.class,
+                EMAIL
+        );
+
+        org.assertj.core.api.Assertions.assertThat(storeCount).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(ownerMembershipCount).isEqualTo(1);
     }
 
     @Test

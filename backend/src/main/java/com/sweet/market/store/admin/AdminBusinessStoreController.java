@@ -1,0 +1,66 @@
+package com.sweet.market.store.admin;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.sweet.market.common.api.ApiResponse;
+import com.sweet.market.store.api.StorePrivateResponse;
+import com.sweet.market.store.application.StoreGovernanceService;
+
+import jakarta.validation.Valid;
+
+@RestController
+@RequestMapping("/api/admin/business-stores")
+public class AdminBusinessStoreController {
+
+    private final AdminBusinessStoreQueryService queryService;
+    private final StoreGovernanceService governanceService;
+
+    public AdminBusinessStoreController(AdminBusinessStoreQueryService queryService, StoreGovernanceService governanceService) {
+        this.queryService = queryService;
+        this.governanceService = governanceService;
+    }
+
+    @GetMapping
+    public ApiResponse<Page<AdminBusinessStoreResponse>> search(
+            @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        return ApiResponse.ok(queryService.search(pageable));
+    }
+
+    @GetMapping("/{storeId}")
+    public ApiResponse<AdminBusinessStoreResponse> detail(@PathVariable Long storeId) {
+        return ApiResponse.ok(queryService.findDetail(storeId));
+    }
+
+    @PostMapping("/{storeId}/approve")
+    public ApiResponse<StorePrivateResponse> approve(@PathVariable Long storeId) {
+        return ApiResponse.ok(governanceService.approve(storeId));
+    }
+
+    @PostMapping("/{storeId}/reject")
+    public ApiResponse<StorePrivateResponse> reject(
+            @PathVariable Long storeId,
+            @Valid @RequestBody BusinessStoreRejectRequest request
+    ) {
+        return ApiResponse.ok(governanceService.reject(storeId, request.reason()));
+    }
+
+    @PostMapping("/{storeId}/suspend")
+    public ApiResponse<StorePrivateResponse> suspend(@PathVariable Long storeId) {
+        return ApiResponse.ok(governanceService.suspend(storeId));
+    }
+
+    @PostMapping("/{storeId}/reactivate")
+    public ApiResponse<StorePrivateResponse> reactivate(@PathVariable Long storeId) {
+        return ApiResponse.ok(governanceService.reactivate(storeId));
+    }
+}
