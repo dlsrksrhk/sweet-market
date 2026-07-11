@@ -97,7 +97,8 @@ Add these cases to `ProductTest`:
 ```java
 @Test
 void 숨김_상품은_다시_판매_중으로_노출할_수_있다() {
-    Product product = Product.create(member, "상품", "설명", 10_000L);
+    Member seller = Member.create("show@example.com", "encoded-password", "seller");
+    Product product = Product.create(seller, "상품", "설명", 10_000L);
     product.hide();
 
     product.show();
@@ -107,7 +108,8 @@ void 숨김_상품은_다시_판매_중으로_노출할_수_있다() {
 
 @Test
 void 숨김이_아닌_상품은_재노출할_수_없다() {
-    Product product = Product.create(member, "상품", "설명", 10_000L);
+    Member seller = Member.create("show-conflict@example.com", "encoded-password", "seller");
+    Product product = Product.create(seller, "상품", "설명", 10_000L);
 
     assertThatThrownBy(product::show)
             .isInstanceOf(IllegalStateException.class);
