@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: market-test
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema-batch-postgresql.sql
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+  batch:
+    job:
+      enabled: false
+    jdbc:
+      initialize-schema: never
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: false
+        highlight_sql: false
+        default_batch_fetch_size: 100
+    open-in-view: false
+  task:
+    scheduling:
+      enabled: false
+
+jwt:
+  secret: sweet-market-test-secret-key-32bytes-minimum
+  access-token-validity-seconds: 3600
+
+product:
+  images:
+    upload-root: build/test-product-images
+    temp-dir: temp
+    public-dir: public
+    temp-expiration: 60m
+    cleanup-cron: "0 */10 * * * *"
+    max-file-size: 5MB
+
+web:
+  cors:
+    allowed-origins:
+      - http://localhost:5173
