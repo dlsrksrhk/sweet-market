@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toProductImageSrc, type ProductStatus } from '../products/productApi';
@@ -81,16 +81,13 @@ export function StoreCatalogPanel({ storeId, catalogWritable }: StoreCatalogPane
     setSuccessMessage(null);
     try {
       await mutation.mutateAsync({ action, productIds });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: storeOperationQueryKeys.summary(storeId) }),
-        queryClient.invalidateQueries({ queryKey: storeOperationQueryKeys.products(storeId) }),
-        queryClient.invalidateQueries({ queryKey: storeQueryKeys.publicProducts(storeId) }),
-        queryClient.invalidateQueries({ queryKey: ['products'] }),
-      ]);
+      await reconcileCatalogQueries(queryClient, storeId);
       setSelectedIds(new Set());
       setSuccessMessage(`${productIds.length}개 상품을 ${actionLabel} 처리했습니다.`);
     } catch (error) {
       setMutationError(toErrorMessage(error, `상품을 ${actionLabel} 처리하지 못했습니다.`));
+      await reconcileCatalogQueries(queryClient, storeId, true);
+      setSelectedIds(new Set());
     }
   };
 
@@ -141,6 +138,21 @@ export function StoreCatalogPanel({ storeId, catalogWritable }: StoreCatalogPane
       ) : null}
     </section>
   );
+}
+
+async function reconcileCatalogQueries(queryClient: QueryClient, storeId: number, includeStoreList = false) {
+  const invalidations = [
+    queryClient.invalidateQueries({ queryKey: storeOperationQueryKeys.summary(storeId) }),
+    queryClient.invalidateQueries({ queryKey: storeOperationQueryKeys.products(storeId) }),
+    queryClient.invalidateQueries({ queryKey: storeQueryKeys.publicProducts(storeId) }),
+    queryClient.invalidateQueries({ queryKey: ['products'] }),
+  ];
+
+  if (includeStoreList) {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: storeOperationQueryKeys.stores() }));
+  }
+
+  await Promise.allSettled(invalidations);
 }
 
 function renderRowActions(productId: number, status: ProductStatus, disabled: boolean, runAction: (action: CatalogAction, productIds: number[]) => void) {

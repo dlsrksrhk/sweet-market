@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { ProductCard } from '../features/products/ProductCard';
+import { useAuth } from '../features/auth/AuthProvider';
 import {
   getPublicStore,
   getStorefrontProducts,
@@ -29,6 +30,7 @@ const productSorts: { value: StorefrontProductSort; label: string }[] = [
 const numberFormatter = new Intl.NumberFormat('ko-KR');
 
 export function StoreProfilePage() {
+  const { member, loading: authLoading } = useAuth();
   const { storeId } = useParams();
   const parsedStoreId = parsePositiveIntegerParam(storeId);
   const hasValidStoreId = parsedStoreId !== null;
@@ -61,10 +63,11 @@ export function StoreProfilePage() {
   const hasSettledActiveStore =
     headerQuery.isSuccess && !headerQuery.isFetching && headerQuery.data.operatingStatus === 'ACTIVE';
   const catalogInput = { status, sort, page, size: PAGE_SIZE };
+  const viewerKey = member?.id ?? 'anonymous';
   const catalogQuery = useQuery({
-    queryKey: storeQueryKeys.publicProductList(parsedStoreId ?? 0, catalogInput),
+    queryKey: storeQueryKeys.publicProductList(parsedStoreId ?? 0, viewerKey, catalogInput),
     queryFn: () => getStorefrontProducts(parsedStoreId ?? 0, catalogInput),
-    enabled: hasValidStoreId && hasSettledActiveStore,
+    enabled: hasValidStoreId && hasSettledActiveStore && !authLoading,
   });
 
   useEffect(() => {

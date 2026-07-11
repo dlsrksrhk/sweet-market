@@ -32,6 +32,7 @@ const authenticatedPrivateQueryKeys = [
   ['my-cart'],
   ['store-operations'],
   ['stores', 'me'],
+  ['stores', 'public'],
   ['products'],
 ] as const;
 
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const refreshMember = useCallback(async () => {
     const requestId = ++requestSeq.current;
+    setLoading(true);
 
     try {
       const currentMember = await getCurrentMember();
@@ -107,6 +109,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = useCallback(async (email: string, password: string) => {
     const requestId = ++requestSeq.current;
+    setLoading(true);
 
     try {
       const response = await loginRequest(email, password);

@@ -38,6 +38,8 @@ export type StorefrontProductSearchInput = {
   size: number;
 };
 
+export type StorefrontViewerKey = number | 'anonymous';
+
 export type AdminBusinessStore = PrivateStore & {
   ownerMemberId: number;
   createdAt: string;
@@ -69,8 +71,8 @@ export const storeQueryKeys = {
   me: () => [...storeQueryKeys.all, 'me'] as const,
   public: (storeId: number) => [...storeQueryKeys.all, 'public', storeId] as const,
   publicProducts: (storeId: number) => [...storeQueryKeys.public(storeId), 'products'] as const,
-  publicProductList: (storeId: number, input: StorefrontProductSearchInput) =>
-    [...storeQueryKeys.publicProducts(storeId), input.status, input.sort, input.page, input.size] as const,
+  publicProductList: (storeId: number, viewerKey: StorefrontViewerKey, input: StorefrontProductSearchInput) =>
+    [...storeQueryKeys.publicProducts(storeId), viewerKey, input.status, input.sort, input.page, input.size] as const,
   admin: () => [...storeQueryKeys.all, 'admin'] as const,
   adminList: (input: AdminBusinessStoreSearchInput) =>
     [...storeQueryKeys.admin(), 'list', input.status ?? null, input.page, input.size] as const,
