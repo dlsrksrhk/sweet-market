@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthProvider';
 import {
   createProduct,
@@ -15,7 +15,12 @@ import {
   type ProductUpdateImageInput,
   type ProductUpdateInput,
 } from '../features/products/productApi';
-import { getMyStores, storeQueryKeys, type PrivateStore, type StoreStatus } from '../features/stores/storeApi';
+import { storeQueryKeys, type StoreStatus } from '../features/stores/storeApi';
+import {
+  getOperableStores,
+  storeOperationQueryKeys,
+  type OperableStore,
+} from '../features/stores/storeOperationsApi';
 import { type ApiError } from '../shared/api/http';
 import { ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
 import { parsePositiveIntegerParam } from '../shared/utils/parseId';
@@ -23,7 +28,7 @@ import { parsePositiveIntegerParam } from '../shared/utils/parseId';
 const MAX_PRODUCT_IMAGES = 10;
 const MAX_PRODUCT_IMAGE_SIZE = 5 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const EMPTY_STORES: PrivateStore[] = [];
+const EMPTY_STORES: OperableStore[] = [];
 
 type ProductFormValues = {
   title: string;
@@ -43,10 +48,12 @@ type ManagedImage = {
 
 export function ProductFormPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { productId } = useParams();
   const { member } = useAuth();
   const queryClient = useQueryClient();
   const parsedProductId = parsePositiveIntegerParam(productId);
+  const requestedStoreId = parsePositiveIntegerParam(searchParams.get('storeId') ?? undefined);
   const isEditMode = productId !== undefined;
   const hasValidProductId = parsedProductId !== null;
   const [apiError, setApiError] = useState<string | null>(null);
@@ -68,12 +75,12 @@ export function ProductFormPage() {
     error: storesError,
     isFetching: areStoresFetching,
   } = useQuery({
-    queryKey: storeQueryKeys.me(),
-    queryFn: getMyStores,
+    queryKey: storeOperationQueryKeys.stores(),
+    queryFn: getOperableStores,
     enabled: member !== null,
   });
   const activeStores = useMemo(() => stores.filter((store) => store.status === 'ACTIVE'), [stores]);
-  const ownedStoreIds = useMemo(() => new Set(stores.map((store) => store.storeId)), [stores]);
+  const operableStoreIds = useMemo(() => new Set(stores.map((store) => store.storeId)), [stores]);
 
   const defaultValues = useMemo<ProductFormValues>(
     () => ({
@@ -96,20 +103,30 @@ export function ProductFormPage() {
       return;
     }
 
+    const explicitStoreId = explicitlySelectedStoreId.current;
+    const hasActiveExplicitSelection = activeStores.some((store) => store.storeId === explicitStoreId);
+
+    if (hasActiveExplicitSelection) {
+      return;
+    }
+
+    const requestedStore = activeStores.find((store) => store.storeId === requestedStoreId);
+
+    if (requestedStore) {
+      explicitlySelectedStoreId.current = null;
+      setSelectedStoreId(requestedStore.storeId);
+      return;
+    }
+
     if (activeStores.length === 1) {
       explicitlySelectedStoreId.current = null;
       setSelectedStoreId(activeStores[0].storeId);
       return;
     }
 
-    const explicitStoreId = explicitlySelectedStoreId.current;
-    const hasOwnedActiveSelection = activeStores.some((store) => store.storeId === explicitStoreId);
-
-    if (!hasOwnedActiveSelection) {
-      explicitlySelectedStoreId.current = null;
-      setSelectedStoreId(null);
-    }
-  }, [activeStores, isEditMode]);
+    explicitlySelectedStoreId.current = null;
+    setSelectedStoreId(null);
+  }, [activeStores, isEditMode, requestedStoreId]);
 
   useEffect(() => {
     if (!product) {
@@ -265,8 +282,8 @@ export function ProductFormPage() {
     return <ErrorState message="상품 정보를 불러오지 못했습니다." />;
   }
 
-  if (isEditMode && product && !ownedStoreIds.has(product.storeId)) {
-    return <ErrorState title="접근할 수 없습니다" message="소유한 상점의 상품만 수정할 수 있습니다." />;
+  if (isEditMode && product && !operableStoreIds.has(product.storeId)) {
+    return <ErrorState title="접근할 수 없습니다" message="운영 권한이 있는 상점의 상품만 수정할 수 있습니다." />;
   }
 
   if (isEditMode && !product) {
@@ -308,7 +325,18 @@ export function ProductFormPage() {
         return;
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      const savedStoreId = isEditMode ? product?.storeId : selectedActiveStore?.storeId;
+      const invalidations = [queryClient.invalidateQueries({ queryKey: ['products'] })];
+
+      if (savedStoreId !== undefined) {
+        invalidations.push(
+          queryClient.invalidateQueries({ queryKey: storeOperationQueryKeys.summary(savedStoreId) }),
+          queryClient.invalidateQueries({ queryKey: storeOperationQueryKeys.products(savedStoreId) }),
+          queryClient.invalidateQueries({ queryKey: storeQueryKeys.publicProducts(savedStoreId) }),
+        );
+      }
+
+      await Promise.all(invalidations);
       navigate(`/products/${savedProduct.id}`);
     } catch (caughtError) {
       setApiError(toErrorMessage(caughtError, '상품 저장에 실패했습니다.'));
