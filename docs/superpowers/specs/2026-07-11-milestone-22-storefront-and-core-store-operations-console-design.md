@@ -166,7 +166,7 @@ Parameters:
 - `page`: defaults to `0`.
 - `size`: defaults to `20`, maximum `100`.
 
-Stable ordering uses product ID as the final key. The projection contains only the fields needed by the console: product ID, representative image, title, price, status, creation time, and update time.
+Ordering uses the product ID itself: `NEWEST` is `product.id DESC` and `OLDEST` is `product.id ASC`. The projection contains only the fields needed by the console: product ID, representative image, title, price, and status. M22 does not add product timestamp columns merely for the console.
 
 #### `POST /api/store-operations/{storeId}/products/hide`
 
