@@ -19,6 +19,7 @@ import { ProductDetailPage } from '../pages/ProductDetailPage';
 import { ProductFormPage } from '../pages/ProductFormPage';
 import { SellerRefundRequestsPage } from '../pages/SellerRefundRequestsPage';
 import { SignupPage } from '../pages/SignupPage';
+import { StoreProfilePage } from '../pages/StoreProfilePage';
 import { Shell } from '../shared/layout/Shell';
 
 export function AppRouter() {
@@ -29,6 +30,7 @@ export function AppRouter() {
         <Route path="login" element={<LoginPage />} />
         <Route path="signup" element={<SignupPage />} />
         <Route path="products/:productId" element={<ProductDetailPage />} />
+        <Route path="stores/:storeId" element={<StoreProfilePage />} />
         <Route
           path="products/new"
           element={

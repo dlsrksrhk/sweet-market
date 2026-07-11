@@ -118,7 +118,11 @@ export function ProductDetailPage() {
           </div>
           <h1>{product.title}</h1>
           <strong>{currencyFormatter.format(product.price)}원</strong>
-          <span>판매자 {product.sellerNickname}</span>
+          <div>
+            <span>상점 </span>
+            <Link to={`/stores/${product.storeId}`}>{product.storeName}</Link>{' '}
+            <StatusBadge status={product.storeType} />
+          </div>
         </div>
         <p>{product.description}</p>
         <div className="product-actions">

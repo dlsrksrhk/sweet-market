@@ -71,10 +71,11 @@ function ProductGrid({ error, isLoading, products }: ProductGridProps) {
                 <StatusBadge status={product.status} />
               </div>
               <strong>{currencyFormatter.format(product.price)}원</strong>
-              <span>{product.sellerNickname}</span>
             </div>
           </Link>
           <div className="product-card-actions">
+            <Link to={`/stores/${product.storeId}`}>{product.storeName}</Link>
+            <StatusBadge status={product.storeType} />
             <WishlistToggle
               productId={product.id}
               sellerId={product.sellerId}
