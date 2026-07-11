@@ -19,6 +19,15 @@ const applicationDefaultValues: BusinessApplicationInput = {
   legalBusinessName: '',
   businessRegistrationId: '',
 };
+const fieldIds: Record<keyof BusinessApplicationInput, { input: string; error: string }> = {
+  publicName: { input: 'business-application-public-name', error: 'business-application-public-name-error' },
+  introduction: { input: 'business-application-introduction', error: 'business-application-introduction-error' },
+  legalBusinessName: { input: 'business-application-legal-name', error: 'business-application-legal-name-error' },
+  businessRegistrationId: {
+    input: 'business-application-registration-id',
+    error: 'business-application-registration-id-error',
+  },
+};
 
 export function BusinessStoreApplicationPage() {
   const queryClient = useQueryClient();
@@ -66,7 +75,7 @@ export function BusinessStoreApplicationPage() {
   }
 
   if (error) {
-    return <ErrorState message="사업자 상점 신청 정보를 불러오지 못했습니다." />;
+    return <ErrorState message={toErrorMessage(error, '사업자 상점 신청 정보를 불러오지 못했습니다.')} />;
   }
 
   if (!canSubmit && businessStore) {
@@ -104,44 +113,70 @@ export function BusinessStoreApplicationPage() {
         <label>
           공개 상점명
           <input
+            id={fieldIds.publicName.input}
             type="text"
             maxLength={100}
+            aria-describedby={errors.publicName ? fieldIds.publicName.error : undefined}
+            aria-invalid={Boolean(errors.publicName)}
             {...register('publicName', fieldRules('공개 상점명', 100))}
           />
-          {errors.publicName ? <span className="error-text">{errors.publicName.message}</span> : null}
+          {errors.publicName ? (
+            <span className="error-text" id={fieldIds.publicName.error} role="alert">
+              {errors.publicName.message}
+            </span>
+          ) : null}
         </label>
         <label>
           상점 소개
           <textarea
+            id={fieldIds.introduction.input}
             rows={8}
             maxLength={2000}
+            aria-describedby={errors.introduction ? fieldIds.introduction.error : undefined}
+            aria-invalid={Boolean(errors.introduction)}
             {...register('introduction', fieldRules('상점 소개', 2000))}
           />
-          {errors.introduction ? <span className="error-text">{errors.introduction.message}</span> : null}
+          {errors.introduction ? (
+            <span className="error-text" id={fieldIds.introduction.error} role="alert">
+              {errors.introduction.message}
+            </span>
+          ) : null}
         </label>
         <label>
           법인명
           <input
+            id={fieldIds.legalBusinessName.input}
             type="text"
             maxLength={120}
             autoComplete="organization"
+            aria-describedby={errors.legalBusinessName ? fieldIds.legalBusinessName.error : undefined}
+            aria-invalid={Boolean(errors.legalBusinessName)}
             {...register('legalBusinessName', fieldRules('법인명', 120))}
           />
-          {errors.legalBusinessName ? <span className="error-text">{errors.legalBusinessName.message}</span> : null}
+          {errors.legalBusinessName ? (
+            <span className="error-text" id={fieldIds.legalBusinessName.error} role="alert">
+              {errors.legalBusinessName.message}
+            </span>
+          ) : null}
         </label>
         <label>
           사업자 등록 식별자
           <input
+            id={fieldIds.businessRegistrationId.input}
             type="text"
             maxLength={40}
+            aria-describedby={errors.businessRegistrationId ? fieldIds.businessRegistrationId.error : undefined}
+            aria-invalid={Boolean(errors.businessRegistrationId)}
             {...register('businessRegistrationId', fieldRules('사업자 등록 식별자', 40))}
           />
           {errors.businessRegistrationId ? (
-            <span className="error-text">{errors.businessRegistrationId.message}</span>
+            <span className="error-text" id={fieldIds.businessRegistrationId.error} role="alert">
+              {errors.businessRegistrationId.message}
+            </span>
           ) : null}
         </label>
-        {mutationError ? <p className="error-text">{mutationError}</p> : null}
-        {successMessage ? <p className="status-text">{successMessage}</p> : null}
+        {mutationError ? <p className="error-text" role="alert">{mutationError}</p> : null}
+        {successMessage ? <p className="status-text" role="status" aria-live="polite">{successMessage}</p> : null}
         <button type="submit" disabled={isPending}>
           {isPending ? '제출 중' : businessStore ? '수정 내용 다시 제출' : '신청 제출'}
         </button>

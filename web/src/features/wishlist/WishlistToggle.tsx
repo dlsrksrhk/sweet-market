@@ -8,6 +8,7 @@ type WishlistToggleProps = {
   sellerId: number;
   wishlisted: boolean;
   wishlistCount: number;
+  purchasable?: boolean;
   onChanged?: (response: WishlistResponse) => void;
 };
 
@@ -16,6 +17,7 @@ export function WishlistToggle({
   sellerId,
   wishlisted,
   wishlistCount,
+  purchasable = true,
   onChanged,
 }: WishlistToggleProps) {
   const { loading, member } = useAuth();
@@ -49,7 +51,7 @@ export function WishlistToggle({
     <button
       type="button"
       className={displayedWishlisted ? 'wishlist-button wishlist-button-active' : 'wishlist-button'}
-      disabled={loading || mutation.isPending}
+      disabled={loading || mutation.isPending || (!purchasable && !displayedWishlisted)}
       aria-pressed={displayedWishlisted}
       onClick={(event) => {
         event.preventDefault();

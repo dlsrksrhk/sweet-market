@@ -19,6 +19,10 @@ const profileDefaultValues: ProfileFormValues = {
   publicName: '',
   introduction: '',
 };
+const PUBLIC_NAME_ID = 'store-profile-public-name';
+const PUBLIC_NAME_ERROR_ID = 'store-profile-public-name-error';
+const INTRODUCTION_ID = 'store-profile-introduction';
+const INTRODUCTION_ERROR_ID = 'store-profile-introduction-error';
 
 export function MyStorePage() {
   const queryClient = useQueryClient();
@@ -76,7 +80,7 @@ export function MyStorePage() {
   }
 
   if (error) {
-    return <ErrorState message="내 상점 정보를 불러오지 못했습니다." />;
+    return <ErrorState message={toErrorMessage(error, '내 상점 정보를 불러오지 못했습니다.')} />;
   }
 
   if (stores.length === 0 || !selectedStore) {
@@ -140,31 +144,45 @@ export function MyStorePage() {
         <label>
           공개 상점명
           <input
+            id={PUBLIC_NAME_ID}
             type="text"
             maxLength={100}
+            aria-describedby={errors.publicName ? PUBLIC_NAME_ERROR_ID : undefined}
+            aria-invalid={Boolean(errors.publicName)}
             {...register('publicName', {
               required: '공개 상점명을 입력해주세요.',
               maxLength: { value: 100, message: '공개 상점명은 100자 이하로 입력해주세요.' },
               validate: (value) => value.trim().length > 0 || '공개 상점명을 입력해주세요.',
             })}
           />
-          {errors.publicName ? <span className="error-text">{errors.publicName.message}</span> : null}
+          {errors.publicName ? (
+            <span className="error-text" id={PUBLIC_NAME_ERROR_ID} role="alert">
+              {errors.publicName.message}
+            </span>
+          ) : null}
         </label>
         <label>
           소개
           <textarea
+            id={INTRODUCTION_ID}
             rows={8}
             maxLength={2000}
+            aria-describedby={errors.introduction ? INTRODUCTION_ERROR_ID : undefined}
+            aria-invalid={Boolean(errors.introduction)}
             {...register('introduction', {
               required: '상점 소개를 입력해주세요.',
               maxLength: { value: 2000, message: '상점 소개는 2000자 이하로 입력해주세요.' },
               validate: (value) => value.trim().length > 0 || '상점 소개를 입력해주세요.',
             })}
           />
-          {errors.introduction ? <span className="error-text">{errors.introduction.message}</span> : null}
+          {errors.introduction ? (
+            <span className="error-text" id={INTRODUCTION_ERROR_ID} role="alert">
+              {errors.introduction.message}
+            </span>
+          ) : null}
         </label>
-        {mutationError ? <p className="error-text">{mutationError}</p> : null}
-        {successMessage ? <p className="status-text">{successMessage}</p> : null}
+        {mutationError ? <p className="error-text" role="alert">{mutationError}</p> : null}
+        {successMessage ? <p className="status-text" role="status" aria-live="polite">{successMessage}</p> : null}
         <button type="submit" disabled={isPending}>
           {isPending ? '저장 중' : '프로필 저장'}
         </button>

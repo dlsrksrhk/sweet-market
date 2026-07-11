@@ -237,7 +237,9 @@ export function AdminBusinessStoresPage() {
             {listQuery.isFetching && !listQuery.isLoading ? (
               <p className="status-text">사업자 상점 목록을 갱신하고 있습니다.</p>
             ) : null}
-            {listQuery.error ? <ErrorState message="사업자 상점 목록을 불러오지 못했습니다." /> : null}
+            {listQuery.error ? (
+              <ErrorState message={toErrorMessage(listQuery.error, '사업자 상점 목록을 불러오지 못했습니다.')} />
+            ) : null}
             {!listQuery.isLoading && !listQuery.error && stores.length === 0 ? (
               <EmptyState title="사업자 상점이 없습니다" description="선택한 상태에 해당하는 사업자 상점이 없습니다." />
             ) : null}
@@ -358,7 +360,7 @@ function BusinessStoreDetail({
       <h3 id="business-store-detail-title">사업자 상점 상세</h3>
       {selectedStoreId === null ? <p className="status-text">상점 행을 선택하면 상세 정보가 표시됩니다.</p> : null}
       {isLoading ? <p className="status-text">사업자 상점 상세를 불러오고 있습니다.</p> : null}
-      {error ? <ErrorState message="사업자 상점 상세를 불러오지 못했습니다." /> : null}
+      {error ? <ErrorState message={toErrorMessage(error, '사업자 상점 상세를 불러오지 못했습니다.')} /> : null}
       {actionError ? (
         <p className="error-text" role="alert">
           {toErrorMessage(actionError)}
@@ -557,9 +559,9 @@ function formatDate(value: string) {
   return dateFormatter.format(new Date(value));
 }
 
-function toErrorMessage(error: unknown) {
+function toErrorMessage(error: unknown, fallbackMessage = '사업자 상점 상태를 변경하지 못했습니다.') {
   const apiError = error as Partial<ApiError>;
   const fieldMessage = apiError.fieldErrors?.[0]?.message;
 
-  return fieldMessage ?? apiError.message ?? '사업자 상점 상태를 변경하지 못했습니다.';
+  return fieldMessage ?? apiError.message ?? fallbackMessage;
 }

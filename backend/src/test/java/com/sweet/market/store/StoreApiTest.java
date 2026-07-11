@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -328,7 +329,7 @@ class StoreApiTest extends IntegrationTestSupport {
         activeBusinessStore("active-query-owner@example.com");
         String adminToken = saveAdminAndLogin("status-query-admin@example.com");
 
-        mockMvc.perform(get("/api/admin/business-stores")
+        String response = mockMvc.perform(get("/api/admin/business-stores")
                         .queryParam("status", "PENDING")
                         .queryParam("page", "0")
                         .queryParam("size", "1")
@@ -337,12 +338,17 @@ class StoreApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content", hasSize(1)))
                 .andExpect(jsonPath("$.data.content[0].storeId").value(pendingStore.getId()))
                 .andExpect(jsonPath("$.data.content[0].status").value("PENDING"))
-                .andExpect(jsonPath("$.data.content[0].createdAt", not(blankOrNullString())))
-                .andExpect(jsonPath("$.data.content[0].updatedAt", not(blankOrNullString())))
                 .andExpect(jsonPath("$.data.number").value(0))
                 .andExpect(jsonPath("$.data.size").value(1))
                 .andExpect(jsonPath("$.data.totalElements").value(1))
-                .andExpect(jsonPath("$.data.totalPages").value(1));
+                .andExpect(jsonPath("$.data.totalPages").value(1))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode firstStore = objectMapper.readTree(response).path("data").path("content").path(0);
+        assertThat(firstStore.path("createdAt").asText())
+                .satisfies(value -> assertThat(LocalDateTime.parse(value)).isNotNull());
+        assertThat(firstStore.path("updatedAt").asText())
+                .satisfies(value -> assertThat(LocalDateTime.parse(value)).isNotNull());
     }
 
     private long applyBusiness(String token) throws Exception {
