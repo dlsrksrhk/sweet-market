@@ -30,6 +30,7 @@ const authenticatedPrivateQueryKeys = [
   ['seller-dashboard-report'],
   ['my-wishlist'],
   ['my-cart'],
+  ['stores', 'me'],
   ['products'],
 ] as const;
 

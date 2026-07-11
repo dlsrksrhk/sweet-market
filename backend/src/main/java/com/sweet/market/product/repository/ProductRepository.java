@@ -18,16 +18,16 @@ import com.sweet.market.seller.report.SellerProductStatusCountProjection;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
-    @EntityGraph(attributePaths = {"seller", "images"})
-    Optional<Product> findWithSellerAndImagesById(Long id);
+    @EntityGraph(attributePaths = {"store", "store.ownerMember", "images"})
+    Optional<Product> findWithStoreAndImagesById(Long id);
 
-    @EntityGraph(attributePaths = "seller")
-    Optional<Product> findWithSellerById(Long id);
+    @EntityGraph(attributePaths = {"store", "store.ownerMember"})
+    Optional<Product> findWithStoreById(Long id);
 
-    @EntityGraph(attributePaths = {"seller", "images"})
-    Optional<Product> findWithSellerAndImagesByIdAndStatus(Long id, ProductStatus status);
+    @EntityGraph(attributePaths = {"store", "store.ownerMember", "images"})
+    Optional<Product> findWithStoreAndImagesByIdAndStatus(Long id, ProductStatus status);
 
-    @EntityGraph(attributePaths = {"seller", "images"})
+    @EntityGraph(attributePaths = {"store", "store.ownerMember", "images"})
     @Query("""
             select p
             from Product p
@@ -40,14 +40,17 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             """)
     Optional<Product> findBuyerVisibleDetailById(@Param("id") Long id);
 
-    @EntityGraph(attributePaths = "seller")
+    @EntityGraph(attributePaths = {"store", "store.ownerMember"})
     Page<Product> findByStatusOrderByIdDesc(ProductStatus status, Pageable pageable);
 
     @Query(value = """
             select new com.sweet.market.product.api.ProductSummaryResponse(
                 p.id,
-                s.id,
-                s.nickname,
+                store.id,
+                store.publicName,
+                store.type,
+                owner.id,
+                owner.nickname,
                 p.title,
                 p.price,
                 p.status,
@@ -102,14 +105,20 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 end
             )
             from Product p
-            join p.seller s
+            join p.store store
+            join store.ownerMember owner
             where p.status = :status
+              and (store.type <> com.sweet.market.store.domain.StoreType.BUSINESS
+                   or store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE)
             order by p.id desc
             """,
             countQuery = """
             select count(p)
             from Product p
+            join p.store store
             where p.status = :status
+              and (store.type <> com.sweet.market.store.domain.StoreType.BUSINESS
+                   or store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE)
             """)
     Page<ProductSummaryResponse> findPublicSummariesByStatusOrderByIdDesc(
             @Param("status") ProductStatus status,
@@ -120,8 +129,11 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     @Query(value = """
             select new com.sweet.market.product.api.ProductSummaryResponse(
                 p.id,
-                s.id,
-                s.nickname,
+                store.id,
+                store.publicName,
+                store.type,
+                owner.id,
+                owner.nickname,
                 p.title,
                 p.price,
                 p.status,
@@ -151,14 +163,16 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 )
             )
             from Product p
-            join p.seller s
-            where s.id = :sellerId
+            join p.store store
+            join store.ownerMember owner
+            where store.ownerMember.id = :sellerId
             order by p.id desc
             """,
             countQuery = """
             select count(p)
             from Product p
-            where p.seller.id = :sellerId
+            join p.store store
+            where store.ownerMember.id = :sellerId
             """)
     Page<ProductSummaryResponse> findSummariesBySellerIdOrderByIdDesc(@Param("sellerId") Long sellerId, Pageable pageable);
 
@@ -196,7 +210,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 )
             )
             from Product p
-            join p.seller s
+            join p.store store
+            join store.ownerMember s
             where (:sellerId is null or s.id = :sellerId)
               and (:status is null or p.status = :status)
               and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
@@ -204,7 +219,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             countQuery = """
             select count(p)
             from Product p
-            join p.seller s
+            join p.store store
+            join store.ownerMember s
             where (:sellerId is null or s.id = :sellerId)
               and (:status is null or p.status = :status)
               and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
@@ -216,14 +232,16 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             Pageable pageable
     );
 
-    long countBySellerId(Long sellerId);
+    @Query("select count(p) from Product p where p.store.ownerMember.id = :sellerId")
+    long countBySellerId(@Param("sellerId") Long sellerId);
 
-    long countBySellerIdAndStatus(Long sellerId, ProductStatus status);
+    @Query("select count(p) from Product p where p.store.ownerMember.id = :sellerId and p.status = :status")
+    long countBySellerIdAndStatus(@Param("sellerId") Long sellerId, @Param("status") ProductStatus status);
 
     @Query("""
             select p.status as status, count(p) as count
             from Product p
-            where p.seller.id = :sellerId
+            where p.store.ownerMember.id = :sellerId
             group by p.status
             """)
     List<SellerProductStatusCountProjection> countProductStatusesBySellerId(@Param("sellerId") Long sellerId);

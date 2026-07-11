@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Set;
 
 import com.sweet.market.member.domain.Member;
+import com.sweet.market.store.domain.Store;
+import com.sweet.market.store.domain.StoreStatus;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -21,6 +23,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import lombok.AccessLevel;
@@ -29,7 +32,7 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "products")
+@Table(name = "products", indexes = @Index(name = "idx_products_store_status_id", columnList = "store_id, status, id"))
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Product {
 
@@ -41,9 +44,9 @@ public class Product {
     @Column(nullable = false)
     private Long version;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "seller_id", nullable = false)
-    private Member seller;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false, cascade = CascadeType.PERSIST)
+    @JoinColumn(name = "store_id", nullable = false)
+    private Store store;
 
     @Column(nullable = false, length = 100)
     private String title;
@@ -61,16 +64,23 @@ public class Product {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductImage> images = new ArrayList<>();
 
-    private Product(Member seller, String title, String description, long price, ProductStatus status) {
-        this.seller = seller;
+    private Product(Store store, String title, String description, long price, ProductStatus status) {
+        this.store = store;
         this.title = title;
         this.description = description;
         this.price = price;
         this.status = status;
     }
 
-    public static Product create(Member seller, String title, String description, long price) {
-        return new Product(seller, title, description, price, ProductStatus.ON_SALE);
+    public static Product create(Store store, String title, String description, long price) {
+        return new Product(store, title, description, price, ProductStatus.ON_SALE);
+    }
+
+    /**
+     * Compatibility factory for in-memory fixtures. Application commands must select an existing store.
+     */
+    public static Product create(Member owner, String title, String description, long price) {
+        return create(Store.createPersonal(owner, owner.getNickname() + "의 상점", ""), title, description, price);
     }
 
     public void update(String title, String description, long price) {
@@ -107,7 +117,11 @@ public class Product {
     }
 
     public boolean isOwnedBy(Long memberId) {
-        return seller.getId().equals(memberId);
+        return store.getOwnerMember().getId().equals(memberId);
+    }
+
+    public boolean isPurchasable() {
+        return status == ProductStatus.ON_SALE && store.getStatus() == StoreStatus.ACTIVE;
     }
 
     public List<ProductImage> getImages() {

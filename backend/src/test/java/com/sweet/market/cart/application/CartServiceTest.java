@@ -47,7 +47,7 @@ class CartServiceTest {
         TransactionStatus transactionStatus = new SimpleTransactionStatus();
 
         when(memberRepository.findById(1L)).thenReturn(Optional.of(buyer));
-        when(productRepository.findWithSellerById(10L)).thenReturn(Optional.of(product));
+        when(productRepository.findWithStoreById(10L)).thenReturn(Optional.of(product));
         when(cartItemRepository.existsByBuyerIdAndProductId(1L, 10L)).thenReturn(false);
         when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
         when(cartItemRepository.saveAndFlush(any(CartItem.class)))

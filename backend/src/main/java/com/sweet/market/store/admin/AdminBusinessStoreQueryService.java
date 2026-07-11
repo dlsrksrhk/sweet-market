@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.store.domain.Store;
+import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.domain.StoreType;
 import com.sweet.market.store.repository.StoreRepository;
 
@@ -21,8 +22,11 @@ public class AdminBusinessStoreQueryService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AdminBusinessStoreResponse> search(Pageable pageable) {
-        return storeRepository.findAllByType(StoreType.BUSINESS, pageable).map(AdminBusinessStoreResponse::from);
+    public Page<AdminBusinessStoreResponse> search(StoreStatus status, Pageable pageable) {
+        Page<Store> stores = status == null
+                ? storeRepository.findAllByType(StoreType.BUSINESS, pageable)
+                : storeRepository.findAllByTypeAndStatus(StoreType.BUSINESS, status, pageable);
+        return stores.map(AdminBusinessStoreResponse::from);
     }
 
     @Transactional(readOnly = true)

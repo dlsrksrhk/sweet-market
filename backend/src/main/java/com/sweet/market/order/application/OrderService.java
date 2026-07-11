@@ -45,7 +45,7 @@ public class OrderService {
     public OrderResponse create(Long buyerId, Long productId) {
         Member buyer = memberRepository.findById(buyerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
-        Product product = productRepository.findWithSellerAndImagesById(productId)
+        Product product = productRepository.findWithStoreAndImagesById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
 
         Order order;

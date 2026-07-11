@@ -65,7 +65,7 @@ public class ProductQueryService {
         boolean wishlisted = viewerId != null && wishlistItemRepository.existsByBuyerIdAndProductId(viewerId, productId);
         boolean carted = viewerId != null && cartItemRepository.existsByBuyerIdAndProductId(viewerId, productId);
         ReviewSummary productSummary = reviewRepository.summarizeByProductId(productId);
-        ReviewSummary sellerSummary = reviewRepository.summarizeBySellerId(product.getSeller().getId());
+        ReviewSummary sellerSummary = reviewRepository.summarizeBySellerId(product.getStore().getOwnerMember().getId());
         return ProductResponse.from(
                 product,
                 wishlistCount,

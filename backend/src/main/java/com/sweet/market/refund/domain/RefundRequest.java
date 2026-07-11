@@ -98,7 +98,7 @@ public class RefundRequest {
     }
 
     public boolean isSellerOwnedBy(Long sellerId) {
-        return order.getProduct().isOwnedBy(sellerId);
+        return order.getSeller().getId().equals(sellerId);
     }
 
     private void validateRequested() {

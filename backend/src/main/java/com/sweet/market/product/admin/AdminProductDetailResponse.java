@@ -30,8 +30,8 @@ public record AdminProductDetailResponse(
 
         return new AdminProductDetailResponse(
                 product.getId(),
-                product.getSeller().getId(),
-                product.getSeller().getNickname(),
+                product.getStore().getOwnerMember().getId(),
+                product.getStore().getOwnerMember().getNickname(),
                 product.getTitle(),
                 product.getPrice(),
                 product.getStatus().name(),

@@ -12,7 +12,6 @@ import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.domain.Product;
-import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.wishlist.api.WishlistResponse;
 import com.sweet.market.wishlist.domain.WishlistItem;
@@ -40,7 +39,7 @@ public class WishlistService {
     }
 
     public WishlistResponse add(Long buyerId, Long productId) {
-        Product product = productRepository.findWithSellerById(productId)
+        Product product = productRepository.findWithStoreById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
 
         if (wishlistItemRepository.existsByBuyerIdAndProductId(buyerId, productId)) {
@@ -78,7 +77,7 @@ public class WishlistService {
         if (product.isOwnedBy(buyerId)) {
             throw new BusinessException(ErrorCode.WISHLIST_OWN_PRODUCT_NOT_ALLOWED);
         }
-        if (product.getStatus() != ProductStatus.ON_SALE) {
+        if (!product.isPurchasable()) {
             throw new BusinessException(ErrorCode.WISHLIST_PRODUCT_NOT_ON_SALE);
         }
     }

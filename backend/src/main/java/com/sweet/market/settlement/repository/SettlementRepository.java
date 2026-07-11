@@ -21,7 +21,7 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 
     boolean existsByOrderId(Long orderId);
 
-    @EntityGraph(attributePaths = {"order", "order.product", "order.product.seller", "seller"})
+    @EntityGraph(attributePaths = {"order", "order.product", "order.product.store", "order.product.store.ownerMember", "order.seller", "seller"})
     Optional<Settlement> findWithOrderByOrderId(Long orderId);
 
     @EntityGraph(attributePaths = {"order", "order.product", "seller"})

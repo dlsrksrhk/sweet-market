@@ -99,6 +99,7 @@ class OrderConfirmApiTest extends IntegrationTestSupport {
     }
 
     private Long createProduct(String accessToken) throws Exception {
+        Long storeId = activePersonalStoreId(accessToken);
         Long uploadId = uploadImage(accessToken, "macbook-1.jpg");
 
         String response = mockMvc.perform(post("/api/products")
@@ -106,6 +107,7 @@ class OrderConfirmApiTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "storeId": %d,
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
@@ -117,7 +119,7 @@ class OrderConfirmApiTest extends IntegrationTestSupport {
                                     }
                                   ]
                                 }
-                                """.formatted(uploadId)))
+                                """.formatted(storeId, uploadId)))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()

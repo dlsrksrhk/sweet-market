@@ -22,14 +22,14 @@ import jakarta.persistence.LockModeType;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
-    @EntityGraph(attributePaths = {"product", "product.seller"})
+    @EntityGraph(attributePaths = {"product", "product.store", "product.store.ownerMember", "seller"})
     Page<Order> findByBuyerIdOrderByIdDesc(Long buyerId, Pageable pageable);
 
-    @EntityGraph(attributePaths = {"buyer", "product", "product.seller", "product.images"})
+    @EntityGraph(attributePaths = {"buyer", "product", "product.store", "product.store.ownerMember", "product.images", "seller"})
     Optional<Order> findWithBuyerAndProductById(Long id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @EntityGraph(attributePaths = {"buyer", "product", "product.seller", "product.images"})
+    @EntityGraph(attributePaths = {"buyer", "product", "product.store", "product.store.ownerMember", "product.images", "seller"})
     @Query("""
             select o
             from Order o
@@ -37,10 +37,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             """)
     Optional<Order> findStateChangeTargetById(@Param("id") Long id);
 
-    @EntityGraph(attributePaths = {"buyer", "product", "product.seller"})
+    @EntityGraph(attributePaths = {"buyer", "product", "product.store", "product.store.ownerMember", "seller"})
     Optional<Order> findReviewTargetById(Long id);
 
-    @EntityGraph(attributePaths = {"product", "product.seller"})
+    @EntityGraph(attributePaths = {"product", "product.store", "product.store.ownerMember", "seller"})
     @Query("""
             select o
             from Order o
@@ -48,7 +48,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             """)
     Optional<Order> findSettlementTargetById(@Param("orderId") Long orderId);
 
-    @EntityGraph(attributePaths = {"buyer", "product", "product.seller"})
+    @EntityGraph(attributePaths = {"buyer", "product", "product.store", "product.store.ownerMember", "seller"})
     Optional<Order> findAdminSettlementRetryTargetById(Long orderId);
 
     @Query(
@@ -69,7 +69,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                     from Order o
                     join o.buyer buyer
                     join o.product p
-                    join p.seller seller
+                    join o.seller seller
                     where (:buyerId is null or buyer.id = :buyerId)
                       and (:sellerId is null or seller.id = :sellerId)
                       and (:status is null or o.status = :status)
@@ -80,7 +80,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                     from Order o
                     join o.buyer buyer
                     join o.product p
-                    join p.seller seller
+                    join o.seller seller
                     where (:buyerId is null or buyer.id = :buyerId)
                       and (:sellerId is null or seller.id = :sellerId)
                       and (:status is null or o.status = :status)
@@ -100,8 +100,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("""
             select count(o)
             from Order o
-            join o.product p
-            where p.seller.id = :sellerId
+            where o.seller.id = :sellerId
               and o.status = com.sweet.market.order.domain.OrderStatus.CONFIRMED
             """)
     long countConfirmedOrdersBySellerId(@Param("sellerId") Long sellerId);
@@ -109,8 +108,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("""
             select count(o)
             from Order o
-            join o.product p
-            where p.seller.id = :sellerId
+            where o.seller.id = :sellerId
               and o.orderedAt >= :fromInclusive
               and o.orderedAt < :toExclusive
             """)
@@ -124,7 +122,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             select count(o)
             from Order o
             join o.product p
-            where p.seller.id = :sellerId
+            where o.seller.id = :sellerId
               and o.status = com.sweet.market.order.domain.OrderStatus.CONFIRMED
               and o.confirmedAt >= :fromInclusive
               and o.confirmedAt < :toExclusive
@@ -139,7 +137,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             select coalesce(sum(p.price), 0)
             from Order o
             join o.product p
-            where p.seller.id = :sellerId
+            where o.seller.id = :sellerId
               and o.status = com.sweet.market.order.domain.OrderStatus.CONFIRMED
               and o.confirmedAt >= :fromInclusive
               and o.confirmedAt < :toExclusive
@@ -158,7 +156,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             )
             from Order o
             join o.product p
-            where p.seller.id = :sellerId
+            where o.seller.id = :sellerId
               and o.status = com.sweet.market.order.domain.OrderStatus.CONFIRMED
               and o.confirmedAt >= :fromInclusive
               and o.confirmedAt < :toExclusive
@@ -205,7 +203,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             )
             from Order o
             join o.product p
-            where p.seller.id = :sellerId
+            where o.seller.id = :sellerId
               and o.status = com.sweet.market.order.domain.OrderStatus.CONFIRMED
               and o.confirmedAt >= :fromInclusive
               and o.confirmedAt < :toExclusive
@@ -233,7 +231,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             join o.buyer buyer
             join o.product p
             left join Settlement s on s.order = o
-            where p.seller.id = :sellerId
+            where o.seller.id = :sellerId
               and o.status = com.sweet.market.order.domain.OrderStatus.CONFIRMED
               and o.confirmedAt >= :fromInclusive
               and o.confirmedAt < :toExclusive
@@ -249,8 +247,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Query("""
             select o.status as status, count(o) as count
             from Order o
-            join o.product p
-            where p.seller.id = :sellerId
+            where o.seller.id = :sellerId
             group by o.status
             """)
     List<SellerOrderStatusCountProjection> countOrderStatusesBySellerId(@Param("sellerId") Long sellerId);
@@ -259,7 +256,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             select coalesce(sum(p.price), 0)
             from Order o
             join o.product p
-            where p.seller.id = :sellerId
+            where o.seller.id = :sellerId
               and o.status = com.sweet.market.order.domain.OrderStatus.CONFIRMED
               and not exists (select 1 from Settlement s where s.order = o)
             """)
@@ -269,7 +266,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             select coalesce(sum(p.price), 0)
             from Order o
             join o.product p
-            where p.seller.id = :sellerId
+            where o.seller.id = :sellerId
               and o.status = com.sweet.market.order.domain.OrderStatus.CONFIRMED
               and o.confirmedAt >= :fromInclusive
               and o.confirmedAt < :toExclusive

@@ -68,7 +68,7 @@ public class Review {
         this.order = order;
         this.buyer = order.getBuyer();
         this.product = order.getProduct();
-        this.seller = order.getProduct().getSeller();
+        this.seller = order.getSeller();
         this.rating = rating;
         this.content = content;
         this.createdAt = createdAt;

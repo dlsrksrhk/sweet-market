@@ -7,10 +7,11 @@ type CartToggleProps = {
   productId: number;
   sellerId: number;
   carted: boolean;
+  purchasable?: boolean;
   onChanged?: (response: CartResponse) => void;
 };
 
-export function CartToggle({ productId, sellerId, carted, onChanged }: CartToggleProps) {
+export function CartToggle({ productId, sellerId, carted, purchasable = true, onChanged }: CartToggleProps) {
   const { loading, member } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -41,7 +42,7 @@ export function CartToggle({ productId, sellerId, carted, onChanged }: CartToggl
     <button
       type="button"
       className={displayedCarted ? 'cart-button cart-button-active' : 'cart-button'}
-      disabled={loading || mutation.isPending}
+      disabled={loading || mutation.isPending || (!purchasable && !displayedCarted)}
       aria-pressed={displayedCarted}
       onClick={(event) => {
         event.preventDefault();

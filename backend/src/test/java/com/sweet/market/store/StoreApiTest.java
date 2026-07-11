@@ -3,12 +3,14 @@ package com.sweet.market.store;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -27,8 +29,10 @@ import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.store.api.PublicStoreResponse;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreMembership;
+import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.repository.StoreMembershipRepository;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.store.application.StoreAccessService;
@@ -234,6 +238,25 @@ class StoreApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 활성_상점_공개_프로필은_민감_필드_없이_프로젝션으로_조회된다() throws Exception {
+        StoreFixture fixture = activeBusinessStore("public-projection@example.com");
+
+        PublicStoreResponse profile = storeRepository.findPublicProfileByIdAndStatus(
+                        fixture.store().getId(),
+                        StoreStatus.ACTIVE
+                )
+                .orElseThrow();
+
+        assertThat(profile.storeId()).isEqualTo(fixture.store().getId());
+        assertThat(profile.type()).isEqualTo(fixture.store().getType());
+        assertThat(profile.publicName()).isEqualTo("공개 상점");
+        assertThat(profile.introduction()).isEqualTo("공개 소개");
+        assertThat(PublicStoreResponse.class.getRecordComponents())
+                .extracting(component -> component.getName())
+                .doesNotContain("legalBusinessName", "businessRegistrationId", "rejectionReason", "memberships");
+    }
+
+    @Test
     void 비활성_사업자_상점은_공개_프로필로_조회할_수_없다() throws Exception {
         StoreFixture fixture = activeBusinessStore("suspended@example.com");
         String adminToken = saveAdminAndLogin("suspend-admin@example.com");
@@ -291,6 +314,41 @@ class StoreApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.legalBusinessName").value("비공개 법인"))
                 .andExpect(jsonPath("$.data.businessRegistrationId").value("999-99-99999"));
+    }
+
+    @Test
+    void 관리자는_사업자_상점을_상태별로_페이지_조회한다() throws Exception {
+        Member pendingOwner = saveMember("pending-query-owner@example.com", "pending-owner");
+        Store pendingStore = storeRepository.save(Store.applyBusiness(
+                pendingOwner,
+                "승인 대기 상점",
+                "승인 대기 소개",
+                "승인 대기 법인",
+                "111-22-33333"
+        ));
+        activeBusinessStore("active-query-owner@example.com");
+        String adminToken = saveAdminAndLogin("status-query-admin@example.com");
+
+        String response = mockMvc.perform(get("/api/admin/business-stores")
+                        .queryParam("status", "PENDING")
+                        .queryParam("page", "0")
+                        .queryParam("size", "1")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(adminToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].storeId").value(pendingStore.getId()))
+                .andExpect(jsonPath("$.data.content[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.data.number").value(0))
+                .andExpect(jsonPath("$.data.size").value(1))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.totalPages").value(1))
+                .andReturn().getResponse().getContentAsString();
+
+        JsonNode firstStore = objectMapper.readTree(response).path("data").path("content").path(0);
+        assertThat(firstStore.path("createdAt").asText())
+                .satisfies(value -> assertThat(LocalDateTime.parse(value)).isNotNull());
+        assertThat(firstStore.path("updatedAt").asText())
+                .satisfies(value -> assertThat(LocalDateTime.parse(value)).isNotNull());
     }
 
     private long applyBusiness(String token) throws Exception {

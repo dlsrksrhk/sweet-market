@@ -1,9 +1,11 @@
 import { Route, Routes } from 'react-router-dom';
 import { RequireAdmin } from '../features/auth/RequireAdmin';
 import { RequireAuth } from '../features/auth/RequireAuth';
+import { AdminBusinessStoresPage } from '../pages/AdminBusinessStoresPage';
 import { AdminOperationsPage } from '../pages/AdminOperationsPage';
 import { AdminRefundRequestsPage } from '../pages/AdminRefundRequestsPage';
 import { AdminSettlementBatchPage } from '../pages/AdminSettlementBatchPage';
+import { BusinessStoreApplicationPage } from '../pages/BusinessStoreApplicationPage';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MyCartPage } from '../pages/MyCartPage';
@@ -12,11 +14,13 @@ import { MyRefundHistoryPage } from '../pages/MyRefundHistoryPage';
 import { MyReportsPage } from '../pages/MyReportsPage';
 import { MySalesPage } from '../pages/MySalesPage';
 import { MySettlementsPage } from '../pages/MySettlementsPage';
+import { MyStorePage } from '../pages/MyStorePage';
 import { MyWishlistPage } from '../pages/MyWishlistPage';
 import { ProductDetailPage } from '../pages/ProductDetailPage';
 import { ProductFormPage } from '../pages/ProductFormPage';
 import { SellerRefundRequestsPage } from '../pages/SellerRefundRequestsPage';
 import { SignupPage } from '../pages/SignupPage';
+import { StoreProfilePage } from '../pages/StoreProfilePage';
 import { Shell } from '../shared/layout/Shell';
 
 export function AppRouter() {
@@ -27,6 +31,7 @@ export function AppRouter() {
         <Route path="login" element={<LoginPage />} />
         <Route path="signup" element={<SignupPage />} />
         <Route path="products/:productId" element={<ProductDetailPage />} />
+        <Route path="stores/:storeId" element={<StoreProfilePage />} />
         <Route
           path="products/new"
           element={
@@ -40,6 +45,22 @@ export function AppRouter() {
           element={
             <RequireAuth>
               <ProductFormPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="me/store"
+          element={
+            <RequireAuth>
+              <MyStorePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="me/store/business-application"
+          element={
+            <RequireAuth>
+              <BusinessStoreApplicationPage />
             </RequireAuth>
           }
         />
@@ -105,6 +126,14 @@ export function AppRouter() {
             <RequireAuth>
               <SellerRefundRequestsPage />
             </RequireAuth>
+          }
+        />
+        <Route
+          path="admin/business-stores"
+          element={
+            <RequireAdmin>
+              <AdminBusinessStoresPage />
+            </RequireAdmin>
           }
         />
         <Route

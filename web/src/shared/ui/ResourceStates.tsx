@@ -72,6 +72,16 @@ function formatStatus(status: string) {
       return '완료';
     case 'FAILED':
       return '실패';
+    case 'PERSONAL':
+      return '개인 상점';
+    case 'BUSINESS':
+      return '사업자 상점';
+    case 'PENDING':
+      return '확인 중';
+    case 'ACTIVE':
+      return '활성';
+    case 'SUSPENDED':
+      return '운영 중지';
     default:
       return status;
   }

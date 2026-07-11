@@ -9,7 +9,6 @@ import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.store.api.PublicStoreResponse;
 import com.sweet.market.store.api.StorePrivateResponse;
-import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.repository.StoreRepository;
 
@@ -31,9 +30,7 @@ public class StoreQueryService {
 
     @Transactional(readOnly = true)
     public PublicStoreResponse findPublicProfile(Long storeId) {
-        Store store = storeRepository.findById(storeId)
-                .filter(candidate -> candidate.getStatus() == StoreStatus.ACTIVE)
+        return storeRepository.findPublicProfileByIdAndStatus(storeId, StoreStatus.ACTIVE)
                 .orElseThrow(() -> new BusinessException(ErrorCode.STORE_NOT_FOUND));
-        return PublicStoreResponse.from(store);
     }
 }

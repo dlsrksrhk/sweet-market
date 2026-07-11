@@ -31,13 +31,13 @@ public interface RefundRequestRepository extends JpaRepository<RefundRequest, Lo
     List<RefundRequest> findByOrderIdIn(@Param("orderIds") Collection<Long> orderIds);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.seller", "buyer", "handledBy"})
+    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.store", "order.product.store.ownerMember", "order.seller", "buyer", "handledBy"})
     Optional<RefundRequest> findWithOrderById(Long id);
 
-    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.seller", "buyer", "handledBy"})
+    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.store", "order.product.store.ownerMember", "order.seller", "buyer", "handledBy"})
     Optional<RefundRequest> findWithOrderByOrderId(Long orderId);
 
-    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.seller", "buyer", "handledBy"})
+    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.store", "order.product.store.ownerMember", "order.seller", "buyer", "handledBy"})
     @Query(
             value = """
                     select r
@@ -59,14 +59,13 @@ public interface RefundRequestRepository extends JpaRepository<RefundRequest, Lo
             Pageable pageable
     );
 
-    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.seller", "buyer", "handledBy"})
+    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.store", "order.product.store.ownerMember", "order.seller", "buyer", "handledBy"})
     @Query(
             value = """
                     select r
                     from RefundRequest r
                     join r.order o
-                    join o.product p
-                    where p.seller.id = :sellerId
+                    where o.seller.id = :sellerId
                       and (:status is null or r.status = :status)
                     order by r.requestedAt desc, r.id desc
                     """,
@@ -74,8 +73,7 @@ public interface RefundRequestRepository extends JpaRepository<RefundRequest, Lo
                     select count(r)
                     from RefundRequest r
                     join r.order o
-                    join o.product p
-                    where p.seller.id = :sellerId
+                    where o.seller.id = :sellerId
                       and (:status is null or r.status = :status)
                     """
     )
@@ -85,7 +83,7 @@ public interface RefundRequestRepository extends JpaRepository<RefundRequest, Lo
             Pageable pageable
     );
 
-    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.seller", "buyer", "handledBy"})
+    @EntityGraph(attributePaths = {"order", "order.buyer", "order.product", "order.product.store", "order.product.store.ownerMember", "order.seller", "buyer", "handledBy"})
     @Query(
             value = """
                     select r

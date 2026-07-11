@@ -41,7 +41,7 @@ class CascadeOrphanRemovalTest extends IntegrationTestSupport {
         entityManager.flush();
         entityManager.clear();
 
-        Product foundProduct = productRepository.findWithSellerAndImagesById(product.getId()).orElseThrow();
+        Product foundProduct = productRepository.findWithStoreAndImagesById(product.getId()).orElseThrow();
 
         assertThat(foundProduct.getImages()).hasSize(2);
         assertThat(productImageRepository.count()).isEqualTo(2);
@@ -58,7 +58,7 @@ class CascadeOrphanRemovalTest extends IntegrationTestSupport {
         entityManager.flush();
         entityManager.clear();
 
-        Product foundProduct = productRepository.findWithSellerAndImagesById(product.getId()).orElseThrow();
+        Product foundProduct = productRepository.findWithStoreAndImagesById(product.getId()).orElseThrow();
         Long imageId = foundProduct.getImages().get(0).getId();
 
         foundProduct.removeImage(imageId);

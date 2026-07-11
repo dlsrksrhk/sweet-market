@@ -52,6 +52,7 @@ class ProductSellerApiTest extends IntegrationTestSupport {
     @Test
     void 내_판매_상품_조회는_대표_이미지를_썸네일로_응답한다() throws Exception {
         String sellerToken = signupAndLogin("seller-representative-products@example.com", "password123", "seller");
+        Long storeId = activePersonalStoreId(sellerToken);
         ProductImageUploadFixture firstImage = uploadProductImage(sellerToken, "seller-product-first.jpg");
         ProductImageUploadFixture representativeImage = uploadProductImage(sellerToken, "seller-product-representative.jpg");
 
@@ -60,6 +61,7 @@ class ProductSellerApiTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "storeId": %d,
                                   "title": "Seller Product",
                                   "description": "Seller Product description",
                                   "price": 10000,
@@ -76,7 +78,7 @@ class ProductSellerApiTest extends IntegrationTestSupport {
                                     }
                                   ]
                                 }
-                                """.formatted(firstImage.id(), representativeImage.id())))
+                                """.formatted(storeId, firstImage.id(), representativeImage.id())))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/products/me")
@@ -94,6 +96,7 @@ class ProductSellerApiTest extends IntegrationTestSupport {
     }
 
     private void createProduct(String token, String title, long price) throws Exception {
+        Long storeId = activePersonalStoreId(token);
         Long uploadId = uploadImage(token, imageFileName(title));
 
         mockMvc.perform(post("/api/products")
@@ -101,6 +104,7 @@ class ProductSellerApiTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "storeId": %d,
                                   "title": "%s",
                                   "description": "%s description",
                                   "price": %d,
@@ -112,7 +116,7 @@ class ProductSellerApiTest extends IntegrationTestSupport {
                                     }
                                   ]
                                 }
-                                """.formatted(title, title, price, uploadId)))
+                                """.formatted(storeId, title, title, price, uploadId)))
                 .andExpect(status().isCreated());
     }
 

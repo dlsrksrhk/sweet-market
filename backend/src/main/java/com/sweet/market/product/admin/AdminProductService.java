@@ -19,7 +19,7 @@ public class AdminProductService {
 
     @Transactional
     public AdminProductDetailResponse hide(Long productId) {
-        Product product = productRepository.findWithSellerAndImagesById(productId)
+        Product product = productRepository.findWithStoreAndImagesById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
         try {
             product.hide();

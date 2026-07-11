@@ -53,7 +53,7 @@ class OrderQueryOptimizationTest extends QueryOptimizationTestSupport {
             summaries = orders
                     .map(order -> {
                         Product product = order.getProduct();
-                        return product.getTitle() + ":" + product.getSeller().getNickname();
+                        return product.getTitle() + ":" + product.getStore().getOwnerMember().getNickname();
                     })
                     .toList();
         }
@@ -91,7 +91,7 @@ class OrderQueryOptimizationTest extends QueryOptimizationTestSupport {
         assertThat(orders)
                 .allSatisfy(order -> {
                     assertThat(persistenceUnitUtil.isLoaded(order, "product")).isTrue();
-                    assertThat(persistenceUnitUtil.isLoaded(order.getProduct(), "seller")).isTrue();
+                    assertThat(persistenceUnitUtil.isLoaded(order.getProduct(), "store")).isTrue();
                 });
         assertThat(queryCount()).isLessThanOrEqualTo(2);
     }

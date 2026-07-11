@@ -6,12 +6,16 @@ import com.sweet.market.product.domain.Product;
 
 public record ProductResponse(
         Long id,
+        Long storeId,
+        String storeName,
+        String storeType,
         Long sellerId,
         String sellerNickname,
         String title,
         String description,
         long price,
         String status,
+        boolean purchasable,
         List<ProductImageResponse> images,
         long wishlistCount,
         boolean wishlisted,
@@ -46,12 +50,16 @@ public record ProductResponse(
     ) {
         return new ProductResponse(
                 product.getId(),
-                product.getSeller().getId(),
-                product.getSeller().getNickname(),
+                product.getStore().getId(),
+                product.getStore().getPublicName(),
+                product.getStore().getType().name(),
+                product.getStore().getOwnerMember().getId(),
+                product.getStore().getOwnerMember().getNickname(),
                 product.getTitle(),
                 product.getDescription(),
                 product.getPrice(),
                 product.getStatus().name(),
+                product.isPurchasable(),
                 product.getImages().stream()
                         .map(ProductImageResponse::from)
                         .toList(),

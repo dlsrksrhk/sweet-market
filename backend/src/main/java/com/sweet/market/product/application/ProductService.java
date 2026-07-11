@@ -12,8 +12,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
-import com.sweet.market.member.domain.Member;
-import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.api.ProductCreateImageRequest;
 import com.sweet.market.product.api.ProductCreateRequest;
 import com.sweet.market.product.api.ProductResponse;
@@ -23,48 +21,48 @@ import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.product.storage.ProductImageStorageService;
+import com.sweet.market.store.application.StoreAccessService;
+import com.sweet.market.store.domain.Store;
 import com.sweet.market.wishlist.repository.WishlistItemRepository;
 
 @Service
 public class ProductService {
 
     private final ProductRepository productRepository;
-    private final MemberRepository memberRepository;
+    private final StoreAccessService storeAccessService;
     private final ProductImageUploadService productImageUploadService;
     private final ProductImageStorageService productImageStorageService;
     private final WishlistItemRepository wishlistItemRepository;
 
     public ProductService(
             ProductRepository productRepository,
-            MemberRepository memberRepository,
+            StoreAccessService storeAccessService,
             ProductImageUploadService productImageUploadService,
             ProductImageStorageService productImageStorageService,
             WishlistItemRepository wishlistItemRepository
     ) {
         this.productRepository = productRepository;
-        this.memberRepository = memberRepository;
+        this.storeAccessService = storeAccessService;
         this.productImageUploadService = productImageUploadService;
         this.productImageStorageService = productImageStorageService;
         this.wishlistItemRepository = wishlistItemRepository;
     }
 
     @Transactional
-    public ProductResponse create(Long sellerId, ProductCreateRequest request) {
+    public ProductResponse create(Long memberId, ProductCreateRequest request) {
         validateCreateImages(request.images());
         productImageUploadService.validateConfirmableUploads(
-                sellerId,
+                memberId,
                 request.images().stream()
                         .map(ProductCreateImageRequest::uploadId)
                         .toList()
         );
 
-        Member seller = memberRepository.findById(sellerId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
-
-        Product product = Product.create(seller, request.title(), request.description(), request.price());
+        Store store = storeAccessService.requireCatalogOperator(memberId, request.storeId());
+        Product product = Product.create(store, request.title(), request.description(), request.price());
         List<ProductImage> images = request.images().stream()
                 .map(image -> productImageUploadService.confirm(
-                        sellerId,
+                        memberId,
                         image.uploadId(),
                         image.sortOrder(),
                         image.representative()
@@ -81,8 +79,8 @@ public class ProductService {
     }
 
     @Transactional
-    public ProductResponse update(Long sellerId, Long productId, ProductUpdateRequest request) {
-        Product product = findProductForOwner(sellerId, productId);
+    public ProductResponse update(Long memberId, Long productId, ProductUpdateRequest request) {
+        Product product = findProductForOwner(memberId, productId);
         try {
             product.update(request.title(), request.description(), request.price());
         } catch (IllegalStateException exception) {
@@ -93,11 +91,11 @@ public class ProductService {
                 .filter(ProductUpdateImageRequest::referencesUpload)
                 .map(ProductUpdateImageRequest::uploadId)
                 .toList();
-        productImageUploadService.validateConfirmableUploads(sellerId, uploadIds);
+        productImageUploadService.validateConfirmableUploads(memberId, uploadIds);
         List<String> omittedLocalFileNames = omittedLocalFileNames(product, request.images());
 
         List<ProductImage> nextImages = request.images().stream()
-                .map(image -> toProductImage(sellerId, product, image))
+                .map(image -> toProductImage(memberId, product, image))
                 .toList();
         try {
             product.replaceImages(nextImages);
@@ -109,8 +107,8 @@ public class ProductService {
     }
 
     @Transactional
-    public ProductResponse hide(Long sellerId, Long productId) {
-        Product product = findProductForOwner(sellerId, productId);
+    public ProductResponse hide(Long memberId, Long productId) {
+        Product product = findProductForOwner(memberId, productId);
         try {
             product.hide();
         } catch (IllegalStateException exception) {
@@ -123,12 +121,10 @@ public class ProductService {
         return ProductResponse.from(product, wishlistItemRepository.countByProductId(product.getId()), false);
     }
 
-    private Product findProductForOwner(Long sellerId, Long productId) {
-        Product product = productRepository.findWithSellerAndImagesById(productId)
+    private Product findProductForOwner(Long memberId, Long productId) {
+        Product product = productRepository.findWithStoreAndImagesById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
-        if (!product.isOwnedBy(sellerId)) {
-            throw new BusinessException(ErrorCode.PRODUCT_ACCESS_DENIED);
-        }
+        storeAccessService.requireCatalogOperator(memberId, product.getStore().getId());
         return product;
     }
 

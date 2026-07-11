@@ -14,6 +14,7 @@ export function Shell() {
           <NavLink to="/">상품</NavLink>
           {member ? (
             <>
+              <NavLink to="/me/store">내 상점</NavLink>
               <NavLink to="/me/wishlist">찜한 상품</NavLink>
               <NavLink to="/me/cart">장바구니</NavLink>
               <NavLink to="/me/orders">내 주문</NavLink>
@@ -25,6 +26,7 @@ export function Shell() {
               {member.role === 'ADMIN' ? (
                 <>
                   <NavLink to="/admin/operations">관리자</NavLink>
+                  <NavLink to="/admin/business-stores">사업자 상점 심사</NavLink>
                   <NavLink to="/admin/refunds">관리자 환불</NavLink>
                 </>
               ) : null}

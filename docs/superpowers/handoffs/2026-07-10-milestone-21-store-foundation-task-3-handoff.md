@@ -2,73 +2,59 @@
 
 ## Current State
 
-- Worktree: `C:\dev\jpa-study\.worktrees\milestone-21-store-foundation`
-- Branch: `codex/milestone-21-store-foundation`
-- Completed scope: M21 Task 1 (store domain and migration foundation) and Task 2 (personal-store provisioning and business-store governance APIs).
-- Next scope: M21 Task 3, product ownership migration and historical seller compatibility.
-- Do not modify the main checkout's local-only `backend/src/main/resources/application.yaml` change or its untracked legacy handoff file.
+- Worktree: `C:\dev\study\sweet-market\.worktrees\milestone-21-task-3-product-store-ownership`
+- Branch: `codex/milestone-21-task-3-product-store-ownership`
+- Product ownership has moved from `Product.seller` to required `Product.store`; order records retain a required historical `Order.seller` snapshot.
+- The response-consistency audit is complete: product and order detail/summary responses now each return the required store and compatible seller fields.
 
-## Completed
+## Database Migration And Schema Checks
 
-### Store Foundation
+`V3__complete_product_store_ownership.sql` completes the ownership transition after the V1/V2 store foundation:
 
-- Added `Store` and `StoreMembership` with `PERSONAL`/`BUSINESS`, `OWNER`/`MANAGER`, lifecycle transitions, ownership invariants, and optimistic locking.
-- Added Flyway V1 to create store tables and backfill legacy sellers, products, and orders when the legacy tables are present.
-- Added V2 to enforce one business store per owner. If pre-existing duplicate business stores are detected, the migration preserves every row and stops with an actionable error instead of deleting or merging data automatically.
-- Added legacy-schema and fresh-database Testcontainers boot tests for the current Flyway/JPA transition.
+- It refuses to continue if an existing product has a null or orphaned `store_id`, then adds `fk_products_store`, makes `products.store_id` non-null, and creates `idx_products_store_status_id` when `products.status` exists.
+- It backfills a null `orders.seller_id` from the migrated product store's immutable owner. It then refuses any remaining null seller, adds `fk_orders_seller`, makes `orders.seller_id` non-null, and creates `idx_orders_seller_id`.
+- It drops the retired `products.seller_id` only after the product-store and order-seller transition succeeds.
 
-### Store Provisioning And Governance
+The legacy-schema Spring Boot/Flyway test verifies V3 reaches version 3, preserves the product-store link, snapshots the historical order seller, and removes `products.seller_id`. The fresh-PostgreSQL boot test verifies `products.store_id`, `orders.seller_id`, both foreign keys, and both indexes after Flyway plus JPA schema reconciliation.
 
-- New ordinary-member signup creates one active personal store and its active owner membership in the signup transaction.
-- Added My Store, public store profile, business application/resubmission, and administrator review/lifecycle APIs.
-- Business-store persistence runs in a separate `REQUIRES_NEW` transaction. A concurrent duplicate application returns `DUPLICATE_BUSINESS_STORE` (409) instead of an unexpected rollback error.
-- Public store responses exclude legal business data, rejection reasons, and membership data.
-- My Store responses use a deterministic order: personal store, then business store, then id.
+## Product Command Contract
 
-## Verified
+- Product creation requires the caller to include an explicit `storeId`.
+- The selected store must allow the authenticated member to operate its catalog. Product update and hide authorize against the product's existing store; they do not transfer ownership.
+- A product's current seller compatibility identity is the immutable owner of its store. An order's seller compatibility identity is the `Order.seller` value captured when the order is created, so refunds, settlements, and seller reports retain historical member-seller data.
 
-The focused M21 backend checks passed with:
+## Required Response Contract
+
+Product detail and summary responses must each expose:
+
+- `storeId`, `storeName`, `storeType`
+- legacy-compatible `sellerId`, `sellerNickname`, derived from the product store's immutable owner
+
+Order detail and summary responses must each expose:
+
+- `storeId`, `storeName`, `storeType`, derived from the ordered product's store
+- `sellerId`, `sellerNickname`, from the immutable `Order.seller` snapshot
+
+## Response Contract Completion
+
+- `ProductResponse` and `ProductSummaryResponse` derive `sellerId` and `sellerNickname` from `product.store.ownerMember` while retaining the store fields. The public and seller-product summary projections join the store owner so every summary supplies the same identity.
+- `OrderResponse` and `OrderSummaryResponse` derive `storeId`, `storeName`, and `storeType` from `order.product.store` while continuing to use `Order.seller` for the historical seller fields.
+- Real MockMvc regressions cover public product detail/list and authenticated order detail/list from one seller/store fixture, asserting every required response field and their matching values.
+
+## Verification
+
+The pre-audit focused suite passed with JDK 21 and `JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'`:
 
 ```powershell
-cd C:\dev\jpa-study\.worktrees\milestone-21-store-foundation\backend
-$env:JAVA_HOME='C:\Users\kdh\.jdks\corretto-21.0.7'
+cd C:\dev\study\sweet-market\.worktrees\milestone-21-task-3-product-store-ownership\backend
+$env:JAVA_HOME='C:\java\jdk-21'
 $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
 $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
-.\gradlew.bat test --tests 'com.sweet.market.store.StoreApiTest' --tests 'com.sweet.market.store.migration.StoreMigrationTest' --tests 'com.sweet.market.store.migration.StoreSpringBootFlywayTest'
+.\gradlew.bat --no-daemon test --tests 'com.sweet.market.product.*' --tests 'com.sweet.market.order.*' --tests 'com.sweet.market.refund.*' --tests 'com.sweet.market.settlement.*' --tests 'com.sweet.market.seller.report.*'
 ```
 
-The final focused results were 11 `StoreApiTest` tests, 2 `StoreMigrationTest` tests, and 1 `StoreSpringBootFlywayTest`, all passing. `git diff --check` also passed.
+The response-contract tests initially failed at the missing fields, then passed after the four DTO mappings and two product summary projections were completed. The focused response suite, the full focused Task 2 suite, and the full backend suite all pass with the command environment above. `git diff --check` is clean for the Task 2 changes.
 
-The full backend suite and web build have not been rerun after the Task 1 and Task 2 implementation commits; run them before declaring the milestone complete.
+## Explicit Task 5 UI Boundary
 
-## Required Next Work: Task 3
-
-1. Replace `Product.seller` with required `Product.store` ownership.
-2. Add `Order.seller` as a seller-member snapshot at order creation so settlements, seller refunds, seller reports, and historical response contracts do not depend on a later store-owner change.
-3. Change product create, update, and hide to resolve authorization through `StoreAccessService.requireCatalogOperator`, allowing active owners and managers and rejecting inactive memberships or inactive business stores.
-4. Add `storeId`, `storeName`, and `storeType` to product and order responses while retaining compatible `sellerId` and `sellerNickname` values from the immutable store owner or order seller snapshot.
-5. Exclude inactive business-store products from normal public lists. Direct reads may show the product as unavailable, but cart and order commands must reject it.
-6. Update cart, wishlist, refund, settlement, seller-report, admin-product, and order query paths that currently read `Product.seller`.
-
-## Task 3 Database Requirement
-
-On a fresh database, V1 runs before JPA creates the pre-M21 `products` and `orders` tables. Its guarded `store_id` and `seller_id` migration blocks therefore do not run in that first boot. When Task 3 adds the JPA mappings, ensure the fresh schema receives the two columns, foreign keys, and required indexes through explicit JPA index mapping or a documented reconciliation/baseline migration. Add a fresh-PostgreSQL boot test that asserts those columns, foreign keys, and indexes, not merely table existence.
-
-## Key References
-
-- `docs/superpowers/specs/2026-07-10-milestone-21-store-foundation-and-business-seller-governance-design.md`
-- `docs/superpowers/plans/2026-07-10-milestone-21-store-foundation-and-business-seller-governance.md`
-- `docs/milestone-21-store-foundation-implementation-notes.md`
-- `backend/src/main/resources/db/migration/V1__add_store_foundation.sql`
-- `backend/src/main/resources/db/migration/V2__enforce_one_business_store_per_owner.sql`
-
-## Recent Implementation Commits
-
-- `d8f2065 feat: add store domain foundation`
-- `bcfa533 feat: add store provisioning and governance APIs`
-- `0d7f71f fix: isolate business store application transaction`
-- `6f8df66 fix: preserve duplicate business store upgrades`
-
-## Completion Gate
-
-After Task 3 and remaining M21 web work, run the full backend suite with JDK 21, `npm run build` in `web`, `git diff --check`, and buyer/operator/administrator manual flows before creating the final M21 handoff.
+Task 3 does not modify the web application. Store-selection controls, TypeScript response contracts, product cards and detail views, store routes, and My Store/admin screens remain Task 5 work. The UI must send the selected `storeId` for product creation and consume the completed store plus legacy seller response fields; it must not infer store identity from `sellerId`.

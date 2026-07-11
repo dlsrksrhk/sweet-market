@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthProvider';
@@ -7,6 +7,7 @@ import { type CartResponse } from '../features/cart/cartApi';
 import { createOrder } from '../features/orders/orderApi';
 import { getProduct, hideProduct, toProductImageSrc, type WishlistResponse } from '../features/products/productApi';
 import { getProductReviews } from '../features/reviews/reviewApi';
+import { getMyStores, storeQueryKeys } from '../features/stores/storeApi';
 import { WishlistToggle } from '../features/wishlist/WishlistToggle';
 import { type ApiError } from '../shared/api/http';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
@@ -24,7 +25,7 @@ const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
 export function ProductDetailPage() {
   const navigate = useNavigate();
   const { productId } = useParams();
-  const { member } = useAuth();
+  const { loading: authLoading, member } = useAuth();
   const queryClient = useQueryClient();
   const parsedProductId = parsePositiveIntegerParam(productId);
   const hasValidProductId = parsedProductId !== null;
@@ -41,6 +42,15 @@ export function ProductDetailPage() {
     queryFn: () => getProductReviews(parsedProductId ?? 0),
     enabled: hasValidProductId,
   });
+  const ownedStoresQuery = useQuery({
+    queryKey: storeQueryKeys.me(),
+    queryFn: getMyStores,
+    enabled: !authLoading && member !== null,
+  });
+  const ownedStoreIds = useMemo(
+    () => new Set((ownedStoresQuery.data ?? []).map((store) => store.storeId)),
+    [ownedStoresQuery.data],
+  );
 
   const hideMutation = useMutation({
     mutationFn: () => hideProduct(parsedProductId ?? 0),
@@ -70,7 +80,7 @@ export function ProductDetailPage() {
     return <ErrorState message="상품 주소가 올바르지 않습니다." />;
   }
 
-  if (isLoading) {
+  if (isLoading || authLoading || (member !== null && ownedStoresQuery.isLoading)) {
     return <p className="status-text">상품 정보를 불러오고 있습니다.</p>;
   }
 
@@ -78,11 +88,15 @@ export function ProductDetailPage() {
     return <ErrorState message="상품 정보를 불러오지 못했습니다." />;
   }
 
+  if (member !== null && ownedStoresQuery.error) {
+    return <ErrorState message={toErrorMessage(ownedStoresQuery.error, '소유한 상점 정보를 불러오지 못했습니다.')} />;
+  }
+
   if (!product) {
     return <EmptyState title="상품을 찾을 수 없습니다" description="이미 숨겨졌거나 삭제된 상품일 수 있습니다." />;
   }
 
-  const isSeller = member?.id === product.sellerId;
+  const isOwner = ownedStoreIds.has(product.storeId);
   const displayedWishlist = wishlistState?.productId === product.id ? wishlistState : null;
   const displayedCart = cartState?.productId === product.id ? cartState : null;
   const galleryImages = product.images
@@ -107,26 +121,28 @@ export function ProductDetailPage() {
               sellerId={product.sellerId}
               wishlisted={displayedWishlist?.wishlisted ?? product.wishlisted}
               wishlistCount={displayedWishlist?.wishlistCount ?? product.wishlistCount}
+              purchasable={product.purchasable}
               onChanged={setWishlistState}
             />
             <CartToggle
               productId={product.id}
               sellerId={product.sellerId}
               carted={displayedCart?.carted ?? product.carted}
+              purchasable={product.purchasable}
               onChanged={setCartState}
             />
           </div>
           <h1>{product.title}</h1>
           <strong>{currencyFormatter.format(product.price)}원</strong>
-          <span>판매자 {product.sellerNickname}</span>
+          <div>
+            <span>상점 </span>
+            <Link to={`/stores/${product.storeId}`}>{product.storeName}</Link>{' '}
+            <StatusBadge status={product.storeType} />
+          </div>
         </div>
         <p>{product.description}</p>
         <div className="product-actions">
-          {!member ? (
-            <Link className="primary-link" to="/login">
-              로그인하고 구매하기
-            </Link>
-          ) : isSeller ? (
+          {isOwner ? (
             <>
               <Link className="primary-link" to={`/products/${product.id}/edit`}>
                 수정
@@ -140,7 +156,13 @@ export function ProductDetailPage() {
                 {hideMutation.isPending ? '숨기는 중' : '숨기기'}
               </button>
             </>
-          ) : product.status === 'ON_SALE' ? (
+          ) : !product.purchasable ? (
+            <p className="status-text">현재 구매하거나 장바구니와 관심 상품에 새로 추가할 수 없는 상품입니다.</p>
+          ) : !member ? (
+            <Link className="primary-link" to="/login">
+              로그인하고 구매하기
+            </Link>
+          ) : (
             <button
               type="button"
               className="text-button"
@@ -149,8 +171,6 @@ export function ProductDetailPage() {
             >
               {orderMutation.isPending ? '주문 중' : '주문하기'}
             </button>
-          ) : (
-            <p className="status-text">현재 구매할 수 없는 상품입니다.</p>
           )}
         </div>
         {hideMutation.isError ? <p className="error-text">상품을 숨기지 못했습니다.</p> : null}
@@ -202,9 +222,9 @@ function formatRating(value: number | null) {
   return ratingFormatter.format(value);
 }
 
-function toErrorMessage(error: unknown) {
+function toErrorMessage(error: unknown, fallbackMessage = '주문을 생성하지 못했습니다.') {
   const apiError = error as Partial<ApiError>;
   const fieldMessage = apiError.fieldErrors?.[0]?.message;
 
-  return fieldMessage ?? apiError.message ?? '주문을 생성하지 못했습니다.';
+  return fieldMessage ?? apiError.message ?? fallbackMessage;
 }
