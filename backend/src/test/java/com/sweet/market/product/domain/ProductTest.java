@@ -57,6 +57,26 @@ class ProductTest {
     }
 
     @Test
+    void 숨김_상품은_다시_판매_중으로_노출할_수_있다() {
+        Member seller = Member.create("show@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "상품", "설명", 10_000L);
+        product.hide();
+
+        product.show();
+
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
+    }
+
+    @Test
+    void 숨김이_아닌_상품은_재노출할_수_없다() {
+        Member seller = Member.create("show-conflict@example.com", "encoded-password", "seller");
+        Product product = Product.create(seller, "상품", "설명", 10_000L);
+
+        assertThatThrownBy(product::show)
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
     void 존재하지_않는_이미지_ID로_삭제하면_실패한다() {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);

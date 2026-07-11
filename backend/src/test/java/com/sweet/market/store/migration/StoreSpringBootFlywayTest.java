@@ -48,7 +48,7 @@ class StoreSpringBootFlywayTest {
 
     @Test
     void 스프링_부트_Flyway_설정으로_상점_마이그레이션을_실행한다() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM stores WHERE owner_member_id = 1 AND type = 'PERSONAL'",
                 Long.class
@@ -69,5 +69,9 @@ class StoreSpringBootFlywayTest {
                 "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'products' AND column_name = 'seller_id'",
                 Long.class
         )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pg_indexes WHERE tablename = 'products' AND indexname = 'idx_products_store_status_price_id'",
+                Long.class
+        )).isEqualTo(1L);
     }
 }

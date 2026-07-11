@@ -47,7 +47,8 @@ class StoreMigrationTest {
                     CREATE TABLE products (
                         id BIGINT PRIMARY KEY,
                         seller_id BIGINT NOT NULL,
-                        status VARCHAR(20) NOT NULL DEFAULT 'ON_SALE'
+                        status VARCHAR(20) NOT NULL DEFAULT 'ON_SALE',
+                        price BIGINT NOT NULL DEFAULT 10000
                     )
                     """);
             connection.createStatement().execute("""
@@ -127,6 +128,9 @@ class StoreMigrationTest {
                     .isZero();
             assertThat(queryLong(connection, "SELECT COUNT(*) FROM pg_indexes "
                     + "WHERE tablename = 'products' AND indexname = 'idx_products_store_status_id'"))
+                    .isEqualTo(1);
+            assertThat(queryLong(connection, "SELECT COUNT(*) FROM pg_indexes "
+                    + "WHERE tablename = 'products' AND indexname = 'idx_products_store_status_price_id'"))
                     .isEqualTo(1);
 
             connection.createStatement().execute("""

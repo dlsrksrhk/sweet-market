@@ -6,7 +6,9 @@ CREATE TABLE members (
 
 CREATE TABLE products (
     id BIGINT PRIMARY KEY,
-    seller_id BIGINT NOT NULL
+    seller_id BIGINT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ON_SALE',
+    price BIGINT NOT NULL DEFAULT 10000
 );
 
 CREATE TABLE orders (

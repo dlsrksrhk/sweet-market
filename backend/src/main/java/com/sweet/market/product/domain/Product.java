@@ -32,7 +32,10 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "products", indexes = @Index(name = "idx_products_store_status_id", columnList = "store_id, status, id"))
+@Table(name = "products", indexes = {
+        @Index(name = "idx_products_store_status_id", columnList = "store_id, status, id"),
+        @Index(name = "idx_products_store_status_price_id", columnList = "store_id, status, price, id")
+})
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Product {
 
@@ -93,6 +96,13 @@ public class Product {
     public void hide() {
         validateNotReserved();
         this.status = ProductStatus.HIDDEN;
+    }
+
+    public void show() {
+        if (status != ProductStatus.HIDDEN) {
+            throw new IllegalStateException("Product is not hidden: " + status);
+        }
+        status = ProductStatus.ON_SALE;
     }
 
     public void reserve() {
