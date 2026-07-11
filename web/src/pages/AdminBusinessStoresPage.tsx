@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type FormEvent, useMemo, useState } from 'react';
+import { type FormEvent, useMemo, useRef, useState } from 'react';
 import {
   approveBusinessStore,
   getAdminBusinessStore,
@@ -16,6 +16,8 @@ import { type ApiError } from '../shared/api/http';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
 
 const BUSINESS_STORE_PAGE_SIZE = 20;
+const REJECTION_REASON_ID = 'business-store-rejection-reason';
+const REJECTION_REASON_ERROR_ID = 'business-store-rejection-reason-error';
 
 const storeStatuses: StoreStatus[] = ['PENDING', 'ACTIVE', 'REJECTED', 'SUSPENDED'];
 
@@ -37,6 +39,7 @@ export function AdminBusinessStoresPage() {
   const [isRejectFormOpen, setIsRejectFormOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectionValidationError, setRejectionValidationError] = useState<string | null>(null);
+  const actionLockRef = useRef(false);
 
   const searchInput = useMemo<AdminBusinessStoreSearchInput>(() => {
     const input: AdminBusinessStoreSearchInput = {
@@ -64,18 +67,22 @@ export function AdminBusinessStoresPage() {
   const approveMutation = useMutation({
     mutationFn: approveBusinessStore,
     onSuccess: (store) => handleMutationSuccess(store.storeId),
+    onSettled: releaseActionLock,
   });
   const rejectMutation = useMutation({
     mutationFn: ({ storeId, reason }: RejectMutationInput) => rejectBusinessStore(storeId, reason),
     onSuccess: (store) => handleMutationSuccess(store.storeId),
+    onSettled: releaseActionLock,
   });
   const suspendMutation = useMutation({
     mutationFn: suspendBusinessStore,
     onSuccess: (store) => handleMutationSuccess(store.storeId),
+    onSettled: releaseActionLock,
   });
   const reactivateMutation = useMutation({
     mutationFn: reactivateBusinessStore,
     onSuccess: (store) => handleMutationSuccess(store.storeId),
+    onSettled: releaseActionLock,
   });
 
   const stores = listQuery.data?.content ?? [];
@@ -93,12 +100,21 @@ export function AdminBusinessStoresPage() {
     ]);
   }
 
-  function resetActionState() {
+  function clearSettledActionState() {
+    if (actionLockRef.current || isActionPending) {
+      return false;
+    }
+
     approveMutation.reset();
     rejectMutation.reset();
     suspendMutation.reset();
     reactivateMutation.reset();
     closeRejectForm();
+    return true;
+  }
+
+  function releaseActionLock() {
+    actionLockRef.current = false;
   }
 
   function closeRejectForm() {
@@ -108,32 +124,48 @@ export function AdminBusinessStoresPage() {
   }
 
   function changeStatus(nextStatus: StoreStatus | '') {
-    resetActionState();
+    if (!clearSettledActionState()) {
+      return;
+    }
+
     setStatus(nextStatus);
     setPage(0);
     setSelectedStoreId(null);
   }
 
   function movePage(nextPage: number) {
-    resetActionState();
+    if (!clearSettledActionState()) {
+      return;
+    }
+
     setPage(nextPage);
     setSelectedStoreId(null);
   }
 
   function selectStore(storeId: number) {
-    resetActionState();
+    if (!clearSettledActionState()) {
+      return;
+    }
+
     setSelectedStoreId(storeId);
   }
 
   function startReject() {
-    resetActionState();
+    if (!clearSettledActionState()) {
+      return;
+    }
+
     setIsRejectFormOpen(true);
+  }
+
+  function cancelReject() {
+    clearSettledActionState();
   }
 
   function submitReject(event: FormEvent<HTMLFormElement>, storeId: number) {
     event.preventDefault();
 
-    if (isActionPending) {
+    if (actionLockRef.current || isActionPending) {
       return;
     }
 
@@ -145,15 +177,16 @@ export function AdminBusinessStoresPage() {
     }
 
     setRejectionValidationError(null);
+    actionLockRef.current = true;
     rejectMutation.mutate({ storeId, reason });
   }
 
   function runAction(action: 'approve' | 'suspend' | 'reactivate', storeId: number) {
-    if (isActionPending) {
+    if (!clearSettledActionState()) {
       return;
     }
 
-    resetActionState();
+    actionLockRef.current = true;
 
     if (action === 'approve') {
       approveMutation.mutate(storeId);
@@ -183,7 +216,11 @@ export function AdminBusinessStoresPage() {
         <div className="admin-search-form" aria-label="사업자 상점 상태 필터">
           <label>
             상태
-            <select value={status} onChange={(event) => changeStatus(event.target.value as StoreStatus | '')}>
+            <select
+              value={status}
+              disabled={isActionPending}
+              onChange={(event) => changeStatus(event.target.value as StoreStatus | '')}
+            >
               <option value="">전체</option>
               {storeStatuses.map((storeStatus) => (
                 <option value={storeStatus} key={storeStatus}>
@@ -205,26 +242,35 @@ export function AdminBusinessStoresPage() {
               <EmptyState title="사업자 상점이 없습니다" description="선택한 상태에 해당하는 사업자 상점이 없습니다." />
             ) : null}
             {stores.length > 0 ? (
-              <div className="admin-operations-table" aria-label="사업자 상점 검색 결과">
+              <div
+                className="admin-operations-table"
+                role="grid"
+                aria-label="사업자 상점 검색 결과"
+                aria-busy={listQuery.isFetching}
+              >
                 <div className="admin-operations-table-head admin-member-grid" role="row">
-                  <span>상점</span>
-                  <span>소유 회원</span>
-                  <span>상태</span>
+                  <span role="columnheader">상점</span>
+                  <span role="columnheader">소유 회원</span>
+                  <span role="columnheader">상태</span>
                 </div>
                 {stores.map((store) => (
                   <button
                     type="button"
+                    role="row"
+                    aria-selected={selectedStoreId === store.storeId}
+                    aria-disabled={isActionPending}
                     className={`admin-operations-row admin-member-grid ${
                       selectedStoreId === store.storeId ? 'admin-operations-row-selected' : ''
                     }`}
                     key={store.storeId}
+                    disabled={isActionPending}
                     onClick={() => selectStore(store.storeId)}
                   >
-                    <span>
+                    <span role="gridcell">
                       #{store.storeId} {store.publicName}
                     </span>
-                    <span>#{store.ownerMemberId}</span>
-                    <span>
+                    <span role="gridcell">#{store.ownerMemberId}</span>
+                    <span role="gridcell">
                       <StatusBadge status={store.status} />
                     </span>
                   </button>
@@ -236,6 +282,7 @@ export function AdminBusinessStoresPage() {
                 currentPage={listQuery.data.number}
                 totalPages={listQuery.data.totalPages}
                 isFetching={listQuery.isFetching}
+                isActionPending={isActionPending}
                 onMovePage={movePage}
               />
             ) : null}
@@ -252,7 +299,7 @@ export function AdminBusinessStoresPage() {
             rejectionValidationError={rejectionValidationError}
             selectedStoreId={selectedStoreId}
             onAction={runAction}
-            onCancelReject={closeRejectForm}
+            onCancelReject={cancelReject}
             onChangeRejectionReason={(reason) => {
               setRejectionReason(reason);
               setRejectionValidationError(null);
@@ -305,7 +352,11 @@ function BusinessStoreDetail({
       {selectedStoreId === null ? <p className="status-text">상점 행을 선택하면 상세 정보가 표시됩니다.</p> : null}
       {isLoading ? <p className="status-text">사업자 상점 상세를 불러오고 있습니다.</p> : null}
       {error ? <ErrorState message="사업자 상점 상세를 불러오지 못했습니다." /> : null}
-      {actionError ? <p className="error-text">{toErrorMessage(actionError)}</p> : null}
+      {actionError ? (
+        <p className="error-text" role="alert">
+          {toErrorMessage(actionError)}
+        </p>
+      ) : null}
       {selectedStoreId !== null && !isLoading && !error && !detail ? (
         <p className="status-text">선택한 사업자 상점 정보를 찾을 수 없습니다.</p>
       ) : null}
@@ -336,18 +387,25 @@ function BusinessStoreDetail({
 
           {isRejectFormOpen && detail.status === 'PENDING' ? (
             <form className="admin-batch-form" onSubmit={(event) => onSubmitReject(event, detail.storeId)}>
-              <label>
+              <label htmlFor={REJECTION_REASON_ID}>
                 거절 사유
                 <textarea
+                  id={REJECTION_REASON_ID}
                   value={rejectionReason}
                   rows={4}
                   maxLength={1000}
                   required
                   disabled={isActionPending}
+                  aria-describedby={rejectionValidationError ? REJECTION_REASON_ERROR_ID : undefined}
+                  aria-invalid={Boolean(rejectionValidationError)}
                   onChange={(event) => onChangeRejectionReason(event.target.value)}
                 />
               </label>
-              {rejectionValidationError ? <p className="error-text">{rejectionValidationError}</p> : null}
+              {rejectionValidationError ? (
+                <p className="error-text" id={REJECTION_REASON_ERROR_ID} role="alert">
+                  {rejectionValidationError}
+                </p>
+              ) : null}
               <div className="admin-detail-actions">
                 <button type="submit" className="text-button danger-button" disabled={isActionPending}>
                   {isActionPending ? '거절 처리 중' : '거절 처리'}
@@ -441,10 +499,11 @@ type PaginationProps = {
   currentPage: number;
   totalPages: number;
   isFetching: boolean;
+  isActionPending: boolean;
   onMovePage: (page: number) => void;
 };
 
-function Pagination({ currentPage, totalPages, isFetching, onMovePage }: PaginationProps) {
+function Pagination({ currentPage, totalPages, isFetching, isActionPending, onMovePage }: PaginationProps) {
   const displayTotalPages = Math.max(totalPages, 1);
   const hasPreviousPage = currentPage > 0;
   const hasNextPage = totalPages > currentPage + 1;
@@ -454,7 +513,7 @@ function Pagination({ currentPage, totalPages, isFetching, onMovePage }: Paginat
       <button
         type="button"
         className="text-button"
-        disabled={!hasPreviousPage || isFetching}
+        disabled={!hasPreviousPage || isFetching || isActionPending}
         onClick={() => onMovePage(currentPage - 1)}
       >
         이전
@@ -465,7 +524,7 @@ function Pagination({ currentPage, totalPages, isFetching, onMovePage }: Paginat
       <button
         type="button"
         className="text-button"
-        disabled={!hasNextPage || isFetching}
+        disabled={!hasNextPage || isFetching || isActionPending}
         onClick={() => onMovePage(currentPage + 1)}
       >
         다음
