@@ -1,4 +1,5 @@
 import { api } from '../../shared/api/http';
+import type { Page, ProductStatus, ProductSummary } from '../products/productApi';
 
 export type StoreType = 'PERSONAL' | 'BUSINESS';
 
@@ -15,7 +16,27 @@ export type PrivateStore = {
   rejectionReason: string | null;
 };
 
-export type PublicStore = Pick<PrivateStore, 'storeId' | 'type' | 'publicName' | 'introduction'>;
+export type PublicStore = Pick<PrivateStore, 'storeId' | 'type' | 'publicName' | 'introduction'> & {
+  operatingStatus: 'ACTIVE' | 'SUSPENDED';
+  averageRating: number | null;
+  reviewCount: number;
+  publicProductCount: number;
+};
+
+export type StorefrontProductStatus = Exclude<ProductStatus, 'HIDDEN'>;
+
+export type StorefrontProduct = Omit<ProductSummary, 'status'> & {
+  status: StorefrontProductStatus;
+};
+
+export type StorefrontProductSort = 'NEWEST' | 'PRICE_ASC' | 'PRICE_DESC';
+
+export type StorefrontProductSearchInput = {
+  status: StorefrontProductStatus;
+  sort: StorefrontProductSort;
+  page: number;
+  size: number;
+};
 
 export type AdminBusinessStore = PrivateStore & {
   ownerMemberId: number;
@@ -43,21 +64,13 @@ export type AdminBusinessStoreSearchInput = {
   size: number;
 };
 
-type Page<T> = {
-  content: T[];
-  totalElements: number;
-  totalPages: number;
-  size: number;
-  number: number;
-  first: boolean;
-  last: boolean;
-  empty: boolean;
-};
-
 export const storeQueryKeys = {
   all: ['stores'] as const,
   me: () => [...storeQueryKeys.all, 'me'] as const,
   public: (storeId: number) => [...storeQueryKeys.all, 'public', storeId] as const,
+  publicProducts: (storeId: number) => [...storeQueryKeys.public(storeId), 'products'] as const,
+  publicProductList: (storeId: number, input: StorefrontProductSearchInput) =>
+    [...storeQueryKeys.publicProducts(storeId), input.status, input.sort, input.page, input.size] as const,
   admin: () => [...storeQueryKeys.all, 'admin'] as const,
   adminList: (input: AdminBusinessStoreSearchInput) =>
     [...storeQueryKeys.admin(), 'list', input.status ?? null, input.page, input.size] as const,
@@ -70,6 +83,17 @@ export function getMyStores() {
 
 export function getPublicStore(storeId: number) {
   return api<PublicStore>(`/api/stores/${storeId}`);
+}
+
+export function getStorefrontProducts(storeId: number, input: StorefrontProductSearchInput) {
+  const searchParams = new URLSearchParams({
+    status: input.status,
+    sort: input.sort,
+    page: String(input.page),
+    size: String(input.size),
+  });
+
+  return api<Page<StorefrontProduct>>(`/api/stores/${storeId}/products?${searchParams.toString()}`);
 }
 
 export function applyBusinessStore(input: BusinessApplicationInput) {
