@@ -109,7 +109,7 @@ The disposable application process and PostgreSQL container were stopped and rem
 - The public store page is intentionally a minimal profile and has no product catalog, ratings summary, filters, or pagination yet.
 - The owner web entry uses stores returned by `/api/stores/me`. Backend manager catalog authorization exists, but manager invitation, assignment/removal flow, and manager-facing web entry remain deferred.
 - Pending, rejected, and suspended business stores are excluded from ordinary public listings. Direct product reads remain available only as non-purchasable unavailable records.
-- Legal-data changes trigger re-verification; public brand name and introduction changes apply immediately. Buyer surfaces must continue to keep legal/review/operator data private.
+- Legal-data changes trigger re-verification; public brand name and introduction changes apply immediately. Buyer surfaces must continue to hide private legal data, administrator-review data, and membership data; product detail and summary may expose legacy `sellerId` and `sellerNickname` only under the documented compatibility policy.
 - Browser-level layout, responsive behavior, and click-by-click visual states were not manually inspected in this gate.
 - Full Flyway ownership of all database DDL and large-table online index procedures remain future infrastructure work, as described in the migration section.
 
