@@ -7,7 +7,7 @@
 - A member may own one separate business store and move it through application, rejection, correction/resubmission, approval, suspension, and reactivation rules.
 - `StoreMembership` is the command authorization boundary. Active `OWNER` and `MANAGER` memberships may operate catalog commands; owner-only profile/legal-data and administrator-only governance rules remain separate.
 - Product create requires an explicit `storeId`; update and hide remain scoped to the product's existing store and cannot transfer it.
-- Public product and store reads expose store identity without exposing business registration, review, membership, or operator data.
+- Public store/profile responses hide private legal business data, administrator review data, and membership data. Public product detail and summary responses temporarily continue to expose the store owner's legacy `sellerId` and `sellerNickname` compatibility fields.
 - The web application includes My Store, business application/resubmission, minimal public store profile, administrator business-store review, and store-aware product create/detail/card behavior.
 
 ## Migration Behavior
@@ -116,6 +116,7 @@ The disposable application process and PostgreSQL container were stopped and rem
 ## Concrete Milestone 22 Prerequisites
 
 - Reuse `Store`, `StoreMembership`, `StoreAccessService`, and the required `Product.store` relation. Do not introduce another seller-profile or mutable member/product owner model.
+- Preserve existing product image, wishlist, cart, order, review, settlement, and seller report behavior throughout M22; storefront and operator-console expansion must remain regression-compatible with these flows.
 - Expand `GET /api/stores/{storeId}` and `/stores/:storeId` into a buyer storefront using a dedicated paginated public projection that returns only buyer-visible products and never private store/operator fields.
 - Expand `/me/store` into the core operator console with summary counts, store-scoped catalog filtering, product status/visibility actions, and links to existing sales, refunds, settlements, and reports rather than duplicating those domains.
 - Define owner/manager/outsider permissions for every new catalog and membership command. Add the planned owner-managed membership list and manager removal while keeping owner transfer and invitation delivery outside M22 unless its design explicitly changes scope.
