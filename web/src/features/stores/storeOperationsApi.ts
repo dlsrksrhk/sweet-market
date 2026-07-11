@@ -46,6 +46,10 @@ export type StoreMembership = {
   joinedAt: string;
 };
 
+function normalizeKeyword(keyword: string | undefined) {
+  return keyword?.trim() || null;
+}
+
 export const storeOperationQueryKeys = {
   all: ['store-operations'] as const,
   stores: () => [...storeOperationQueryKeys.all, 'stores'] as const,
@@ -56,7 +60,7 @@ export const storeOperationQueryKeys = {
     [
       ...storeOperationQueryKeys.products(storeId),
       input.status ?? null,
-      input.keyword || null,
+      normalizeKeyword(input.keyword),
       input.sort,
       input.page,
       input.size,
@@ -74,12 +78,13 @@ export function getStoreCatalogSummary(storeId: number) {
 
 export function getStoreCatalogProducts(storeId: number, input: StoreCatalogSearchInput) {
   const searchParams = new URLSearchParams();
+  const keyword = normalizeKeyword(input.keyword);
 
   if (input.status) {
     searchParams.set('status', input.status);
   }
-  if (input.keyword) {
-    searchParams.set('keyword', input.keyword);
+  if (keyword) {
+    searchParams.set('keyword', keyword);
   }
   searchParams.set('sort', input.sort);
   searchParams.set('page', String(input.page));
