@@ -7,7 +7,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sweet.market.auth.security.AuthenticatedMember;
@@ -20,9 +22,14 @@ import jakarta.validation.Valid;
 public class StoreOperationsController {
 
     private final StoreCatalogQueryService storeCatalogQueryService;
+    private final StoreCatalogCommandService storeCatalogCommandService;
 
-    public StoreOperationsController(StoreCatalogQueryService storeCatalogQueryService) {
+    public StoreOperationsController(
+            StoreCatalogQueryService storeCatalogQueryService,
+            StoreCatalogCommandService storeCatalogCommandService
+    ) {
         this.storeCatalogQueryService = storeCatalogQueryService;
+        this.storeCatalogCommandService = storeCatalogCommandService;
     }
 
     @GetMapping
@@ -45,6 +52,26 @@ public class StoreOperationsController {
             @Valid @ModelAttribute StoreCatalogSearchRequest request
     ) {
         return ApiResponse.ok(storeCatalogQueryService.findProducts(memberId(authentication), storeId, request));
+    }
+
+    @PostMapping("/{storeId}/products/hide")
+    public ApiResponse<Void> hide(
+            Authentication authentication,
+            @PathVariable Long storeId,
+            @Valid @RequestBody StoreProductIdsRequest request
+    ) {
+        storeCatalogCommandService.hide(memberId(authentication), storeId, request.productIds());
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/{storeId}/products/show")
+    public ApiResponse<Void> show(
+            Authentication authentication,
+            @PathVariable Long storeId,
+            @Valid @RequestBody StoreProductIdsRequest request
+    ) {
+        storeCatalogCommandService.show(memberId(authentication), storeId, request.productIds());
+        return ApiResponse.ok(null);
     }
 
     private Long memberId(Authentication authentication) {

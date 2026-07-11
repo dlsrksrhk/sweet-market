@@ -21,6 +21,8 @@ import com.sweet.market.store.operations.StoreCatalogSummaryResponse;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
+    List<Product> findAllByStoreIdAndIdIn(Long storeId, List<Long> ids);
+
     @EntityGraph(attributePaths = {"store", "store.ownerMember", "images"})
     Optional<Product> findWithStoreAndImagesById(Long id);
 

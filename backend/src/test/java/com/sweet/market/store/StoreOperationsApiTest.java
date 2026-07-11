@@ -2,12 +2,17 @@ package com.sweet.market.store;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -191,6 +196,140 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
+    @Test
+    void 소유자는_상품을_숨기고_매니저는_숨긴_상품을_다시_노출한다() throws Exception {
+        Member owner = saveMember("catalog-command-owner@example.com", "소유자");
+        Member manager = saveMember("catalog-command-manager@example.com", "매니저");
+        Store store = saveActiveBusinessStore(owner, "명령 상점");
+        storeMembershipRepository.save(StoreMembership.createManager(store, manager));
+        Product first = saveProduct(store, "첫 상품");
+        Product second = saveProduct(store, "둘째 상품");
+
+        performCommand("hide", store, owner, first.getId(), second.getId())
+                .andExpect(status().isOk());
+        assertStatus(first, "HIDDEN");
+        assertStatus(second, "HIDDEN");
+
+        performCommand("show", store, manager, first.getId(), second.getId())
+                .andExpect(status().isOk());
+        assertStatus(first, "ON_SALE");
+        assertStatus(second, "ON_SALE");
+    }
+
+    @Test
+    void 외부_회원과_중단된_상점의_운영자는_카탈로그를_변경할_수_없다() throws Exception {
+        Member owner = saveMember("catalog-denied-owner@example.com", "소유자");
+        Member outsider = saveMember("catalog-denied-outsider@example.com", "외부인");
+        Store store = saveActiveBusinessStore(owner, "권한 상점");
+        Product product = saveProduct(store, "상품");
+
+        performCommand("hide", store, outsider, product.getId())
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+
+        store.suspend();
+        storeRepository.saveAndFlush(store);
+        performCommand("hide", store, owner, product.getId())
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+        assertStatus(product, "ON_SALE");
+    }
+
+    @Test
+    void 상품_ID_목록은_비어있거나_중복되거나_50개를_초과할_수_없다() throws Exception {
+        Member owner = saveMember("catalog-validation-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "검증 상점");
+        Product product = saveProduct(store, "상품");
+
+        performRawCommand("hide", store, owner, "{\"productIds\":[]}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        performCommand("hide", store, owner, product.getId(), product.getId())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        String fiftyOneIds = LongStream.rangeClosed(1, 51)
+                .mapToObj(Long::toString)
+                .collect(Collectors.joining(","));
+        performRawCommand("hide", store, owner, "{\"productIds\":[" + fiftyOneIds + "]}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 상품_ID는_양수여야_한다() throws Exception {
+        Member owner = saveMember("catalog-positive-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "양수 검증 상점");
+
+        performRawCommand("hide", store, owner, "{\"productIds\":[0,-1]}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 다른_상점_상품과_없는_상품은_상품_없음으로_응답한다() throws Exception {
+        Member owner = saveMember("catalog-not-found-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "기준 상점");
+        Member otherOwner = saveMember("catalog-not-found-other@example.com", "다른 소유자");
+        Store otherStore = saveActiveBusinessStore(otherOwner, "다른 상점");
+        Product otherProduct = saveProduct(otherStore, "다른 상품");
+
+        performCommand("hide", store, owner, otherProduct.getId())
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
+        performCommand("hide", store, owner, Long.MAX_VALUE)
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
+        assertStatus(otherProduct, "ON_SALE");
+    }
+
+    @Test
+    void 판매중이_아닌_상품은_숨길_수_없고_일괄_변경도_롤백된다() throws Exception {
+        Member owner = saveMember("catalog-hide-state-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "숨김 상태 상점");
+        Product onSale = saveProduct(store, "판매중");
+        Product reserved = saveProduct(store, "예약중");
+        Product soldOut = saveProduct(store, "판매완료");
+        Product hidden = saveProduct(store, "숨김");
+        changeStatus(reserved, "RESERVED");
+        changeStatus(soldOut, "SOLD_OUT");
+        changeStatus(hidden, "HIDDEN");
+
+        performCommand("hide", store, owner, onSale.getId(), reserved.getId())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PRODUCT_CHANGE_NOT_ALLOWED"));
+        performCommand("hide", store, owner, soldOut.getId())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PRODUCT_CHANGE_NOT_ALLOWED"));
+        performCommand("hide", store, owner, hidden.getId())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PRODUCT_CHANGE_NOT_ALLOWED"));
+        assertStatus(onSale, "ON_SALE");
+    }
+
+    @Test
+    void 숨김이_아닌_상품은_노출할_수_없고_일괄_변경도_롤백된다() throws Exception {
+        Member owner = saveMember("catalog-show-state-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "노출 상태 상점");
+        Product hidden = saveProduct(store, "숨김");
+        Product onSale = saveProduct(store, "판매중");
+        Product reserved = saveProduct(store, "예약중");
+        Product soldOut = saveProduct(store, "판매완료");
+        changeStatus(hidden, "HIDDEN");
+        changeStatus(reserved, "RESERVED");
+        changeStatus(soldOut, "SOLD_OUT");
+
+        performCommand("show", store, owner, hidden.getId(), onSale.getId())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PRODUCT_CHANGE_NOT_ALLOWED"));
+        performCommand("show", store, owner, reserved.getId())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PRODUCT_CHANGE_NOT_ALLOWED"));
+        performCommand("show", store, owner, soldOut.getId())
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PRODUCT_CHANGE_NOT_ALLOWED"));
+        assertStatus(hidden, "HIDDEN");
+    }
+
     private void assertReadableSummary(Member member, Store store) throws Exception {
         mockMvc.perform(get("/api/store-operations/{storeId}/summary", store.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearer(member)))
@@ -207,6 +346,39 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, bearer(member)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions performCommand(
+            String command,
+            Store store,
+            Member member,
+            Long... productIds
+    ) throws Exception {
+        String ids = java.util.Arrays.stream(productIds)
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
+        return performRawCommand(command, store, member, "{\"productIds\":[" + ids + "]}");
+    }
+
+    private org.springframework.test.web.servlet.ResultActions performRawCommand(
+            String command,
+            Store store,
+            Member member,
+            String content
+    ) throws Exception {
+        return mockMvc.perform(post("/api/store-operations/{storeId}/products/{command}", store.getId(), command)
+                .header(HttpHeaders.AUTHORIZATION, bearer(member))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(content));
+    }
+
+    private void assertStatus(Product product, String expectedStatus) {
+        String actualStatus = jdbcTemplate.queryForObject(
+                "select status from products where id = ?",
+                String.class,
+                product.getId()
+        );
+        org.assertj.core.api.Assertions.assertThat(actualStatus).isEqualTo(expectedStatus);
     }
 
     private Store savePersonalStore(Member owner, String publicName) {
