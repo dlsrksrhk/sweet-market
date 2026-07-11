@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthProvider';
@@ -15,13 +15,15 @@ import {
   type ProductUpdateImageInput,
   type ProductUpdateInput,
 } from '../features/products/productApi';
+import { getMyStores, storeQueryKeys, type PrivateStore, type StoreStatus } from '../features/stores/storeApi';
 import { type ApiError } from '../shared/api/http';
-import { ErrorState } from '../shared/ui/ResourceStates';
+import { ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
 import { parsePositiveIntegerParam } from '../shared/utils/parseId';
 
 const MAX_PRODUCT_IMAGES = 10;
 const MAX_PRODUCT_IMAGE_SIZE = 5 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const EMPTY_STORES: PrivateStore[] = [];
 
 type ProductFormValues = {
   title: string;
@@ -52,12 +54,26 @@ export function ProductFormPage() {
   const [images, setImages] = useState<ManagedImage[]>([]);
   const [loadedProductId, setLoadedProductId] = useState<number | null>(null);
   const [isImageDirty, setIsImageDirty] = useState(false);
+  const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
+  const [storeError, setStoreError] = useState<string | null>(null);
+  const explicitlySelectedStoreId = useRef<number | null>(null);
 
-  const { data: product, error, isLoading } = useQuery({
+  const { data: product, error, isFetching: isProductFetching } = useQuery({
     queryKey: ['products', parsedProductId],
     queryFn: () => getProduct(parsedProductId ?? 0),
     enabled: isEditMode && hasValidProductId,
   });
+  const {
+    data: stores = EMPTY_STORES,
+    error: storesError,
+    isFetching: areStoresFetching,
+  } = useQuery({
+    queryKey: storeQueryKeys.me(),
+    queryFn: getMyStores,
+    enabled: member !== null,
+  });
+  const activeStores = useMemo(() => stores.filter((store) => store.status === 'ACTIVE'), [stores]);
+  const ownedStoreIds = useMemo(() => new Set(stores.map((store) => store.storeId)), [stores]);
 
   const defaultValues = useMemo<ProductFormValues>(
     () => ({
@@ -74,6 +90,26 @@ export function ProductFormPage() {
     register,
     reset,
   } = useForm<ProductFormValues>({ defaultValues });
+
+  useEffect(() => {
+    if (isEditMode) {
+      return;
+    }
+
+    if (activeStores.length === 1) {
+      explicitlySelectedStoreId.current = null;
+      setSelectedStoreId(activeStores[0].storeId);
+      return;
+    }
+
+    const explicitStoreId = explicitlySelectedStoreId.current;
+    const hasOwnedActiveSelection = activeStores.some((store) => store.storeId === explicitStoreId);
+
+    if (!hasOwnedActiveSelection) {
+      explicitlySelectedStoreId.current = null;
+      setSelectedStoreId(null);
+    }
+  }, [activeStores, isEditMode]);
 
   useEffect(() => {
     if (!product) {
@@ -213,23 +249,43 @@ export function ProductFormPage() {
     return <ErrorState message="상품 주소가 올바르지 않습니다." />;
   }
 
-  if (isEditMode && isLoading) {
+  if (areStoresFetching) {
+    return <p className="status-text">내 상점 정보를 불러오고 있습니다.</p>;
+  }
+
+  if (isEditMode && isProductFetching) {
     return <p className="status-text">상품 정보를 불러오고 있습니다.</p>;
+  }
+
+  if (storesError) {
+    return <ErrorState message="내 상점 정보를 불러오지 못했습니다." />;
   }
 
   if (isEditMode && error) {
     return <ErrorState message="상품 정보를 불러오지 못했습니다." />;
   }
 
-  if (isEditMode && product && member?.id !== product.sellerId) {
-    return <ErrorState title="접근할 수 없습니다" message="본인이 등록한 상품만 수정할 수 있습니다." />;
+  if (isEditMode && product && !ownedStoreIds.has(product.storeId)) {
+    return <ErrorState title="접근할 수 없습니다" message="소유한 상점의 상품만 수정할 수 있습니다." />;
+  }
+
+  if (isEditMode && !product) {
+    return <ErrorState message="상품 정보를 불러오지 못했습니다." />;
   }
 
   const onSubmit = handleSubmit(async (values) => {
     setApiError(null);
     setImageError(null);
+    setStoreError(null);
 
     try {
+      const selectedActiveStore = activeStores.find((store) => store.storeId === selectedStoreId);
+
+      if (!isEditMode && !selectedActiveStore) {
+        setStoreError('상품을 등록할 활성 상점을 선택해주세요.');
+        return;
+      }
+
       if (images.length === 0) {
         setImageError('이미지를 1개 이상 등록해주세요.');
         return;
@@ -238,9 +294,19 @@ export function ProductFormPage() {
       const normalizedImages = normalizeManagedImages(images);
       setImages(normalizedImages);
       const payload = toPayload(values);
-      const savedProduct = isEditMode
-        ? await updateMutation.mutateAsync({ ...payload, images: toUpdateImages(normalizedImages) })
-        : await createMutation.mutateAsync({ ...payload, images: toCreateImages(normalizedImages) });
+      let savedProduct;
+
+      if (isEditMode) {
+        savedProduct = await updateMutation.mutateAsync({ ...payload, images: toUpdateImages(normalizedImages) });
+      } else if (selectedActiveStore) {
+        savedProduct = await createMutation.mutateAsync({
+          ...payload,
+          storeId: selectedActiveStore.storeId,
+          images: toCreateImages(normalizedImages),
+        });
+      } else {
+        return;
+      }
 
       await queryClient.invalidateQueries({ queryKey: ['products'] });
       navigate(`/products/${savedProduct.id}`);
@@ -253,6 +319,54 @@ export function ProductFormPage() {
     <section className="product-form-page">
       <h1>{isEditMode ? '상품 수정' : '상품 등록'}</h1>
       <form className="auth-form product-form" onSubmit={onSubmit}>
+        {isEditMode && product ? (
+          <div>
+            <strong>판매 상점</strong>
+            <div className="resource-state">
+              <strong>{product.storeName}</strong>
+              <StatusBadge status={product.storeType} />
+              <p>상품 수정에서는 판매 상점을 변경할 수 없습니다.</p>
+            </div>
+          </div>
+        ) : (
+          <fieldset>
+            <legend>판매 상점</legend>
+            <div className="product-image-list" role="radiogroup" aria-label="상품을 등록할 상점">
+              {stores.map((store) => {
+                const isActive = store.status === 'ACTIVE';
+
+                return (
+                  <label className="resource-state" key={store.storeId}>
+                    <input
+                      type="radio"
+                      name="storeId"
+                      value={store.storeId}
+                      checked={selectedStoreId === store.storeId}
+                      disabled={!isActive}
+                      required={isActive}
+                      onChange={() => {
+                        explicitlySelectedStoreId.current = store.storeId;
+                        setSelectedStoreId(store.storeId);
+                        setStoreError(null);
+                      }}
+                    />
+                    <strong>{store.publicName}</strong>
+                    <StatusBadge status={store.type} />
+                    <StatusBadge status={store.status} />
+                    {!isActive ? <span className="status-text">{toStoreStatusGuidance(store.status)}</span> : null}
+                  </label>
+                );
+              })}
+            </div>
+            {activeStores.length === 0 ? (
+              <p className="error-text">상품을 등록할 수 있는 활성 상점이 없습니다.</p>
+            ) : null}
+            {activeStores.length > 1 && selectedStoreId === null ? (
+              <p className="status-text">활성 상점 중 상품을 등록할 상점을 선택해주세요.</p>
+            ) : null}
+            {storeError ? <p className="error-text">{storeError}</p> : null}
+          </fieldset>
+        )}
         <label>
           상품명
           <input
@@ -366,7 +480,16 @@ export function ProductFormPage() {
           )}
         </div>
         {apiError ? <p className="error-text">{apiError}</p> : null}
-        <button type="submit" disabled={isSubmitting || createMutation.isPending || updateMutation.isPending || uploadMutation.isPending}>
+        <button
+          type="submit"
+          disabled={
+            isSubmitting ||
+            createMutation.isPending ||
+            updateMutation.isPending ||
+            uploadMutation.isPending ||
+            (!isEditMode && activeStores.length === 0)
+          }
+        >
           {isEditMode ? '수정하기' : '등록하기'}
         </button>
       </form>
@@ -380,6 +503,19 @@ function toPayload(values: ProductFormValues) {
     description: values.description.trim(),
     price: values.price,
   };
+}
+
+function toStoreStatusGuidance(status: StoreStatus) {
+  switch (status) {
+    case 'PENDING':
+      return '확인이 끝나 활성화된 뒤 상품을 등록할 수 있습니다.';
+    case 'REJECTED':
+      return '반려 사유를 확인하고 신청 내용을 다시 제출해주세요.';
+    case 'SUSPENDED':
+      return '운영 중지 상태에서는 상품을 등록할 수 없습니다.';
+    case 'ACTIVE':
+      return '상품을 등록할 수 있는 상점입니다.';
+  }
 }
 
 function compareProductImages(firstImage: ProductImage, secondImage: ProductImage) {

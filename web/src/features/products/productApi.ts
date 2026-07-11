@@ -79,6 +79,7 @@ export type Product = Omit<ProductSummary, 'thumbnailUrl'> & {
 };
 
 export type ProductCreateInput = {
+  storeId: number;
   title: string;
   description: string;
   price: number;
