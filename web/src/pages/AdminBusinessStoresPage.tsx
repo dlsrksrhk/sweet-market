@@ -242,39 +242,46 @@ export function AdminBusinessStoresPage() {
               <EmptyState title="사업자 상점이 없습니다" description="선택한 상태에 해당하는 사업자 상점이 없습니다." />
             ) : null}
             {stores.length > 0 ? (
-              <div
-                className="admin-operations-table"
-                role="grid"
-                aria-label="사업자 상점 검색 결과"
-                aria-busy={listQuery.isFetching}
-              >
-                <div className="admin-operations-table-head admin-member-grid" role="row">
-                  <span role="columnheader">상점</span>
-                  <span role="columnheader">소유 회원</span>
-                  <span role="columnheader">상태</span>
-                </div>
-                {stores.map((store) => (
-                  <button
-                    type="button"
-                    role="row"
-                    aria-selected={selectedStoreId === store.storeId}
-                    aria-disabled={isActionPending}
-                    className={`admin-operations-row admin-member-grid ${
-                      selectedStoreId === store.storeId ? 'admin-operations-row-selected' : ''
-                    }`}
-                    key={store.storeId}
-                    disabled={isActionPending}
-                    onClick={() => selectStore(store.storeId)}
-                  >
-                    <span role="gridcell">
-                      #{store.storeId} {store.publicName}
-                    </span>
-                    <span role="gridcell">#{store.ownerMemberId}</span>
-                    <span role="gridcell">
-                      <StatusBadge status={store.status} />
-                    </span>
-                  </button>
-                ))}
+              <div className="admin-operations-table">
+                <table
+                  className="admin-business-store-table"
+                  aria-label="사업자 상점 검색 결과"
+                  aria-busy={listQuery.isFetching}
+                >
+                  <thead>
+                    <tr>
+                      <th scope="col">상점</th>
+                      <th scope="col">소유 회원</th>
+                      <th scope="col">상태</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stores.map((store) => {
+                      const isSelected = selectedStoreId === store.storeId;
+
+                      return (
+                        <tr className={isSelected ? 'admin-operations-row-selected' : undefined} key={store.storeId}>
+                          <td>
+                            <button
+                              type="button"
+                              className="text-button"
+                              aria-label={`#${store.storeId} ${store.publicName} 상점 선택`}
+                              aria-pressed={isSelected}
+                              disabled={isActionPending}
+                              onClick={() => selectStore(store.storeId)}
+                            >
+                              #{store.storeId} {store.publicName}
+                            </button>
+                          </td>
+                          <td>#{store.ownerMemberId}</td>
+                          <td>
+                            <StatusBadge status={store.status} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             ) : null}
             {listQuery.data && listQuery.data.totalElements > 0 ? (

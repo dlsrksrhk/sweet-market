@@ -1496,6 +1496,43 @@ a.wishlist-card-main:hover h2 {
   min-width: 520px;
 }
 
+.admin-business-store-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  background: #ffffff;
+  color: #172026;
+  text-align: left;
+}
+
+.admin-business-store-table th {
+  padding: 10px 12px;
+  border-bottom: 1px solid #dfe6ee;
+  background: #f4f7fa;
+  color: #52616f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.admin-business-store-table td {
+  padding: 12px;
+  border-bottom: 1px solid #edf2f7;
+  font-size: 14px;
+}
+
+.admin-business-store-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-business-store-table tbody tr:hover,
+.admin-business-store-table tbody tr.admin-operations-row-selected {
+  background: #f0fbfa;
+}
+
+.admin-business-store-table tbody tr.admin-operations-row-selected td:first-child {
+  box-shadow: inset 3px 0 0 #0f7b78;
+}
+
 .admin-detail-actions {
   display: flex;
   flex-wrap: wrap;
