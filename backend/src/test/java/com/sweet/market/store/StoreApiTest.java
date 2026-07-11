@@ -3,6 +3,7 @@ package com.sweet.market.store;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -27,8 +28,10 @@ import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.store.api.PublicStoreResponse;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreMembership;
+import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.repository.StoreMembershipRepository;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.store.application.StoreAccessService;
@@ -231,6 +234,25 @@ class StoreApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.businessRegistrationId").doesNotExist())
                 .andExpect(jsonPath("$.data.rejectionReason").doesNotExist())
                 .andExpect(jsonPath("$.data.memberships").doesNotExist());
+    }
+
+    @Test
+    void 활성_상점_공개_프로필은_민감_필드_없이_프로젝션으로_조회된다() throws Exception {
+        StoreFixture fixture = activeBusinessStore("public-projection@example.com");
+
+        PublicStoreResponse profile = storeRepository.findPublicProfileByIdAndStatus(
+                        fixture.store().getId(),
+                        StoreStatus.ACTIVE
+                )
+                .orElseThrow();
+
+        assertThat(profile.storeId()).isEqualTo(fixture.store().getId());
+        assertThat(profile.type()).isEqualTo(fixture.store().getType());
+        assertThat(profile.publicName()).isEqualTo("공개 상점");
+        assertThat(profile.introduction()).isEqualTo("공개 소개");
+        assertThat(PublicStoreResponse.class.getRecordComponents())
+                .extracting(component -> component.getName())
+                .doesNotContain("legalBusinessName", "businessRegistrationId", "rejectionReason", "memberships");
     }
 
     @Test

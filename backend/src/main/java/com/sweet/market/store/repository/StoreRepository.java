@@ -7,8 +7,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.repository.query.Param;
 
+import com.sweet.market.store.api.PublicStoreResponse;
 import com.sweet.market.store.domain.Store;
+import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.domain.StoreType;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {
@@ -28,6 +31,22 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
             END, id
             """, nativeQuery = true)
     List<Store> findAllOwnedByOwnerMemberIdInMyStoreOrder(Long ownerMemberId);
+
+    @Query("""
+            select new com.sweet.market.store.api.PublicStoreResponse(
+                store.id,
+                store.type,
+                store.publicName,
+                store.introduction
+            )
+            from Store store
+            where store.id = :storeId
+              and store.status = :status
+            """)
+    Optional<PublicStoreResponse> findPublicProfileByIdAndStatus(
+            @Param("storeId") Long storeId,
+            @Param("status") StoreStatus status
+    );
 
     default Optional<Store> findPersonalByOwnerMemberId(Long ownerMemberId) {
         return findByOwnerMemberIdAndType(ownerMemberId, StoreType.PERSONAL);
