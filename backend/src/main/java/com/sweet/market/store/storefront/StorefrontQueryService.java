@@ -59,13 +59,22 @@ public class StorefrontQueryService {
     ) {
         validatePublicProductStatus(status);
         PageRequest pageRequest = PageRequest.of(page, size, productSort(sort));
+        Page<StorefrontProductResponse> products = productRepository.findStorefrontProducts(
+                storeId,
+                status,
+                viewerId,
+                pageRequest
+        );
+        if (products.hasContent()) {
+            return products;
+        }
         Store store = storeRepository.findById(storeId)
                 .filter(candidate -> PUBLIC_STORE_STATUSES.contains(candidate.getStatus()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.STORE_NOT_FOUND));
         if (store.getStatus() == StoreStatus.SUSPENDED) {
             return Page.empty(pageRequest);
         }
-        return productRepository.findStorefrontProducts(storeId, status, viewerId, pageRequest);
+        return products;
     }
 
     private void validatePublicProductStatus(ProductStatus status) {

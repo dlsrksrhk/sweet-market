@@ -196,12 +196,15 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             join p.store store
             join store.ownerMember owner
             where store.id = :storeId
+              and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
               and p.status = :status
             """,
             countQuery = """
             select count(p)
             from Product p
-            where p.store.id = :storeId
+            join p.store store
+            where store.id = :storeId
+              and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
               and p.status = :status
             """)
     Page<StorefrontProductResponse> findStorefrontProducts(
