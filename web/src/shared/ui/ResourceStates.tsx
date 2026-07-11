@@ -1,13 +1,13 @@
 type EmptyStateProps = {
   title: string;
-  description: string;
+  description?: string;
 };
 
 export function EmptyState({ title, description }: EmptyStateProps) {
   return (
     <div className="resource-state">
       <strong>{title}</strong>
-      <p>{description}</p>
+      {description && <p>{description}</p>}
     </div>
   );
 }
