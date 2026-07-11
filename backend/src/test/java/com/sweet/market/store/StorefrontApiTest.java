@@ -6,9 +6,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.sweet.market.auth.security.JwtProvider;
+import com.sweet.market.cart.domain.CartItem;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.domain.Order;
@@ -17,6 +20,7 @@ import com.sweet.market.review.domain.Review;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.support.IntegrationTestSupport;
+import com.sweet.market.wishlist.domain.WishlistItem;
 
 import jakarta.persistence.EntityManager;
 
@@ -36,6 +40,9 @@ class StorefrontApiTest extends IntegrationTestSupport {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private JwtProvider jwtProvider;
 
     @Test
     void 활성_상점_헤더는_현재_상품_기준의_평점과_공개_상품_수만_노출한다() throws Exception {
@@ -122,6 +129,137 @@ class StorefrontApiTest extends IntegrationTestSupport {
         assertStoreNotFound(999_999L);
     }
 
+    @Test
+    void 상점_상품은_기본값으로_판매중_상품만_최신순_조회하며_호환_필드를_유지한다() throws Exception {
+        Store store = saveActiveBusinessStore("catalog-default@example.com");
+        Product older = saveProduct(store, "오래된 상품", 10_000L);
+        Product newer = saveProduct(store, "최신 상품", 20_000L);
+        Product reserved = saveProduct(store, "예약 상품", 30_000L);
+        reserved.reserve();
+        persistProductState(reserved);
+        addImages(newer, "https://example.com/representative.jpg", "https://example.com/ordered-first.jpg");
+        jdbcTemplate.update("update product_images set sort_order = 9 where product_id = ? and representative = true", newer.getId());
+        Member viewer = saveMember("catalog-viewer@example.com", "조회자");
+        Member anotherViewer = saveMember("catalog-other-viewer@example.com", "다른 조회자");
+        saveWishlist(viewer, newer);
+        saveWishlist(anotherViewer, newer);
+        saveCart(viewer, newer);
+
+        mockMvc.perform(get("/api/stores/{storeId}/products", store.getId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken(viewer)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(2))
+                .andExpect(jsonPath("$.data.content[0].id").value(newer.getId()))
+                .andExpect(jsonPath("$.data.content[0].storeId").value(store.getId()))
+                .andExpect(jsonPath("$.data.content[0].storeName").value("공개 상점"))
+                .andExpect(jsonPath("$.data.content[0].storeType").value("BUSINESS"))
+                .andExpect(jsonPath("$.data.content[0].sellerId").value(store.getOwnerMember().getId()))
+                .andExpect(jsonPath("$.data.content[0].sellerNickname").value("소유자"))
+                .andExpect(jsonPath("$.data.content[0].title").value("최신 상품"))
+                .andExpect(jsonPath("$.data.content[0].status").value("ON_SALE"))
+                .andExpect(jsonPath("$.data.content[0].thumbnailUrl").value("https://example.com/representative.jpg"))
+                .andExpect(jsonPath("$.data.content[0].wishlistCount").value(2))
+                .andExpect(jsonPath("$.data.content[0].wishlisted").value(true))
+                .andExpect(jsonPath("$.data.content[0].carted").value(true))
+                .andExpect(jsonPath("$.data.content[1].id").value(older.getId()));
+    }
+
+    @Test
+    void 상점_상품은_예약과_판매완료_상태를_각각_조회하고_숨김_상태는_거부한다() throws Exception {
+        Store store = saveActiveBusinessStore("catalog-status@example.com");
+        Product reserved = saveProduct(store, "예약 상품", 10_000L);
+        reserved.reserve();
+        persistProductState(reserved);
+        Product soldOut = saveProduct(store, "판매완료 상품", 20_000L);
+        soldOut.reserve();
+        soldOut.markSoldOutFromReservation();
+        persistProductState(soldOut);
+
+        mockMvc.perform(get("/api/stores/{storeId}/products", store.getId())
+                        .queryParam("status", "RESERVED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(reserved.getId()));
+
+        mockMvc.perform(get("/api/stores/{storeId}/products", store.getId())
+                        .queryParam("status", "SOLD_OUT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(soldOut.getId()));
+
+        mockMvc.perform(get("/api/stores/{storeId}/products", store.getId())
+                        .queryParam("status", "HIDDEN"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 상점_상품은_가격순과_동일가격_ID_내림차순으로_정렬한다() throws Exception {
+        Store store = saveActiveBusinessStore("catalog-sort@example.com");
+        Product expensive = saveProduct(store, "고가 상품", 30_000L);
+        Product lowerEqualPriceId = saveProduct(store, "동일가 이전 상품", 10_000L);
+        Product higherEqualPriceId = saveProduct(store, "동일가 최신 상품", 10_000L);
+
+        mockMvc.perform(get("/api/stores/{storeId}/products", store.getId())
+                        .queryParam("sort", "PRICE_ASC")
+                        .queryParam("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].price").value(10_000))
+                .andExpect(jsonPath("$.data.content[0].id").value(higherEqualPriceId.getId()))
+                .andExpect(jsonPath("$.data.content[1].id").value(lowerEqualPriceId.getId()));
+
+        mockMvc.perform(get("/api/stores/{storeId}/products", store.getId())
+                        .queryParam("sort", "PRICE_DESC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(expensive.getId()))
+                .andExpect(jsonPath("$.data.content[1].id").value(higherEqualPriceId.getId()))
+                .andExpect(jsonPath("$.data.content[2].id").value(lowerEqualPriceId.getId()));
+    }
+
+    @Test
+    void 상점_상품_페이지_크기는_최대_40개까지_허용한다() throws Exception {
+        Store store = saveActiveBusinessStore("catalog-page-size@example.com");
+
+        mockMvc.perform(get("/api/stores/{storeId}/products", store.getId())
+                        .queryParam("size", "40"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/stores/{storeId}/products", store.getId())
+                        .queryParam("size", "41"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void 중단된_상점의_상품은_빈_페이지로_조회한다() throws Exception {
+        Store store = saveActiveBusinessStore("catalog-suspended@example.com");
+        saveProduct(store, "중단 전 상품", 10_000L);
+        store.suspend();
+        storeRepository.save(store);
+
+        mockMvc.perform(get("/api/stores/{storeId}/products", store.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(0))
+                .andExpect(jsonPath("$.data.totalElements").value(0));
+    }
+
+    @Test
+    void 비공개_상태이거나_존재하지_않는_상점의_상품은_조회할_수_없다() throws Exception {
+        Store pending = storeRepository.save(Store.applyBusiness(
+                saveMember("catalog-pending@example.com", "대기 소유자"),
+                "대기 상점", "대기 소개", "대기 법인", "333-33-33333"
+        ));
+        Store rejected = Store.applyBusiness(
+                saveMember("catalog-rejected@example.com", "거절 소유자"),
+                "거절 상점", "거절 소개", "거절 법인", "444-44-44444"
+        );
+        rejected.reject("서류 미비");
+        storeRepository.save(rejected);
+
+        assertCatalogStoreNotFound(pending.getId());
+        assertCatalogStoreNotFound(rejected.getId());
+        assertCatalogStoreNotFound(999_999L);
+    }
+
     private Store saveActiveBusinessStore(String email) {
         Store store = Store.applyBusiness(
                 saveMember(email, "소유자"),
@@ -132,13 +270,51 @@ class StorefrontApiTest extends IntegrationTestSupport {
     }
 
     private Product saveProduct(Store store, String title) {
+        return saveProduct(store, title, 10_000L);
+    }
+
+    private Product saveProduct(Store store, String title, long price) {
         return transactionTemplate.execute(status -> {
             Store managedStore = entityManager.find(Store.class, store.getId());
-            Product product = Product.create(managedStore, title, "설명", 10_000L);
+            Product product = Product.create(managedStore, title, "설명", price);
             entityManager.persist(product);
             entityManager.flush();
             return product;
         });
+    }
+
+    private void persistProductState(Product product) {
+        transactionTemplate.executeWithoutResult(status -> {
+            Product managedProduct = entityManager.find(Product.class, product.getId());
+            jdbcTemplate.update("update products set status = ? where id = ?", product.getStatus().name(), managedProduct.getId());
+        });
+    }
+
+    private void addImages(Product product, String representativeUrl, String otherUrl) {
+        transactionTemplate.executeWithoutResult(status -> {
+            Product managedProduct = entityManager.find(Product.class, product.getId());
+            managedProduct.addImage(representativeUrl);
+            managedProduct.addImage(otherUrl);
+            entityManager.flush();
+        });
+    }
+
+    private void saveWishlist(Member buyer, Product product) {
+        transactionTemplate.executeWithoutResult(status -> entityManager.persist(WishlistItem.create(
+                entityManager.find(Member.class, buyer.getId()),
+                entityManager.find(Product.class, product.getId())
+        )));
+    }
+
+    private void saveCart(Member buyer, Product product) {
+        transactionTemplate.executeWithoutResult(status -> entityManager.persist(CartItem.create(
+                entityManager.find(Member.class, buyer.getId()),
+                entityManager.find(Product.class, product.getId())
+        )));
+    }
+
+    private String accessToken(Member member) {
+        return jwtProvider.createAccessToken(member.getId(), member.getEmail(), member.getRole());
     }
 
     private void saveReview(Member buyer, Product product, int rating) {
@@ -158,6 +334,12 @@ class StorefrontApiTest extends IntegrationTestSupport {
 
     private void assertStoreNotFound(Long storeId) throws Exception {
         mockMvc.perform(get("/api/stores/{storeId}", storeId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("STORE_NOT_FOUND"));
+    }
+
+    private void assertCatalogStoreNotFound(Long storeId) throws Exception {
+        mockMvc.perform(get("/api/stores/{storeId}/products", storeId))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("STORE_NOT_FOUND"));
     }

@@ -15,6 +15,7 @@ import com.sweet.market.product.api.ProductSummaryResponse;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.seller.report.SellerProductStatusCountProjection;
+import com.sweet.market.store.storefront.StorefrontProductResponse;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
@@ -121,6 +122,86 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                    or store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE)
             """)
     Page<ProductSummaryResponse> findPublicSummariesByStatusOrderByIdDesc(
+            @Param("status") ProductStatus status,
+            @Param("viewerId") Long viewerId,
+            Pageable pageable
+    );
+
+    @Query(value = """
+            select new com.sweet.market.store.storefront.StorefrontProductResponse(
+                p.id,
+                store.id,
+                store.publicName,
+                store.type,
+                owner.id,
+                owner.nickname,
+                p.title,
+                p.price,
+                p.status,
+                coalesce(
+                    (
+                        select min(representativeImage.imageUrl)
+                        from ProductImage representativeImage
+                        where representativeImage.product = p
+                          and representativeImage.representative = true
+                          and representativeImage.sortOrder = (
+                              select min(firstRepresentativeImage.sortOrder)
+                              from ProductImage firstRepresentativeImage
+                              where firstRepresentativeImage.product = p
+                                and firstRepresentativeImage.representative = true
+                          )
+                    ),
+                    (
+                        select min(orderedImage.imageUrl)
+                        from ProductImage orderedImage
+                        where orderedImage.product = p
+                          and orderedImage.sortOrder = (
+                              select min(firstImage.sortOrder)
+                              from ProductImage firstImage
+                              where firstImage.product = p
+                          )
+                    )
+                ),
+                (
+                    select count(allItem)
+                    from WishlistItem allItem
+                    where allItem.product = p
+                ),
+                case
+                    when :viewerId is null then false
+                    when (
+                        select count(viewerItem)
+                        from WishlistItem viewerItem
+                        where viewerItem.product = p
+                          and viewerItem.buyer.id = :viewerId
+                    ) > 0 then true
+                    else false
+                end,
+                case
+                    when :viewerId is null then false
+                    when (
+                        select count(cartItem)
+                        from CartItem cartItem
+                        where cartItem.product = p
+                          and cartItem.buyer.id = :viewerId
+                    ) > 0 then true
+                    else false
+                end
+            )
+            from Product p
+            join p.store store
+            join store.ownerMember owner
+            where store.id = :storeId
+              and p.status = :status
+            """,
+            countQuery = """
+            select count(p)
+            from Product p
+            where p.store.id = :storeId
+              and p.status = :status
+            """)
+    Page<StorefrontProductResponse> findStorefrontProducts(
+            @Param("storeId") Long storeId,
             @Param("status") ProductStatus status,
             @Param("viewerId") Long viewerId,
             Pageable pageable
