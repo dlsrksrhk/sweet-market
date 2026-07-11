@@ -315,6 +315,36 @@ class StoreApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.businessRegistrationId").value("999-99-99999"));
     }
 
+    @Test
+    void 관리자는_사업자_상점을_상태별로_페이지_조회한다() throws Exception {
+        Member pendingOwner = saveMember("pending-query-owner@example.com", "pending-owner");
+        Store pendingStore = storeRepository.save(Store.applyBusiness(
+                pendingOwner,
+                "승인 대기 상점",
+                "승인 대기 소개",
+                "승인 대기 법인",
+                "111-22-33333"
+        ));
+        activeBusinessStore("active-query-owner@example.com");
+        String adminToken = saveAdminAndLogin("status-query-admin@example.com");
+
+        mockMvc.perform(get("/api/admin/business-stores")
+                        .queryParam("status", "PENDING")
+                        .queryParam("page", "0")
+                        .queryParam("size", "1")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(adminToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].storeId").value(pendingStore.getId()))
+                .andExpect(jsonPath("$.data.content[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.data.content[0].createdAt", not(blankOrNullString())))
+                .andExpect(jsonPath("$.data.content[0].updatedAt", not(blankOrNullString())))
+                .andExpect(jsonPath("$.data.number").value(0))
+                .andExpect(jsonPath("$.data.size").value(1))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.totalPages").value(1));
+    }
+
     private long applyBusiness(String token) throws Exception {
         String response = mockMvc.perform(post("/api/stores/business-applications")
                         .header(HttpHeaders.AUTHORIZATION, bearer(token))

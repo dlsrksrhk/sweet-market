@@ -9,11 +9,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sweet.market.common.api.ApiResponse;
 import com.sweet.market.store.api.StorePrivateResponse;
 import com.sweet.market.store.application.StoreGovernanceService;
+import com.sweet.market.store.domain.StoreStatus;
 
 import jakarta.validation.Valid;
 
@@ -31,9 +33,10 @@ public class AdminBusinessStoreController {
 
     @GetMapping
     public ApiResponse<Page<AdminBusinessStoreResponse>> search(
+            @RequestParam(required = false) StoreStatus status,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        return ApiResponse.ok(queryService.search(pageable));
+        return ApiResponse.ok(queryService.search(status, pageable));
     }
 
     @GetMapping("/{storeId}")

@@ -57,4 +57,6 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
     }
 
     Page<Store> findAllByType(StoreType type, Pageable pageable);
+
+    Page<Store> findAllByTypeAndStatus(StoreType type, StoreStatus status, Pageable pageable);
 }

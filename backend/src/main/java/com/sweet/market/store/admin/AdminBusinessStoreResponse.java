@@ -1,5 +1,7 @@
 package com.sweet.market.store.admin;
 
+import java.time.LocalDateTime;
+
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.domain.StoreType;
@@ -13,12 +15,15 @@ public record AdminBusinessStoreResponse(
         StoreStatus status,
         String legalBusinessName,
         String businessRegistrationId,
-        String rejectionReason
+        String rejectionReason,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {
     public static AdminBusinessStoreResponse from(Store store) {
         return new AdminBusinessStoreResponse(
                 store.getId(), store.getOwnerMember().getId(), store.getType(), store.getPublicName(), store.getIntroduction(),
-                store.getStatus(), store.getLegalBusinessName(), store.getBusinessRegistrationId(), store.getRejectionReason()
+                store.getStatus(), store.getLegalBusinessName(), store.getBusinessRegistrationId(), store.getRejectionReason(),
+                store.getCreatedAt(), store.getUpdatedAt()
         );
     }
 }
