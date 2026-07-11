@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthProvider';
 import {
   createProduct,
@@ -359,7 +359,12 @@ export function ProductFormPage() {
               })}
             </div>
             {activeStores.length === 0 ? (
-              <p className="error-text">상품을 등록할 수 있는 활성 상점이 없습니다.</p>
+              <div className="resource-state resource-state-error">
+                <p className="error-text">상품을 등록할 수 있는 활성 상점이 없습니다.</p>
+                <Link className="primary-link" to="/me/store">
+                  내 상점에서 상태 확인하기
+                </Link>
+              </div>
             ) : null}
             {activeStores.length > 1 && selectedStoreId === null ? (
               <p className="status-text">활성 상점 중 상품을 등록할 상점을 선택해주세요.</p>
