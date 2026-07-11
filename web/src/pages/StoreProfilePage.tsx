@@ -58,7 +58,8 @@ export function StoreProfilePage() {
     queryFn: () => getPublicStore(parsedStoreId ?? 0),
     enabled: hasValidStoreId,
   });
-  const hasSettledActiveStore = headerQuery.data?.operatingStatus === 'ACTIVE' && !headerQuery.isFetching;
+  const hasSettledActiveStore =
+    headerQuery.isSuccess && !headerQuery.isFetching && headerQuery.data.operatingStatus === 'ACTIVE';
   const catalogInput = { status, sort, page, size: PAGE_SIZE };
   const catalogQuery = useQuery({
     queryKey: storeQueryKeys.publicProductList(parsedStoreId ?? 0, catalogInput),
