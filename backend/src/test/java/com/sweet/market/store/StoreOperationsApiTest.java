@@ -266,6 +266,16 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 상품_ID_목록이_아닌_요청은_검증_오류로_응답한다() throws Exception {
+        Member owner = saveMember("catalog-shape-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "형식 검증 상점");
+
+        performRawCommand("hide", store, owner, "{\"productIds\":\"not-a-list\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
     void 다른_상점_상품과_없는_상품은_상품_없음으로_응답한다() throws Exception {
         Member owner = saveMember("catalog-not-found-owner@example.com", "소유자");
         Store store = saveActiveBusinessStore(owner, "기준 상점");

@@ -3,6 +3,7 @@ package com.sweet.market.common.error;
 import java.util.List;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -40,6 +41,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(ErrorCode.VALIDATION_ERROR.status())
                 .body(ErrorResponse.of(ErrorCode.VALIDATION_ERROR, fieldErrors));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleMessageNotReadableException(
+            HttpMessageNotReadableException exception
+    ) {
+        return ResponseEntity
+                .status(ErrorCode.VALIDATION_ERROR.status())
+                .body(ErrorResponse.of(ErrorCode.VALIDATION_ERROR));
     }
 
     private ErrorResponse.FieldErrorResponse toFieldErrorResponse(FieldError fieldError) {
