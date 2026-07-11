@@ -57,6 +57,7 @@ public enum ErrorCode {
     STORE_NOT_FOUND(HttpStatus.NOT_FOUND, "상점을 찾을 수 없습니다."),
     STORE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "상점 운영 권한이 없습니다."),
     STORE_OWNER_REQUIRED(HttpStatus.FORBIDDEN, "상점 소유자 권한이 필요합니다."),
+    STORE_OWNER_MEMBERSHIP_PROTECTED(HttpStatus.CONFLICT, "상점 소유자 멤버십은 제거할 수 없습니다."),
     DUPLICATE_BUSINESS_STORE(HttpStatus.CONFLICT, "사업자 상점은 하나만 신청할 수 있습니다."),
     STORE_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "현재 상점 상태에서는 변경할 수 없습니다."),
     STORE_INVALID_TYPE(HttpStatus.BAD_REQUEST, "사업자 상점만 처리할 수 있습니다.");

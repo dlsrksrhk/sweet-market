@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import com.sweet.market.store.domain.StoreMembership;
 import com.sweet.market.store.operations.OperableStoreResponse;
+import com.sweet.market.store.operations.StoreMembershipResponse;
 
 public interface StoreMembershipRepository extends JpaRepository<StoreMembership, Long> {
 
@@ -19,6 +20,28 @@ public interface StoreMembershipRepository extends JpaRepository<StoreMembership
 
     @EntityGraph(attributePaths = "store")
     Optional<StoreMembership> findByStoreIdAndMemberIdAndActiveTrue(Long storeId, Long memberId);
+
+    Optional<StoreMembership> findByIdAndStoreIdAndActiveTrue(Long id, Long storeId);
+
+    @Query("""
+            select new com.sweet.market.store.operations.StoreMembershipResponse(
+                membership.id,
+                member.id,
+                member.nickname,
+                membership.role,
+                membership.createdAt
+            )
+            from StoreMembership membership
+            join membership.member member
+            where membership.store.id = :storeId
+              and membership.active = true
+            order by case membership.role
+                when com.sweet.market.store.domain.StoreMemberRole.OWNER then 0
+                when com.sweet.market.store.domain.StoreMemberRole.MANAGER then 1
+                else 2
+            end, membership.id
+            """)
+    List<StoreMembershipResponse> findActiveByStoreId(@Param("storeId") Long storeId);
 
     @Query("""
             select new com.sweet.market.store.operations.OperableStoreResponse(

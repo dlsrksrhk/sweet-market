@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,13 +24,19 @@ public class StoreOperationsController {
 
     private final StoreCatalogQueryService storeCatalogQueryService;
     private final StoreCatalogCommandService storeCatalogCommandService;
+    private final StoreMembershipQueryService storeMembershipQueryService;
+    private final StoreMembershipCommandService storeMembershipCommandService;
 
     public StoreOperationsController(
             StoreCatalogQueryService storeCatalogQueryService,
-            StoreCatalogCommandService storeCatalogCommandService
+            StoreCatalogCommandService storeCatalogCommandService,
+            StoreMembershipQueryService storeMembershipQueryService,
+            StoreMembershipCommandService storeMembershipCommandService
     ) {
         this.storeCatalogQueryService = storeCatalogQueryService;
         this.storeCatalogCommandService = storeCatalogCommandService;
+        this.storeMembershipQueryService = storeMembershipQueryService;
+        this.storeMembershipCommandService = storeMembershipCommandService;
     }
 
     @GetMapping
@@ -43,6 +50,24 @@ public class StoreOperationsController {
             @PathVariable Long storeId
     ) {
         return ApiResponse.ok(storeCatalogQueryService.findSummary(memberId(authentication), storeId));
+    }
+
+    @GetMapping("/{storeId}/memberships")
+    public ApiResponse<List<StoreMembershipResponse>> memberships(
+            Authentication authentication,
+            @PathVariable Long storeId
+    ) {
+        return ApiResponse.ok(storeMembershipQueryService.findActive(memberId(authentication), storeId));
+    }
+
+    @DeleteMapping("/{storeId}/memberships/{membershipId}")
+    public ApiResponse<Void> removeManager(
+            Authentication authentication,
+            @PathVariable Long storeId,
+            @PathVariable Long membershipId
+    ) {
+        storeMembershipCommandService.removeManager(memberId(authentication), storeId, membershipId);
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/{storeId}/products")

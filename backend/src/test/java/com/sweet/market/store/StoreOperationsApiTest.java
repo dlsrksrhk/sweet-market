@@ -1,6 +1,7 @@
 package com.sweet.market.store;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -50,6 +51,98 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @Test
+    void 소유자는_활성_멤버십을_소유자와_매니저_순으로_조회한다() throws Exception {
+        Member owner = saveMember("membership-list-owner@example.com", "소유자");
+        Member firstManager = saveMember("membership-list-first@example.com", "첫 매니저");
+        Member secondManager = saveMember("membership-list-second@example.com", "둘째 매니저");
+        Member inactiveManager = saveMember("membership-list-inactive@example.com", "비활성 매니저");
+        Store store = saveActiveBusinessStore(owner, "멤버십 상점");
+        StoreMembership first = storeMembershipRepository.save(StoreMembership.createManager(store, firstManager));
+        StoreMembership second = storeMembershipRepository.save(StoreMembership.createManager(store, secondManager));
+        StoreMembership inactive = StoreMembership.createManager(store, inactiveManager);
+        inactive.deactivate();
+        storeMembershipRepository.save(inactive);
+
+        mockMvc.perform(get("/api/store-operations/{storeId}/memberships", store.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(3)))
+                .andExpect(jsonPath("$.data[0].memberId").value(owner.getId()))
+                .andExpect(jsonPath("$.data[0].memberNickname").value("소유자"))
+                .andExpect(jsonPath("$.data[0].role").value("OWNER"))
+                .andExpect(jsonPath("$.data[0].joinedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data[1].membershipId").value(first.getId()))
+                .andExpect(jsonPath("$.data[1].memberId").value(firstManager.getId()))
+                .andExpect(jsonPath("$.data[1].memberNickname").value("첫 매니저"))
+                .andExpect(jsonPath("$.data[1].role").value("MANAGER"))
+                .andExpect(jsonPath("$.data[1].joinedAt").isNotEmpty())
+                .andExpect(jsonPath("$.data[2].membershipId").value(second.getId()));
+    }
+
+    @Test
+    void 매니저와_외부인은_멤버십을_조회하거나_제거할_수_없다() throws Exception {
+        Member owner = saveMember("membership-denied-owner@example.com", "소유자");
+        Member manager = saveMember("membership-denied-manager@example.com", "매니저");
+        Member outsider = saveMember("membership-denied-outsider@example.com", "외부인");
+        Store store = saveActiveBusinessStore(owner, "권한 상점");
+        StoreMembership managerMembership = storeMembershipRepository.save(StoreMembership.createManager(store, manager));
+
+        assertMembershipListOwnerRequired(store, manager);
+        assertMembershipListOwnerRequired(store, outsider);
+        assertMembershipDeleteOwnerRequired(store, managerMembership.getId(), manager);
+        assertMembershipDeleteOwnerRequired(store, managerMembership.getId(), outsider);
+    }
+
+    @Test
+    void 소유자는_매니저를_제거하고_제거된_매니저는_즉시_운영_권한을_잃는다() throws Exception {
+        Member owner = saveMember("membership-remove-owner@example.com", "소유자");
+        Member manager = saveMember("membership-remove-manager@example.com", "매니저");
+        Store store = saveActiveBusinessStore(owner, "제거 상점");
+        StoreMembership membership = storeMembershipRepository.save(StoreMembership.createManager(store, manager));
+
+        mockMvc.perform(delete("/api/store-operations/{storeId}/memberships/{membershipId}",
+                        store.getId(), membership.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/store-operations")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(manager)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", hasSize(0)));
+        assertStoreAccessDenied("/api/store-operations/{storeId}/products", store.getId(), manager);
+    }
+
+    @Test
+    void 소유자_멤버십은_제거할_수_없고_없는_대상과_다른_상점_대상은_노출하지_않는다() throws Exception {
+        Member owner = saveMember("membership-protected-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "보호 상점");
+        StoreMembership ownerMembership = storeMembershipRepository
+                .findByStoreIdAndMemberId(store.getId(), owner.getId())
+                .orElseThrow();
+        Member inactiveManager = saveMember("membership-protected-inactive@example.com", "비활성 매니저");
+        StoreMembership inactiveMembership = StoreMembership.createManager(store, inactiveManager);
+        inactiveMembership.deactivate();
+        storeMembershipRepository.save(inactiveMembership);
+        Member otherOwner = saveMember("membership-protected-other@example.com", "다른 소유자");
+        Member otherManager = saveMember("membership-protected-other-manager@example.com", "다른 매니저");
+        Store otherStore = saveActiveBusinessStore(otherOwner, "다른 상점");
+        StoreMembership otherMembership = storeMembershipRepository.save(StoreMembership.createManager(otherStore, otherManager));
+
+        performMembershipDelete(store, ownerMembership.getId(), owner)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STORE_OWNER_MEMBERSHIP_PROTECTED"));
+        performMembershipDelete(store, Long.MAX_VALUE, owner)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+        performMembershipDelete(store, inactiveMembership.getId(), owner)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+        performMembershipDelete(store, otherMembership.getId(), owner)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+    }
 
     @Test
     void 활성_소유자와_매니저는_운영_상점_목록을_보고_비활성_멤버십은_제외한다() throws Exception {
@@ -356,6 +449,29 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, bearer(member)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+    }
+
+    private void assertMembershipListOwnerRequired(Store store, Member member) throws Exception {
+        mockMvc.perform(get("/api/store-operations/{storeId}/memberships", store.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(member)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_OWNER_REQUIRED"));
+    }
+
+    private void assertMembershipDeleteOwnerRequired(Store store, Long membershipId, Member member) throws Exception {
+        performMembershipDelete(store, membershipId, member)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_OWNER_REQUIRED"));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions performMembershipDelete(
+            Store store,
+            Long membershipId,
+            Member member
+    ) throws Exception {
+        return mockMvc.perform(delete("/api/store-operations/{storeId}/memberships/{membershipId}",
+                        store.getId(), membershipId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(member)));
     }
 
     private org.springframework.test.web.servlet.ResultActions performCommand(
