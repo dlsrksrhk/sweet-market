@@ -68,12 +68,17 @@ export function StoreProfilePage() {
 
   useEffect(() => {
     const totalPages = catalogQuery.data?.totalPages;
-    if (!hasSettledActiveStore || catalogQuery.isFetching || !totalPages || page < totalPages) {
+    if (!hasSettledActiveStore || catalogQuery.isFetching || totalPages === undefined) {
+      return;
+    }
+
+    const normalizedPage = totalPages === 0 ? 0 : Math.min(page, totalPages - 1);
+    if (page === normalizedPage) {
       return;
     }
 
     const normalizedParams = new URLSearchParams(searchParams);
-    normalizedParams.set('page', String(totalPages - 1));
+    normalizedParams.set('page', String(normalizedPage));
     setSearchParams(normalizedParams, { replace: true });
   }, [catalogQuery.data?.totalPages, catalogQuery.isFetching, hasSettledActiveStore, page, searchParams, setSearchParams]);
 
