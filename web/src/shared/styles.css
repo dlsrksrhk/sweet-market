@@ -1698,7 +1698,12 @@ a.wishlist-card-main:hover h2 {
 
 .admin-business-store-table td:first-child {
   z-index: 1;
-  background: inherit;
+  background: #ffffff;
+}
+
+.admin-business-store-table tbody tr:hover td:first-child,
+.admin-business-store-table tbody tr.admin-operations-row-selected td:first-child {
+  background: #f0fbfa;
 }
 
 .admin-operations-table {
