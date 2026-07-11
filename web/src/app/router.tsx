@@ -4,6 +4,7 @@ import { RequireAuth } from '../features/auth/RequireAuth';
 import { AdminOperationsPage } from '../pages/AdminOperationsPage';
 import { AdminRefundRequestsPage } from '../pages/AdminRefundRequestsPage';
 import { AdminSettlementBatchPage } from '../pages/AdminSettlementBatchPage';
+import { BusinessStoreApplicationPage } from '../pages/BusinessStoreApplicationPage';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MyCartPage } from '../pages/MyCartPage';
@@ -12,6 +13,7 @@ import { MyRefundHistoryPage } from '../pages/MyRefundHistoryPage';
 import { MyReportsPage } from '../pages/MyReportsPage';
 import { MySalesPage } from '../pages/MySalesPage';
 import { MySettlementsPage } from '../pages/MySettlementsPage';
+import { MyStorePage } from '../pages/MyStorePage';
 import { MyWishlistPage } from '../pages/MyWishlistPage';
 import { ProductDetailPage } from '../pages/ProductDetailPage';
 import { ProductFormPage } from '../pages/ProductFormPage';
@@ -40,6 +42,22 @@ export function AppRouter() {
           element={
             <RequireAuth>
               <ProductFormPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="me/store"
+          element={
+            <RequireAuth>
+              <MyStorePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="me/store/business-application"
+          element={
+            <RequireAuth>
+              <BusinessStoreApplicationPage />
             </RequireAuth>
           }
         />
