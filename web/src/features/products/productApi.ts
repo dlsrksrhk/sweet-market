@@ -1,4 +1,5 @@
 import { api } from '../../shared/api/http';
+import type { StoreType } from '../stores/storeApi';
 
 const PRODUCT_IMAGE_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080';
 
@@ -17,6 +18,9 @@ export type ProductStatus = 'ON_SALE' | 'RESERVED' | 'SOLD_OUT' | 'HIDDEN';
 
 export type ProductSummary = {
   id: number;
+  storeId: number;
+  storeName: string;
+  storeType: StoreType;
   sellerId: number;
   sellerNickname: string;
   title: string;
@@ -67,6 +71,7 @@ export type ProductUpdateImageInput =
 export type Product = Omit<ProductSummary, 'thumbnailUrl'> & {
   description: string;
   images: ProductImage[];
+  purchasable: boolean;
   reviewCount: number;
   averageRating: number | null;
   sellerReviewCount: number;
