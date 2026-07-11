@@ -523,6 +523,83 @@ textarea {
   color: #b42318;
 }
 
+.status-badge-personal {
+  background: #eef2f6;
+  color: #52616f;
+}
+
+.status-badge-business,
+.status-badge-active {
+  background: #e7f5f4;
+  color: #0f7b78;
+}
+
+.status-badge-pending {
+  background: #fff2cc;
+  color: #8a5b00;
+}
+
+.status-badge-suspended {
+  background: #ffe8e5;
+  color: #b42318;
+}
+
+.page-panel > [role="group"][aria-label="관리할 상점 선택"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 24px 0 18px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f9fbfd;
+}
+
+.page-panel > [role="group"][aria-label="관리할 상점 선택"] .text-button {
+  flex: 1 1 220px;
+  border: 1px solid #cfd9e3;
+  background: #ffffff;
+  color: #52616f;
+}
+
+.page-panel > [role="group"][aria-label="관리할 상점 선택"] .text-button[aria-pressed="true"] {
+  border-color: #0f7b78;
+  background: #0f7b78;
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgb(15 123 120 / 20%);
+}
+
+.page-panel > [role="group"][aria-label="관리할 상점 선택"] .text-button:focus-visible {
+  outline: 3px solid rgb(15 123 120 / 30%);
+  outline-offset: 2px;
+}
+
+.page-panel > .resource-state {
+  margin-top: 20px;
+  text-align: left;
+}
+
+.page-panel > .resource-state .primary-link {
+  justify-self: start;
+}
+
+.page-panel > .status-badge {
+  margin: 20px 0 10px;
+}
+
+.page-panel > .status-badge + h1 {
+  margin-bottom: 16px;
+}
+
+.page-panel > .product-form {
+  max-width: 760px;
+}
+
+.page-panel > .product-form textarea {
+  width: 100%;
+  resize: vertical;
+}
+
 .product-detail {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
@@ -952,6 +1029,70 @@ a.wishlist-card-main:hover h2 {
 .product-image-list {
   display: grid;
   gap: 10px;
+}
+
+.product-form fieldset {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.product-form fieldset legend {
+  margin-bottom: 10px;
+  color: #52616f;
+  font-weight: 800;
+}
+
+.product-form .product-image-list[role="radiogroup"] {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.product-form .product-image-list[role="radiogroup"] .resource-state {
+  align-content: start;
+  align-self: stretch;
+  justify-items: start;
+  min-width: 0;
+  padding: 18px;
+  background: #f9fbfd;
+  cursor: pointer;
+  text-align: left;
+}
+
+.product-form .product-image-list[role="radiogroup"] .resource-state:has(input:checked) {
+  border-color: #0f7b78;
+  background: #f0fbfa;
+  box-shadow: 0 0 0 3px rgb(15 123 120 / 16%);
+}
+
+.product-form .product-image-list[role="radiogroup"] .resource-state:has(input:focus-visible) {
+  outline: 3px solid rgb(15 123 120 / 30%);
+  outline-offset: 2px;
+}
+
+.product-form .product-image-list[role="radiogroup"] .resource-state:has(input:disabled) {
+  background: #eef2f6;
+  color: #637282;
+  cursor: not-allowed;
+}
+
+.product-form .product-image-list[role="radiogroup"] input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #0f7b78;
+}
+
+.product-form .product-image-list[role="radiogroup"] .status-text {
+  margin: 0;
+}
+
+.product-form > div > .resource-state {
+  margin-top: 10px;
+  padding: 18px;
+  text-align: left;
 }
 
 .product-image-item {
@@ -1498,7 +1639,7 @@ a.wishlist-card-main:hover h2 {
 
 .admin-business-store-table {
   width: 100%;
-  min-width: 520px;
+  min-width: 560px;
   border-collapse: collapse;
   background: #ffffff;
   color: #172026;
@@ -1533,11 +1674,60 @@ a.wishlist-card-main:hover h2 {
   box-shadow: inset 3px 0 0 #0f7b78;
 }
 
+.admin-business-store-table .text-button {
+  max-width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.admin-business-store-table .text-button[aria-pressed="true"] {
+  background: #0f7b78;
+  color: #ffffff;
+}
+
+.admin-business-store-table th:first-child,
+.admin-business-store-table td:first-child {
+  position: sticky;
+  left: 0;
+}
+
+.admin-business-store-table th:first-child {
+  z-index: 2;
+}
+
+.admin-business-store-table td:first-child {
+  z-index: 1;
+  background: inherit;
+}
+
+.admin-operations-table {
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+
 .admin-detail-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+
+.admin-operations-detail .admin-batch-form textarea {
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  border: 1px solid #cfd9e3;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: #172026;
+}
+
+.admin-operations-page select:disabled,
+.admin-operations-page textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .admin-settlement-table-head,
@@ -1837,6 +2027,23 @@ a.wishlist-card-main:hover h2 {
     padding: 32px 0;
   }
 
+  .page-panel {
+    padding: 22px;
+  }
+
+  .page-panel > [role="group"][aria-label="관리할 상점 선택"] {
+    flex-direction: column;
+  }
+
+  .page-panel > [role="group"][aria-label="관리할 상점 선택"] .text-button {
+    flex-basis: auto;
+    width: 100%;
+  }
+
+  .product-form .product-image-list[role="radiogroup"] {
+    grid-template-columns: 1fr;
+  }
+
   .home-page {
     grid-template-columns: 1fr;
     min-height: auto;
@@ -1883,6 +2090,23 @@ a.wishlist-card-main:hover h2 {
   .admin-operations-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .admin-operations-detail {
+    min-width: 0;
+  }
+
+  .admin-detail-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-detail-actions .text-button {
+    width: 100%;
+  }
+
+  .admin-business-store-table {
+    min-width: 500px;
   }
 
   .report-page-header,
