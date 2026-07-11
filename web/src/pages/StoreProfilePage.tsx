@@ -15,6 +15,7 @@ import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates
 import { parsePositiveIntegerParam } from '../shared/utils/parseId';
 
 const PAGE_SIZE = 12;
+const JAVA_INT_MAX = 2_147_483_647;
 const productStatuses: { value: StorefrontProductStatus; label: string }[] = [
   { value: 'ON_SALE', label: '판매중' },
   { value: 'RESERVED', label: '예약중' },
@@ -57,13 +58,24 @@ export function StoreProfilePage() {
     queryFn: () => getPublicStore(parsedStoreId ?? 0),
     enabled: hasValidStoreId,
   });
-  const isActiveStore = headerQuery.data?.operatingStatus === 'ACTIVE';
+  const hasSettledActiveStore = headerQuery.data?.operatingStatus === 'ACTIVE' && !headerQuery.isFetching;
   const catalogInput = { status, sort, page, size: PAGE_SIZE };
   const catalogQuery = useQuery({
     queryKey: storeQueryKeys.publicProductList(parsedStoreId ?? 0, catalogInput),
     queryFn: () => getStorefrontProducts(parsedStoreId ?? 0, catalogInput),
-    enabled: hasValidStoreId && isActiveStore,
+    enabled: hasValidStoreId && hasSettledActiveStore,
   });
+
+  useEffect(() => {
+    const totalPages = catalogQuery.data?.totalPages;
+    if (!hasSettledActiveStore || catalogQuery.isFetching || !totalPages || page < totalPages) {
+      return;
+    }
+
+    const normalizedParams = new URLSearchParams(searchParams);
+    normalizedParams.set('page', String(totalPages - 1));
+    setSearchParams(normalizedParams, { replace: true });
+  }, [catalogQuery.data?.totalPages, catalogQuery.isFetching, hasSettledActiveStore, page, searchParams, setSearchParams]);
 
   if (!hasValidStoreId) {
     return <ErrorState message="상점 주소가 올바르지 않습니다." />;
@@ -238,7 +250,7 @@ function normalizePage(value: string | null) {
   }
 
   const parsedPage = Number(value);
-  return Number.isSafeInteger(parsedPage) ? parsedPage : 0;
+  return Number.isSafeInteger(parsedPage) && parsedPage <= JAVA_INT_MAX ? parsedPage : 0;
 }
 
 function toErrorMessage(error: unknown, fallbackMessage: string) {
