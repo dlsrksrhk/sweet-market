@@ -20,7 +20,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
                 "spring.jpa.hibernate.ddl-auto=none",
                 "spring.sql.init.mode=never",
                 "spring.batch.jdbc.initialize-schema=never",
-                "spring.task.scheduling.enabled=false",
+                "market.scheduling.enabled=false",
                 "jwt.secret=sweet-market-test-secret-key-32bytes-minimum"
         }
 )

@@ -2,168 +2,144 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make every Gradle test run use a repository-owned, test-only Spring Boot configuration without requiring a profile or depending on the local main `application.yaml`.
+**Goal:** Make every Gradle test run use a repository-owned Spring Boot configuration that needs no profile or external JWT secret and actually disables scheduling infrastructure.
 
-**Architecture:** Add `backend/src/test/resources/application.yaml`, which takes precedence on the Gradle test runtime classpath. Keep database connection values out of the file so the existing `@DynamicPropertySource` methods remain authoritative, while preserving per-test Flyway and Hibernate overrides.
+**Architecture:** Keep test runtime values in `backend/src/test/resources/application.yaml`, ahead of the main YAML on the test classpath. Database connection values remain absent so existing `@DynamicPropertySource` Testcontainers overrides stay authoritative. Move scheduling activation out of `MarketApplication` and into the existing scheduling configuration, guarded by the application-owned `market.scheduling.enabled` property with an enabled-by-default fallback.
 
 **Tech Stack:** Java 21, Spring Boot 3.5, JUnit 5, AssertJ, Gradle, YAML, Testcontainers PostgreSQL
 
 ## Global Constraints
 
-- `./gradlew test` must require no Spring profile or extra JVM option.
+- `./gradlew test` must require no Spring profile, external JWT secret, or extra JVM option.
 - Database URL, username, and password must continue to come from Testcontainers through `@DynamicPropertySource`.
+- `market.scheduling.enabled=false` must prevent creation of Spring scheduling infrastructure even under the `local` profile.
+- Omitting `market.scheduling.enabled` must preserve existing non-test behavior by enabling scheduling.
 - JUnit `@Test` method names must be Korean with underscores.
 - Do not modify `backend/src/main/resources/application.yaml`.
 - Test image files must stay under `backend/build/test-product-images`.
 
 ---
 
-### Task 1: Add the automatically loaded test application configuration
+### Task 1: Add the automatically loaded test application configuration and effective scheduling switch
 
 **Files:**
 - Create: `backend/src/test/java/com/sweet/market/support/TestApplicationConfigurationTest.java`
 - Create: `backend/src/test/resources/application.yaml`
+- Create: `backend/src/test/java/com/sweet/market/order/scheduler/OrderAutoConfirmSchedulingConfigTest.java`
+- Modify: `backend/src/main/java/com/sweet/market/MarketApplication.java`
+- Modify: `backend/src/main/java/com/sweet/market/order/scheduler/OrderAutoConfirmSchedulingConfig.java`
+- Modify: `backend/src/test/java/com/sweet/market/store/migration/StoreFreshDatabaseStartupTest.java`
+- Modify: `backend/src/test/java/com/sweet/market/store/migration/StoreSpringBootFlywayTest.java`
+- Modify: `docs/superpowers/specs/2026-07-11-test-application-configuration-design.md`
+- Modify: `docs/superpowers/plans/2026-07-11-test-application-configuration.md`
 
 **Interfaces:**
-- Consumes: Spring test runtime classpath precedence and the existing `@DynamicPropertySource` database overrides.
-- Produces: A classpath `application.yaml` whose `product.images.upload-root` is `build/test-product-images`, whose Flyway baseline version is `0`, and whose JWT secret is valid for tests.
+- Consumes: Spring test runtime classpath precedence and existing `@DynamicPropertySource` database overrides.
+- Produces: Test-only configuration with Flyway baseline version `0`, JWT secret `sweet-market-test-secret-key-32bytes-minimum`, upload root `build/test-product-images`, and `market.scheduling.enabled=false`.
+- Produces: Conditional scheduling activation that is enabled when `market.scheduling.enabled=true` or missing and disabled when it is `false`.
 
-- [ ] **Step 1: Write the failing classpath configuration test**
+- [ ] **Step 1: Write failing configuration assertions**
 
-Create `backend/src/test/java/com/sweet/market/support/TestApplicationConfigurationTest.java`:
+Extend `TestApplicationConfigurationTest` to assert the application-owned scheduling flag and the absence of fixed datasource credentials:
 
 ```java
-package com.sweet.market.support;
+assertThat(properties.getProperty("spring.datasource.url")).isNull();
+assertThat(properties.getProperty("spring.datasource.username")).isNull();
+assertThat(properties.getProperty("spring.datasource.password")).isNull();
+assertThat(properties.getProperty("market.scheduling.enabled")).isEqualTo(false);
+```
 
-import static org.assertj.core.api.Assertions.assertThat;
+- [ ] **Step 2: Write failing context-level scheduling tests**
 
-import java.io.IOException;
-import java.util.List;
+Create `OrderAutoConfirmSchedulingConfigTest` with an `ApplicationContextRunner` that loads only `OrderAutoConfirmSchedulingConfig`. Assert that `ScheduledAnnotationBeanPostProcessor` is absent for `market.scheduling.enabled=false` with the `local` profile and present once when the property is omitted.
 
-import org.junit.jupiter.api.Test;
-import org.springframework.boot.env.YamlPropertySourceLoader;
-import org.springframework.core.env.PropertySource;
-import org.springframework.core.io.ClassPathResource;
+```java
+private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+        .withUserConfiguration(OrderAutoConfirmSchedulingConfig.class);
 
-class TestApplicationConfigurationTest {
+@Test
+void 스케줄링을_비활성화하면_local에서도_스케줄러_인프라를_생성하지_않는다() {
+    contextRunner
+            .withPropertyValues(
+                    "spring.profiles.active=local",
+                    "market.scheduling.enabled=false"
+            )
+            .run(context -> assertThat(context)
+                    .doesNotHaveBean(ScheduledAnnotationBeanPostProcessor.class));
+}
 
-    @Test
-    void 테스트_전용_application_yaml을_클래스패스에서_우선_사용한다() throws IOException {
-        List<PropertySource<?>> propertySources = new YamlPropertySourceLoader()
-                .load("test-application", new ClassPathResource("application.yaml"));
-
-        assertThat(propertySources).hasSize(1);
-        PropertySource<?> properties = propertySources.getFirst();
-        assertThat(properties.getProperty("spring.flyway.enabled")).isEqualTo(true);
-        assertThat(properties.getProperty("spring.flyway.baseline-on-migrate")).isEqualTo(true);
-        assertThat(properties.getProperty("spring.flyway.baseline-version")).isEqualTo(0);
-        assertThat(properties.getProperty("product.images.upload-root"))
-                .isEqualTo("build/test-product-images");
-        assertThat(properties.getProperty("jwt.secret"))
-                .isEqualTo("sweet-market-test-secret-key-32bytes-minimum");
-    }
+@Test
+void 스케줄링은_기본값으로_활성화된다() {
+    contextRunner.run(context -> assertThat(context)
+            .hasSingleBean(ScheduledAnnotationBeanPostProcessor.class));
 }
 ```
 
-- [ ] **Step 2: Run the focused test and confirm it fails against the main configuration**
+- [ ] **Step 3: Run the focused tests and verify RED**
 
-Run from `backend`:
+Run from `backend` with JDK 21:
 
 ```powershell
 $env:JAVA_HOME='C:\java\jdk-21'
 $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
-.\gradlew.bat test --tests com.sweet.market.support.TestApplicationConfigurationTest --rerun-tasks
+.\gradlew.bat test --tests com.sweet.market.support.TestApplicationConfigurationTest --tests com.sweet.market.order.scheduler.OrderAutoConfirmSchedulingConfigTest --rerun-tasks
 ```
 
-Expected: FAIL because the current test classpath resolves the main configuration, where `product.images.upload-root` is not `build/test-product-images`.
+Expected: three assertion failures: the YAML lacks `market.scheduling.enabled`, disabled local scheduling still creates infrastructure, and default non-profile scheduling does not create infrastructure through the profile-restricted configuration.
 
-- [ ] **Step 3: Add the test-only Spring Boot configuration**
+- [ ] **Step 4: Add the test-only YAML values**
 
-Create `backend/src/test/resources/application.yaml`:
+Keep the existing test-only Flyway, JPA, Batch, JWT, image, multipart, and CORS values. Do not add any `spring.datasource` values. Replace the ineffective Spring scheduling property with:
 
 ```yaml
-spring:
-  application:
-    name: market-test
-  sql:
-    init:
-      mode: always
-      schema-locations: classpath:schema-batch-postgresql.sql
-  servlet:
-    multipart:
-      max-file-size: 5MB
-      max-request-size: 6MB
-  batch:
-    job:
-      enabled: false
-    jdbc:
-      initialize-schema: never
-  flyway:
-    enabled: true
-    baseline-on-migrate: true
-    baseline-version: 0
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        format_sql: false
-        highlight_sql: false
-        default_batch_fetch_size: 100
-    open-in-view: false
-  task:
-    scheduling:
-      enabled: false
-
-jwt:
-  secret: sweet-market-test-secret-key-32bytes-minimum
-  access-token-validity-seconds: 3600
-
-product:
-  images:
-    upload-root: build/test-product-images
-    temp-dir: temp
-    public-dir: public
-    temp-expiration: 60m
-    cleanup-cron: "0 */10 * * * *"
-    max-file-size: 5MB
-
-web:
-  cors:
-    allowed-origins:
-      - http://localhost:5173
+market:
+  scheduling:
+    enabled: false
 ```
 
-Do not add datasource connection values. The three Spring context test bootstraps already provide their Testcontainers connection dynamically.
+- [ ] **Step 5: Route scheduling through the conditional configuration**
 
-- [ ] **Step 4: Run the focused test and confirm it passes**
+Remove `@EnableScheduling` and its import from `MarketApplication`. In `OrderAutoConfirmSchedulingConfig`, replace the `local`/`dev` profile condition with:
 
-Run from `backend`:
-
-```powershell
-.\gradlew.bat test --tests com.sweet.market.support.TestApplicationConfigurationTest --rerun-tasks
+```java
+@Configuration
+@EnableScheduling
+@ConditionalOnProperty(
+        prefix = "market.scheduling",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
+public class OrderAutoConfirmSchedulingConfig {
+}
 ```
 
-Expected: BUILD SUCCESSFUL with one passing test.
+This configuration becomes the single scheduling activation boundary. The default remains enabled, and no local/dev activation path can bypass `market.scheduling.enabled=false`.
 
-- [ ] **Step 5: Run the complete backend test suite without a profile**
+Replace the stale `spring.task.scheduling.enabled=false` overrides in `StoreFreshDatabaseStartupTest` and `StoreSpringBootFlywayTest` with `market.scheduling.enabled=false` so their explicit context bootstrap settings use the same effective boundary.
 
-Run from `backend`:
+- [ ] **Step 6: Run the focused tests and verify GREEN**
+
+Run the same focused command from Step 3.
+
+Expected: `BUILD SUCCESSFUL` with all three tests passing.
+
+- [ ] **Step 7: Run the complete backend test suite without a profile or external JWT secret**
 
 ```powershell
 .\gradlew.bat test --rerun-tasks
 ```
 
-Expected: BUILD SUCCESSFUL with all existing tests plus the new configuration test passing, and zero failures or errors.
+Expected: `BUILD SUCCESSFUL` with zero failures and errors.
 
-- [ ] **Step 6: Check the patch and commit only the test configuration change**
+- [ ] **Step 8: Review and commit the complete approved scope**
 
-Run from the repository root:
+From the repository root:
 
 ```powershell
 git diff --check
-git add backend/src/test/resources/application.yaml backend/src/test/java/com/sweet/market/support/TestApplicationConfigurationTest.java
-git commit -m "test: isolate application configuration"
+git add backend/src/main/java/com/sweet/market/MarketApplication.java backend/src/main/java/com/sweet/market/order/scheduler/OrderAutoConfirmSchedulingConfig.java backend/src/test/java/com/sweet/market/order/scheduler/OrderAutoConfirmSchedulingConfigTest.java backend/src/test/java/com/sweet/market/store/migration/StoreFreshDatabaseStartupTest.java backend/src/test/java/com/sweet/market/store/migration/StoreSpringBootFlywayTest.java backend/src/test/java/com/sweet/market/support/TestApplicationConfigurationTest.java backend/src/test/resources/application.yaml docs/superpowers/specs/2026-07-11-test-application-configuration-design.md docs/superpowers/plans/2026-07-11-test-application-configuration.md
+git commit -m "fix: disable scheduling in tests"
 ```
 
-Expected: `git diff --check` exits with code 0 and the commit contains exactly the two new files.
+Expected: `git diff --check` exits with code 0, and the commit contains only the nine authorized files listed above.

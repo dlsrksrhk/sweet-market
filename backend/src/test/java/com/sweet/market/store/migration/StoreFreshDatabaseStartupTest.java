@@ -17,7 +17,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
         properties = {
-                "spring.task.scheduling.enabled=false",
+                "market.scheduling.enabled=false",
                 "jwt.secret=sweet-market-test-secret-key-32bytes-minimum"
         }
 )

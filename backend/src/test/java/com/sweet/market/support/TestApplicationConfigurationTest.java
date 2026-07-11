@@ -22,6 +22,10 @@ class TestApplicationConfigurationTest {
         assertThat(properties.getProperty("spring.flyway.enabled")).isEqualTo(true);
         assertThat(properties.getProperty("spring.flyway.baseline-on-migrate")).isEqualTo(true);
         assertThat(properties.getProperty("spring.flyway.baseline-version")).isEqualTo(0);
+        assertThat(properties.getProperty("spring.datasource.url")).isNull();
+        assertThat(properties.getProperty("spring.datasource.username")).isNull();
+        assertThat(properties.getProperty("spring.datasource.password")).isNull();
+        assertThat(properties.getProperty("market.scheduling.enabled")).isEqualTo(false);
         assertThat(properties.getProperty("product.images.upload-root"))
                 .isEqualTo("build/test-product-images");
         assertThat(properties.getProperty("jwt.secret"))
