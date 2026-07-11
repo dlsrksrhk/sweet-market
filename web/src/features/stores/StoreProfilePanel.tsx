@@ -10,12 +10,12 @@ import {
   type StoreProfileInput,
   type StoreStatus,
 } from './storeApi';
+import { storeOperationQueryKeys } from './storeOperationsApi';
 import { type ApiError } from '../../shared/api/http';
 import { EmptyState, ErrorState } from '../../shared/ui/ResourceStates';
 
 type StoreProfilePanelProps = {
   storeId: number;
-  commandsEnabled: boolean;
 };
 
 type ProfileFormValues = Pick<StoreProfileInput, 'publicName' | 'introduction'>;
@@ -24,7 +24,7 @@ const profileDefaultValues: ProfileFormValues = { publicName: '', introduction: 
 const PUBLIC_NAME_ERROR_ID = 'store-profile-public-name-error';
 const INTRODUCTION_ERROR_ID = 'store-profile-introduction-error';
 
-export function StoreProfilePanel({ storeId, commandsEnabled }: StoreProfilePanelProps) {
+export function StoreProfilePanel({ storeId }: StoreProfilePanelProps) {
   const queryClient = useQueryClient();
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -69,7 +69,6 @@ export function StoreProfilePanel({ storeId, commandsEnabled }: StoreProfilePane
   }
 
   const onSubmit = handleSubmit(async (values) => {
-    if (!commandsEnabled) return;
     setMutationError(null);
     setSuccessMessage(null);
 
@@ -80,6 +79,7 @@ export function StoreProfilePanel({ storeId, commandsEnabled }: StoreProfilePane
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: storeQueryKeys.me() }),
         queryClient.invalidateQueries({ queryKey: storeQueryKeys.public(storeId) }),
+        queryClient.invalidateQueries({ queryKey: storeOperationQueryKeys.stores() }),
       ]);
       setSuccessMessage('상점 프로필을 저장했습니다.');
     } catch (error) {
@@ -102,15 +102,12 @@ export function StoreProfilePanel({ storeId, commandsEnabled }: StoreProfilePane
 
       <StoreLifecycleGuidance store={selectedStore} />
 
-      {!commandsEnabled ? <p className="status-text">상점이 활성 상태가 아니어서 프로필을 수정할 수 없습니다.</p> : null}
-
       <form className="auth-form product-form" onSubmit={onSubmit}>
         <label>
           공개 상점명
           <input
             type="text"
             maxLength={100}
-            disabled={!commandsEnabled}
             aria-describedby={errors.publicName ? PUBLIC_NAME_ERROR_ID : undefined}
             aria-invalid={Boolean(errors.publicName)}
             {...register('publicName', {
@@ -126,7 +123,6 @@ export function StoreProfilePanel({ storeId, commandsEnabled }: StoreProfilePane
           <textarea
             rows={8}
             maxLength={2000}
-            disabled={!commandsEnabled}
             aria-describedby={errors.introduction ? INTRODUCTION_ERROR_ID : undefined}
             aria-invalid={Boolean(errors.introduction)}
             {...register('introduction', {
@@ -139,7 +135,7 @@ export function StoreProfilePanel({ storeId, commandsEnabled }: StoreProfilePane
         </label>
         {mutationError ? <p className="error-text" role="alert">{mutationError}</p> : null}
         {successMessage ? <p className="status-text" role="status" aria-live="polite">{successMessage}</p> : null}
-        <button type="submit" disabled={isPending || !commandsEnabled}>{isPending ? '저장 중' : '프로필 저장'}</button>
+        <button type="submit" disabled={isPending}>{isPending ? '저장 중' : '프로필 저장'}</button>
       </form>
     </section>
   );

@@ -4,11 +4,11 @@ import { getStoreMemberships, removeStoreMembership, storeOperationQueryKeys } f
 import { type ApiError } from '../../shared/api/http';
 import { EmptyState, ErrorState, StatusBadge } from '../../shared/ui/ResourceStates';
 
-type StoreMembershipPanelProps = { storeId: number; commandsEnabled: boolean };
+type StoreMembershipPanelProps = { storeId: number };
 
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', { dateStyle: 'medium' });
 
-export function StoreMembershipPanel({ storeId, commandsEnabled }: StoreMembershipPanelProps) {
+export function StoreMembershipPanel({ storeId }: StoreMembershipPanelProps) {
   const queryClient = useQueryClient();
   const [mutationError, setMutationError] = useState<string | null>(null);
   const membershipsQuery = useQuery({
@@ -18,7 +18,6 @@ export function StoreMembershipPanel({ storeId, commandsEnabled }: StoreMembersh
   const removeMutation = useMutation({ mutationFn: (membershipId: number) => removeStoreMembership(storeId, membershipId) });
 
   const removeManager = async (membershipId: number, nickname: string) => {
-    if (!commandsEnabled) return;
     if (!window.confirm(`${nickname} 매니저의 운영 권한을 삭제하시겠습니까?`)) return;
     setMutationError(null);
     try {
@@ -49,7 +48,7 @@ export function StoreMembershipPanel({ storeId, commandsEnabled }: StoreMembersh
               {membership.role === 'OWNER' ? (
                 <span className="status-text">소유자는 보호됩니다</span>
               ) : (
-                <button className="text-button danger-button" type="button" disabled={removeMutation.isPending || !commandsEnabled} onClick={() => removeManager(membership.membershipId, membership.memberNickname)}>권한 삭제</button>
+                <button className="text-button danger-button" type="button" disabled={removeMutation.isPending} onClick={() => removeManager(membership.membershipId, membership.memberNickname)}>권한 삭제</button>
               )}
             </div>
           ))}

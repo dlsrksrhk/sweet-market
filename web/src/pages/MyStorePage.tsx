@@ -89,8 +89,8 @@ export function MyStorePage() {
       </nav>
 
       {activeTab === 'catalog' ? <StoreCatalogPanel key={selectedStore.storeId} storeId={selectedStore.storeId} catalogWritable={catalogWritable} /> : null}
-      {isOwner && activeTab === 'profile' ? <StoreProfilePanel storeId={selectedStore.storeId} commandsEnabled={selectedStore.status === 'ACTIVE'} /> : null}
-      {isOwner && activeTab === 'memberships' ? <StoreMembershipPanel storeId={selectedStore.storeId} commandsEnabled={selectedStore.status === 'ACTIVE'} /> : null}
+      {isOwner && activeTab === 'profile' ? <StoreProfilePanel storeId={selectedStore.storeId} /> : null}
+      {isOwner && activeTab === 'memberships' ? <StoreMembershipPanel storeId={selectedStore.storeId} /> : null}
     </main>
   );
 }

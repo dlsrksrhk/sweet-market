@@ -124,7 +124,7 @@ export function StoreCatalogPanel({ storeId, catalogWritable }: StoreCatalogPane
       {catalogQuery.data?.content.length === 0 ? <EmptyState title="조건에 맞는 상품이 없습니다" description="검색 조건을 바꿔보세요." /> : null}
       {products.length > 0 ? (
         <div className="store-catalog-table">
-          <div className="store-catalog-table-head" aria-hidden="true"><span><input type="checkbox" aria-label="현재 페이지 전체 선택" checked={allRowsSelected} disabled={commandsDisabled} onChange={() => toggleAll(products.map((product) => product.productId), allRowsSelected, setSelectedIds)} /></span><span>상품</span><span>상태</span><span>가격</span><span>작업</span></div>
+          <div className="store-catalog-table-head"><span><input type="checkbox" aria-label="현재 페이지 전체 선택" checked={allRowsSelected} disabled={commandsDisabled} onChange={() => toggleAll(products.map((product) => product.productId), allRowsSelected, setSelectedIds)} /></span><span>상품</span><span>상태</span><span>가격</span><span>작업</span></div>
           {products.map((product) => (
             <div className={`store-catalog-row${selectedIds.has(product.productId) ? ' is-selected' : ''}`} key={product.productId}>
               <label className="store-catalog-select"><input type="checkbox" aria-label={`${product.title} 선택`} checked={selectedIds.has(product.productId)} disabled={commandsDisabled} onChange={() => toggleOne(product.productId, setSelectedIds)} /></label>
