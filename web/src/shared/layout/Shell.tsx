@@ -26,6 +26,7 @@ export function Shell() {
               {member.role === 'ADMIN' ? (
                 <>
                   <NavLink to="/admin/operations">관리자</NavLink>
+                  <NavLink to="/admin/business-stores">사업자 상점 심사</NavLink>
                   <NavLink to="/admin/refunds">관리자 환불</NavLink>
                 </>
               ) : null}

@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 import { RequireAdmin } from '../features/auth/RequireAdmin';
 import { RequireAuth } from '../features/auth/RequireAuth';
+import { AdminBusinessStoresPage } from '../pages/AdminBusinessStoresPage';
 import { AdminOperationsPage } from '../pages/AdminOperationsPage';
 import { AdminRefundRequestsPage } from '../pages/AdminRefundRequestsPage';
 import { AdminSettlementBatchPage } from '../pages/AdminSettlementBatchPage';
@@ -125,6 +126,14 @@ export function AppRouter() {
             <RequireAuth>
               <SellerRefundRequestsPage />
             </RequireAuth>
+          }
+        />
+        <Route
+          path="admin/business-stores"
+          element={
+            <RequireAdmin>
+              <AdminBusinessStoresPage />
+            </RequireAdmin>
           }
         />
         <Route
