@@ -16,6 +16,8 @@ import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.seller.report.SellerProductStatusCountProjection;
 import com.sweet.market.store.storefront.StorefrontProductResponse;
+import com.sweet.market.store.operations.StoreCatalogProductResponse;
+import com.sweet.market.store.operations.StoreCatalogSummaryResponse;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
@@ -204,6 +206,68 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             @Param("storeId") Long storeId,
             @Param("status") ProductStatus status,
             @Param("viewerId") Long viewerId,
+            Pageable pageable
+    );
+
+    @Query("""
+            select new com.sweet.market.store.operations.StoreCatalogSummaryResponse(
+                coalesce(sum(case when p.status = com.sweet.market.product.domain.ProductStatus.ON_SALE then 1 else 0 end), 0),
+                coalesce(sum(case when p.status = com.sweet.market.product.domain.ProductStatus.RESERVED then 1 else 0 end), 0),
+                coalesce(sum(case when p.status = com.sweet.market.product.domain.ProductStatus.SOLD_OUT then 1 else 0 end), 0),
+                coalesce(sum(case when p.status = com.sweet.market.product.domain.ProductStatus.HIDDEN then 1 else 0 end), 0)
+            )
+            from Product p
+            where p.store.id = :storeId
+            """)
+    StoreCatalogSummaryResponse summarizeStoreCatalog(@Param("storeId") Long storeId);
+
+    @Query(value = """
+            select new com.sweet.market.store.operations.StoreCatalogProductResponse(
+                p.id,
+                coalesce(
+                    (
+                        select min(representativeImage.imageUrl)
+                        from ProductImage representativeImage
+                        where representativeImage.product = p
+                          and representativeImage.representative = true
+                          and representativeImage.sortOrder = (
+                              select min(firstRepresentativeImage.sortOrder)
+                              from ProductImage firstRepresentativeImage
+                              where firstRepresentativeImage.product = p
+                                and firstRepresentativeImage.representative = true
+                          )
+                    ),
+                    (
+                        select min(orderedImage.imageUrl)
+                        from ProductImage orderedImage
+                        where orderedImage.product = p
+                          and orderedImage.sortOrder = (
+                              select min(firstImage.sortOrder)
+                              from ProductImage firstImage
+                              where firstImage.product = p
+                          )
+                    )
+                ),
+                p.title,
+                p.price,
+                p.status
+            )
+            from Product p
+            where p.store.id = :storeId
+              and (:status is null or p.status = :status)
+              and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
+            """,
+            countQuery = """
+            select count(p)
+            from Product p
+            where p.store.id = :storeId
+              and (:status is null or p.status = :status)
+              and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
+            """)
+    Page<StoreCatalogProductResponse> searchStoreCatalog(
+            @Param("storeId") Long storeId,
+            @Param("status") ProductStatus status,
+            @Param("keyword") String keyword,
             Pageable pageable
     );
 

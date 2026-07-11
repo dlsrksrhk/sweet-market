@@ -8,6 +8,7 @@ import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreMemberRole;
 import com.sweet.market.store.domain.StoreMembership;
+import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.repository.StoreMembershipRepository;
 import com.sweet.market.store.repository.StoreRepository;
 
@@ -22,16 +23,23 @@ public class StoreAccessService {
         this.storeMembershipRepository = storeMembershipRepository;
     }
 
+    @Transactional(readOnly = true)
+    public Store requireOperator(Long memberId, Long storeId) {
+        StoreMembership membership = storeMembershipRepository.findByStoreIdAndMemberIdAndActiveTrue(storeId, memberId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.STORE_ACCESS_DENIED));
+        if (membership.getRole() != StoreMemberRole.OWNER && membership.getRole() != StoreMemberRole.MANAGER) {
+            throw new BusinessException(ErrorCode.STORE_ACCESS_DENIED);
+        }
+        return membership.getStore();
+    }
+
     /**
      * Task 3의 상품 카탈로그 생성·수정·숨김 API에서 이 권한 검사를 사용한다.
      */
     @Transactional(readOnly = true)
     public Store requireCatalogOperator(Long memberId, Long storeId) {
-        Store store = findStore(storeId);
-        StoreMembership membership = storeMembershipRepository.findByStoreIdAndMemberIdAndActiveTrue(storeId, memberId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.STORE_ACCESS_DENIED));
-        if (store.getStatus() != com.sweet.market.store.domain.StoreStatus.ACTIVE
-                || (membership.getRole() != StoreMemberRole.OWNER && membership.getRole() != StoreMemberRole.MANAGER)) {
+        Store store = requireOperator(memberId, storeId);
+        if (store.getStatus() != StoreStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.STORE_ACCESS_DENIED);
         }
         return store;
