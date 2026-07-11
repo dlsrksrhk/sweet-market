@@ -61,11 +61,6 @@ public class StoreController {
         return ApiResponse.ok(storeGovernanceService.updateProfile(memberId(authentication), storeId, request));
     }
 
-    @GetMapping("/{storeId}")
-    public ApiResponse<PublicStoreResponse> publicProfile(@PathVariable Long storeId) {
-        return ApiResponse.ok(storeQueryService.findPublicProfile(storeId));
-    }
-
     private Long memberId(Authentication authentication) {
         return ((AuthenticatedMember) authentication.getPrincipal()).id();
     }

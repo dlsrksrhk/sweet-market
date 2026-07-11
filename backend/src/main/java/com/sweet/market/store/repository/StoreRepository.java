@@ -9,10 +9,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.query.Param;
 
-import com.sweet.market.store.api.PublicStoreResponse;
+import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.domain.StoreType;
+import com.sweet.market.store.storefront.StorefrontResponse;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {
 
@@ -33,19 +34,38 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
     List<Store> findAllOwnedByOwnerMemberIdInMyStoreOrder(Long ownerMemberId);
 
     @Query("""
-            select new com.sweet.market.store.api.PublicStoreResponse(
+            select new com.sweet.market.store.storefront.StorefrontResponse(
                 store.id,
                 store.type,
                 store.publicName,
-                store.introduction
+                store.introduction,
+                store.status,
+                case when store.status = :suspendedStatus then null else (
+                    select avg(review.rating)
+                    from Review review
+                    where review.product.store.id = store.id
+                ) end,
+                case when store.status = :suspendedStatus then 0 else (
+                    select count(review)
+                    from Review review
+                    where review.product.store.id = store.id
+                ) end,
+                case when store.status = :suspendedStatus then 0 else (
+                    select count(product)
+                    from Product product
+                    where product.store.id = store.id
+                      and product.status in :publicProductStatuses
+                ) end
             )
             from Store store
             where store.id = :storeId
-              and store.status = :status
+              and store.status in :publicStoreStatuses
             """)
-    Optional<PublicStoreResponse> findPublicProfileByIdAndStatus(
+    Optional<StorefrontResponse> findStorefrontHeader(
             @Param("storeId") Long storeId,
-            @Param("status") StoreStatus status
+            @Param("publicStoreStatuses") List<StoreStatus> publicStoreStatuses,
+            @Param("suspendedStatus") StoreStatus suspendedStatus,
+            @Param("publicProductStatuses") List<ProductStatus> publicProductStatuses
     );
 
     default Optional<Store> findPersonalByOwnerMemberId(Long ownerMemberId) {
