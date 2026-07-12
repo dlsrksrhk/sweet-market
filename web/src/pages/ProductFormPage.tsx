@@ -319,6 +319,7 @@ export function ProductFormPage() {
         savedProduct = await createMutation.mutateAsync({
           ...payload,
           storeId: selectedActiveStore.storeId,
+          salesPolicy: 'SINGLE_ITEM',
           images: toCreateImages(normalizedImages),
         });
       } else {

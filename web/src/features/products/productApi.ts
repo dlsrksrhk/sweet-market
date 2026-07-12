@@ -83,6 +83,7 @@ export type ProductCreateInput = {
   title: string;
   description: string;
   price: number;
+  salesPolicy: 'SINGLE_ITEM';
   images: ProductCreateImageInput[];
 };
 
