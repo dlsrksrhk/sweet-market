@@ -71,7 +71,7 @@ Expected: PASS.
 
 ### Task 2: Add policy-aware product create and update contracts
 
-**Files:** Modify ProductCreateRequest.java, ProductUpdateRequest.java, ProductService.java, Product.java, ErrorCode.java. Test ProductApiTest.java and ProductTest.java.
+**Files:** Create InventoryRepository.java, InventoryAdjustmentRepository.java, and InventoryService.java with initialization support. Modify ProductCreateRequest.java, ProductUpdateRequest.java, ProductService.java, Product.java, ErrorCode.java. Test ProductApiTest.java and ProductTest.java.
 
 **Interfaces:** POST /api/products accepts salesPolicy, initialTotalQuantity, and lowStockThreshold. PATCH /api/products/{productId} accepts lowStockThreshold only for a persisted STOCK_MANAGED product; it never accepts a policy change.
 
@@ -110,7 +110,7 @@ Require salesPolicy on every new creation request. Reject personal-store stock p
 
 ### Task 3: Add operator adjustment and history APIs
 
-**Files:** Create InventoryRepository.java, InventoryAdjustmentRepository.java, InventoryService.java, InventoryAdjustmentRequest.java, InventoryAdjustmentResponse.java. Modify StoreOperationsController.java and ErrorCode.java. Test StoreOperationsApiTest.java.
+**Files:** Modify InventoryRepository.java, InventoryAdjustmentRepository.java, and InventoryService.java to add adjustment/history support; create InventoryAdjustmentRequest.java and InventoryAdjustmentResponse.java. Modify StoreOperationsController.java and ErrorCode.java. Test StoreOperationsApiTest.java.
 
 **Interfaces:** PATCH /api/store-operations/{storeId}/products/{productId}/inventory; GET /api/store-operations/{storeId}/products/{productId}/inventory/history?page=&size=.
 
