@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -93,6 +94,38 @@ class PaymentApiTest extends IntegrationTestSupport {
 
         assertInventory(productId, 5, 0);
         assertThat(countInventoryAdjustments(orderId, "RELEASE")).isEqualTo(1);
+    }
+
+    @Test
+    void 재고형_결제_승인_실패는_예약을_한번만_해제하고_실패를_응답한다() throws Exception {
+        signupAndLogin("failed-stock-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("failed-stock-buyer@example.com", "password123", "buyer");
+        Long productId = createStockProduct("failed-stock-seller@example.com", 5);
+        Long orderId = createOrder(buyerToken, productId);
+        doThrow(new IllegalStateException("gateway rejected"))
+                .when(paymentGateway).approve(orderId, 10_000L);
+
+        mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PAYMENT_APPROVE_NOT_ALLOWED"));
+        mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PAYMENT_APPROVE_NOT_ALLOWED"));
+
+        assertInventory(productId, 5, 0);
+        assertThat(countInventoryAdjustments(orderId, "RELEASE")).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM orders WHERE id = ?",
+                String.class,
+                orderId
+        )).isEqualTo("CANCELED");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM payments WHERE order_id = ?",
+                Long.class,
+                orderId
+        )).isZero();
     }
 
     @Test

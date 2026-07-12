@@ -344,6 +344,47 @@ class WishlistApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.code").value("WISHLIST_PRODUCT_NOT_ON_SALE"));
     }
 
+    @Test
+    void 저재고_재고형_상품의_찜_목록은_남은_수량만_보여준다() throws Exception {
+        String sellerToken = signupAndLogin("low-stock-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("low-stock-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+        makeStockManaged(productId, 2, 0, 3);
+        addWishlist(buyerToken, productId);
+
+        mockMvc.perform(get("/api/me/wishlist")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].status").value("ON_SALE"))
+                .andExpect(jsonPath("$.data.content[0].availability.policy").value("STOCK_MANAGED"))
+                .andExpect(jsonPath("$.data.content[0].availability.status").value("LOW_STOCK"))
+                .andExpect(jsonPath("$.data.content[0].availability.quantity").value(2))
+                .andExpect(jsonPath("$.data.content[0].totalQuantity").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].reservedQuantity").doesNotExist());
+    }
+
+    @Test
+    void 품절된_재고형_상품은_새로_찜할_수_없고_기존_찜에는_품절로_보인다() throws Exception {
+        String sellerToken = signupAndLogin("sold-out-stock-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("sold-out-stock-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+        addWishlist(buyerToken, productId);
+        makeStockManaged(productId, 0, 0, 3);
+
+        mockMvc.perform(post("/api/products/{productId}/wishlist", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + signupAndLogin(
+                                "second-stock-buyer@example.com", "password123", "secondBuyer")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("WISHLIST_PRODUCT_NOT_ON_SALE"));
+
+        mockMvc.perform(get("/api/me/wishlist")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].status").value("SOLD_OUT"))
+                .andExpect(jsonPath("$.data.content[0].availability.status").value("SOLD_OUT"))
+                .andExpect(jsonPath("$.data.content[0].availability.quantity").doesNotExist());
+    }
+
     private String signupAndLogin(String email, String password, String nickname) throws Exception {
         SignupRequest signupRequest = new SignupRequest(email, password, nickname);
         LoginRequest loginRequest = new LoginRequest(email, password);
@@ -439,6 +480,20 @@ class WishlistApiTest extends IntegrationTestSupport {
                 "UPDATE products SET status = ? WHERE id = ?",
                 status,
                 productId
+        );
+    }
+
+    private void makeStockManaged(Long productId, int totalQuantity, int reservedQuantity, int lowStockThreshold) {
+        jdbcTemplate.update(
+                "UPDATE products SET sales_policy = 'STOCK_MANAGED', low_stock_threshold = ? WHERE id = ?",
+                lowStockThreshold,
+                productId
+        );
+        jdbcTemplate.update(
+                "INSERT INTO inventories (product_id, total_quantity, reserved_quantity, version) VALUES (?, ?, ?, 0)",
+                productId,
+                totalQuantity,
+                reservedQuantity
         );
     }
 

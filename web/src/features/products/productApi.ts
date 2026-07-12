@@ -123,6 +123,7 @@ export type WishlistItem = {
   thumbnailUrl: string | null;
   wishlisted: boolean;
   wishlistCount: number;
+  availability: BuyerAvailability;
   wishedAt: string;
 };
 

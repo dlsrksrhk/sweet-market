@@ -9,6 +9,7 @@ import com.sweet.market.inventory.domain.InventoryChangeType;
 public record InventoryAdjustmentResponse(
         Long adjustmentId,
         Long productId,
+        Long orderId,
         InventoryChangeType changeType,
         InventoryAdjustmentReason reason,
         String referenceNote,
@@ -27,6 +28,7 @@ public record InventoryAdjustmentResponse(
         return new InventoryAdjustmentResponse(
                 adjustment.getId(),
                 adjustment.getProduct().getId(),
+                adjustment.getOrder() == null ? null : adjustment.getOrder().getId(),
                 adjustment.getChangeType(),
                 adjustment.getReason(),
                 adjustment.getReferenceNote(),

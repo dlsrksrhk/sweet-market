@@ -20,37 +20,29 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final PaymentGateway paymentGateway;
     private final InventoryService inventoryService;
+    private final PaymentApprovalTransactionService paymentApprovalTransactionService;
 
     public PaymentService(
             PaymentRepository paymentRepository,
             OrderRepository orderRepository,
             PaymentGateway paymentGateway,
-            InventoryService inventoryService
+            InventoryService inventoryService,
+            PaymentApprovalTransactionService paymentApprovalTransactionService
     ) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
         this.paymentGateway = paymentGateway;
         this.inventoryService = inventoryService;
+        this.paymentApprovalTransactionService = paymentApprovalTransactionService;
     }
 
-    @Transactional
     public PaymentResponse approve(Long memberId, Long orderId) {
-        Order order = orderRepository.findWithBuyerAndProductById(orderId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
-        if (!order.isOwnedBy(memberId)) {
-            throw new BusinessException(ErrorCode.PAYMENT_ACCESS_DENIED);
-        }
-
-        Payment payment;
         try {
-            String externalPaymentId = paymentGateway.approve(order.getId(), order.getProduct().getPrice());
-            payment = Payment.approve(order, externalPaymentId);
+            return paymentApprovalTransactionService.approve(memberId, orderId);
         } catch (IllegalStateException exception) {
+            inventoryService.releaseAfterFailedPaymentApproval(orderId);
             throw new BusinessException(ErrorCode.PAYMENT_APPROVE_NOT_ALLOWED);
         }
-
-        Payment savedPayment = paymentRepository.save(payment);
-        return PaymentResponse.from(savedPayment);
     }
 
     @Transactional

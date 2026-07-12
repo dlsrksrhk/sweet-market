@@ -44,6 +44,7 @@ export type InventoryAdjustmentInput = {
 export type InventoryAdjustment = {
   adjustmentId: number;
   productId: number;
+  orderId: number | null;
   changeType: 'INITIALIZATION' | 'MANUAL_ADJUSTMENT' | 'RESERVATION' | 'RELEASE' | 'SHIPMENT_COMMITMENT';
   reason: InventoryAdjustmentReason | null;
   referenceNote: string | null;

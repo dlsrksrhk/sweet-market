@@ -14,6 +14,7 @@ import com.sweet.market.inventory.domain.Inventory;
 import com.sweet.market.inventory.domain.InventoryAdjustmentReason;
 import com.sweet.market.inventory.repository.InventoryAdjustmentRepository;
 import com.sweet.market.inventory.repository.InventoryRepository;
+import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.store.application.StoreAccessService;
 
 class InventoryAdjustmentCommitConflictTest {
@@ -24,7 +25,8 @@ class InventoryAdjustmentCommitConflictTest {
             mock(InventoryRepository.class),
             mock(InventoryAdjustmentRepository.class),
             mock(StoreAccessService.class),
-            transactionService
+            transactionService,
+            mock(OrderRepository.class)
     );
     private final InventoryAdjustmentRequest request =
             new InventoryAdjustmentRequest(9, InventoryAdjustmentReason.RESTOCK, null);

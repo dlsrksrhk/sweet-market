@@ -323,7 +323,7 @@ function InventoryHistoryPanel({ product, page, query, onClose, onMovePage }: In
             <article key={adjustment.adjustmentId}>
               <div><strong>{toAdjustmentReasonLabel(adjustment.reason)}</strong><time dateTime={adjustment.occurredAt}>{new Date(adjustment.occurredAt).toLocaleString('ko-KR')}</time></div>
               <p>총 재고 {adjustment.beforeTotalQuantity} → {adjustment.afterTotalQuantity} · 예약 {adjustment.beforeReservedQuantity} → {adjustment.afterReservedQuantity}</p>
-              <span className="status-text">{adjustment.actorNickname ?? '시스템'}{adjustment.referenceNote ? ` · ${adjustment.referenceNote}` : ''}</span>
+              <span className="status-text">{adjustment.actorNickname ?? '시스템'}{adjustment.orderId ? ` · 주문 #${adjustment.orderId}` : ''}{adjustment.referenceNote ? ` · ${adjustment.referenceNote}` : ''}</span>
             </article>
           ))}
         </div>

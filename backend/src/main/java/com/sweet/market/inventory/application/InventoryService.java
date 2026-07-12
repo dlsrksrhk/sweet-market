@@ -6,6 +6,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
@@ -15,6 +16,8 @@ import com.sweet.market.inventory.domain.InventoryChangeType;
 import com.sweet.market.inventory.repository.InventoryAdjustmentRepository;
 import com.sweet.market.inventory.repository.InventoryRepository;
 import com.sweet.market.order.domain.Order;
+import com.sweet.market.order.domain.OrderStatus;
+import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.store.application.StoreAccessService;
 
@@ -25,17 +28,20 @@ public class InventoryService {
     private final InventoryAdjustmentRepository inventoryAdjustmentRepository;
     private final StoreAccessService storeAccessService;
     private final InventoryAdjustmentTransactionService inventoryAdjustmentTransactionService;
+    private final OrderRepository orderRepository;
 
     public InventoryService(
             InventoryRepository inventoryRepository,
             InventoryAdjustmentRepository inventoryAdjustmentRepository,
             StoreAccessService storeAccessService,
-            InventoryAdjustmentTransactionService inventoryAdjustmentTransactionService
+            InventoryAdjustmentTransactionService inventoryAdjustmentTransactionService,
+            OrderRepository orderRepository
     ) {
         this.inventoryRepository = inventoryRepository;
         this.inventoryAdjustmentRepository = inventoryAdjustmentRepository;
         this.storeAccessService = storeAccessService;
         this.inventoryAdjustmentTransactionService = inventoryAdjustmentTransactionService;
+        this.orderRepository = orderRepository;
     }
 
     public void initialize(Product product, int initialTotalQuantity, Long memberId) {
@@ -72,10 +78,21 @@ public class InventoryService {
     @Transactional
     public void releaseForPreShippingExit(Order order) {
         if (order.getProduct().isSingleItem()
+                || !hasAdjustment(order, InventoryChangeType.RESERVATION)
                 || hasAdjustment(order, InventoryChangeType.RELEASE)) {
             return;
         }
         inventoryAdjustmentRepository.save(findInventory(order.getProduct()).release(order));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void releaseAfterFailedPaymentApproval(Long orderId) {
+        orderRepository.findStateChangeTargetById(orderId)
+                .filter(order -> order.getStatus() == OrderStatus.CREATED && !order.getProduct().isSingleItem())
+                .ifPresent(order -> {
+                    order.cancel();
+                    releaseForPreShippingExit(order);
+                });
     }
 
     @Transactional

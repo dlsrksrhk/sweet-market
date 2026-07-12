@@ -51,11 +51,15 @@ class InventoryTest {
         Order order = 주문(product);
         inventory.reserve(order);
 
-        inventory.release(order);
+        InventoryAdjustment adjustment = inventory.release(order);
 
         assertThat(inventory.getTotalQuantity()).isEqualTo(3);
         assertThat(inventory.getReservedQuantity()).isZero();
         assertThat(inventory.getAvailableQuantity()).isEqualTo(3);
+        assertThat(adjustment.getChangeType()).isEqualTo(InventoryChangeType.RELEASE);
+        assertThat(adjustment.getOrder()).isSameAs(order);
+        assertThat(adjustment.getBeforeReservedQuantity()).isEqualTo(1);
+        assertThat(adjustment.getAfterReservedQuantity()).isZero();
     }
 
     @Test

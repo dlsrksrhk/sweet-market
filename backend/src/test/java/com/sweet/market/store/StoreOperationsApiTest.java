@@ -34,6 +34,8 @@ import com.sweet.market.inventory.domain.Inventory;
 import com.sweet.market.inventory.repository.InventoryRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.order.domain.Order;
+import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.store.domain.Store;
@@ -69,6 +71,9 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
 
     @Autowired
     private InventoryService inventoryService;
+
+    @Autowired
+    private OrderRepository orderRepository;
 
     @MockitoSpyBean
     private InventoryRepository inventoryRepository;
@@ -532,6 +537,36 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].actorNickname").value("재고 매니저"))
                 .andExpect(jsonPath("$.data.content[1].afterTotalQuantity").value(7))
                 .andExpect(jsonPath("$.data.content[2].changeType").value("INITIALIZATION"));
+    }
+
+    @Test
+    void 주문_기반_재고_이력은_예약_해제_배송확정의_주문번호를_응답한다() throws Exception {
+        Member owner = saveMember("inventory-order-owner@example.com", "재고 소유자");
+        Member buyer = saveMember("inventory-order-buyer@example.com", "구매자");
+        Store store = saveActiveBusinessStore(owner, "주문 재고 상점");
+        Product product = saveStockProduct(store, "주문 재고 상품", 5);
+        Long[] orderIds = transactionTemplate.execute(status -> {
+            Product managedProduct = entityManager.find(Product.class, product.getId());
+            Member managedBuyer = entityManager.find(Member.class, buyer.getId());
+            Order reservedOrder = orderRepository.save(Order.create(managedBuyer, managedProduct));
+            inventoryService.reserveForOrder(reservedOrder);
+            Order releasedOrder = orderRepository.save(Order.create(managedBuyer, managedProduct));
+            inventoryService.reserveForOrder(releasedOrder);
+            inventoryService.releaseForPreShippingExit(releasedOrder);
+            Order shippedOrder = orderRepository.save(Order.create(managedBuyer, managedProduct));
+            inventoryService.reserveForOrder(shippedOrder);
+            inventoryService.commitForShipment(shippedOrder);
+            return new Long[]{reservedOrder.getId(), releasedOrder.getId(), shippedOrder.getId()};
+        });
+
+        getHistory(store, owner, product.getId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].changeType").value("SHIPMENT_COMMITMENT"))
+                .andExpect(jsonPath("$.data.content[0].orderId").value(orderIds[2]))
+                .andExpect(jsonPath("$.data.content[2].changeType").value("RELEASE"))
+                .andExpect(jsonPath("$.data.content[2].orderId").value(orderIds[1]))
+                .andExpect(jsonPath("$.data.content[4].changeType").value("RESERVATION"))
+                .andExpect(jsonPath("$.data.content[4].orderId").value(orderIds[0]));
     }
 
     @Test
