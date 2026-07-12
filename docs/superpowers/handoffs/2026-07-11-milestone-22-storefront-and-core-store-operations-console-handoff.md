@@ -2,7 +2,23 @@
 
 Milestone 22 delivers a buyer storefront and an owner/manager store operations console while preserving M21 store ownership, membership authorization, buyer privacy, checkout revalidation, and historical seller compatibility rules.
 
-## Fresh verification evidence
+## Final completion state (2026-07-12)
+
+All M22 Tasks 1-11 are implemented, reviewed, merged into `main`, and pushed through commit `865ef89`. There is no remaining M22 implementation work. The unchecked boxes in the original implementation plan are retained as the historical execution template rather than an active task tracker; this handoff is the authoritative completion record.
+
+Post-M22 verification hardening removed the test suite's dependency on the local or operating `application.yaml`:
+
+- `backend/src/test/resources/application.yaml` is selected automatically on the test classpath without a Spring profile.
+- Testcontainers remains authoritative for datasource URL, username, and password through `@DynamicPropertySource`; those values are intentionally absent from the test YAML and covered by a configuration test.
+- `market.scheduling.enabled=false` disables scheduling infrastructure in tests. Runtime scheduling remains enabled by default when the property is omitted, and a context test proves both boundaries.
+- The final backend command ran with no active Spring profile and no external `JWT_SECRET`: `gradlew.bat test --rerun-tasks`.
+  - Exit 0, `BUILD SUCCESSFUL in 3m 2s`.
+  - 445 tests in 64 suites; 0 failures, 0 errors, 0 skipped.
+- The final web command was `npm run build`.
+  - Exit 0; TypeScript checks passed; Vite 6.4.3 transformed 138 modules and built in 1.99s.
+- The verified M22 implementation and test-hardening baseline is commit `865ef89dfbf48310694e6c6923fe11a03f606d4a`.
+
+## Original M22 verification evidence (2026-07-11)
 
 - Focused backend command: `gradlew.bat test --tests 'com.sweet.market.store.StorefrontApiTest' --tests 'com.sweet.market.store.StoreOperationsApiTest' --tests 'com.sweet.market.jpalab.StorefrontQueryOptimizationTest' --tests 'com.sweet.market.store.migration.*' --rerun-tasks`
   - Exit 0, `BUILD SUCCESSFUL in 40s`.
@@ -58,3 +74,5 @@ All three disposable stacks used during verification were removed after their ga
 - Manager invitation/assignment/reactivation and owner transfer remain deferred; browser fixtures require SQL-only manager membership bootstrap.
 - Broad operator title substring indexing remains deferred to M24; M22 adds no trigram index.
 - M23 can add inventory/availability policy on the store-owned catalog. It must preserve current buyer privacy, inactive-store read-only behavior, checkout revalidation, operator authorization, historical seller compatibility, and bounded public/operator query shapes.
+
+These items are explicit future-milestone scope and do not represent incomplete M22 work.
