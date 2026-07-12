@@ -10,8 +10,6 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.sweet.market.inventory.domain.Inventory;
-
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -27,12 +25,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleOptimisticLockingFailureException(
             ObjectOptimisticLockingFailureException exception
     ) {
-        ErrorCode errorCode = exception.getPersistentClass() == Inventory.class
-                ? ErrorCode.INVENTORY_ADJUSTMENT_CONFLICT
-                : ErrorCode.ORDER_CONFLICT;
         return ResponseEntity
-                .status(errorCode.status())
-                .body(ErrorResponse.of(errorCode));
+                .status(ErrorCode.ORDER_CONFLICT.status())
+                .body(ErrorResponse.of(ErrorCode.ORDER_CONFLICT));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

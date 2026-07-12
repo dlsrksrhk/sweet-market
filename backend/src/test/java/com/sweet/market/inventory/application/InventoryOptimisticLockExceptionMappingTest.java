@@ -13,7 +13,7 @@ import com.sweet.market.inventory.domain.Inventory;
 class InventoryOptimisticLockExceptionMappingTest {
 
     @Test
-    void 커밋_시점의_재고_낙관적_잠금_충돌도_재고_충돌로_응답한다() {
+    void 재고_조정_밖의_재고_낙관적_잠금_충돌은_기존_주문_충돌로_응답한다() {
         GlobalExceptionHandler handler = new GlobalExceptionHandler();
         ObjectOptimisticLockingFailureException exception =
                 new ObjectOptimisticLockingFailureException(Inventory.class, 1L);
@@ -22,6 +22,6 @@ class InventoryOptimisticLockExceptionMappingTest {
 
         assertThat(response.getStatusCode().value()).isEqualTo(409);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().code()).isEqualTo("INVENTORY_ADJUSTMENT_CONFLICT");
+        assertThat(response.getBody().code()).isEqualTo("ORDER_CONFLICT");
     }
 }

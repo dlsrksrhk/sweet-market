@@ -121,3 +121,53 @@ $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 ```
 
 최종 fresh 실행 결과: `BUILD SUCCESSFUL in 43s`, exit code 0. XML 합계는 34 tests, 0 failures, 0 errors, 0 skipped.
+
+## 2차 리뷰 수정 검증 (2026-07-12)
+
+### 조정 전용 트랜잭션 경계
+
+- 1차 수정의 전역 `Inventory.class` 분기는 제거함. 비조정 재고 예약·해제·배송 처리에서 발생하는 낙관적 잠금 충돌은 기존 `ORDER_CONFLICT`를 유지함.
+- `InventoryAdjustmentTransactionService.adjust`가 권한 검사, 낙관적 잠금 조회, 수량 변경, 감사 저장과 flush/commit을 하나의 `@Transactional` 프록시 호출로 수행함.
+- 외부의 비트랜잭션 `InventoryService.adjust`가 해당 프록시 호출 전체를 `try/catch`로 감싸므로, 내부 메서드 본문이 끝난 뒤 commit에서 발생한 예외도 `INVENTORY_ADJUSTMENT_CONFLICT`로 변환함.
+- Spring의 `ObjectOptimisticLockingFailureException`과 Hibernate의 직접 `StaleObjectStateException` 형태를 모두 조정 충돌로 변환하는 단위 테스트를 추가함.
+- 기존 실제 PostgreSQL 버전 충돌 API 테스트, 감사 저장 실패 전체 롤백, 입력 경계, 이력 페이지 및 안정 정렬 테스트는 그대로 유지함.
+
+### RED
+
+전역 매핑 회귀 명령:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.inventory.application.InventoryOptimisticLockExceptionMappingTest'
+```
+
+결과: `BUILD FAILED`, 1 test, 1 failure. 비조정 `Inventory` 충돌도 잘못 `INVENTORY_ADJUSTMENT_CONFLICT`로 매핑됨.
+
+내부 commit 예외 형태 명령:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.inventory.application.InventoryAdjustmentCommitConflictTest' --tests 'com.sweet.market.inventory.application.InventoryOptimisticLockExceptionMappingTest'
+```
+
+결과: `BUILD FAILED`, 3 tests 중 Hibernate `StaleObjectStateException` 형태 1 failure. 외부 조정 경계가 Spring 예외만 변환하고 Hibernate 원본 예외를 통과시킴.
+
+### GREEN 및 최종 집중 검증
+
+단위 집중 명령:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.inventory.application.InventoryAdjustmentCommitConflictTest' --tests 'com.sweet.market.inventory.application.InventoryOptimisticLockExceptionMappingTest'
+```
+
+결과: `BUILD SUCCESSFUL in 7s`, 3 tests, 0 failures.
+
+전체 집중 명령:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.inventory.*' --tests 'com.sweet.market.store.StoreOperationsApiTest'
+```
+
+초기 결과: `BUILD SUCCESSFUL in 33s`, exit code 0. XML 합계는 36 tests, 0 failures, 0 errors, 0 skipped.
+
+리뷰 문구의 commit 시점을 실제 Spring 트랜잭션으로 추가 검증하기 위해, 감사 저장 뒤 `TransactionSynchronization.beforeCommit`에서 `ObjectOptimisticLockingFailureException`을 발생시키는 통합 테스트를 추가함. 이는 내부 트랜잭션 메서드 본문이 완료된 뒤 프록시 commit 단계에서 예외가 발생하며, 외부 `InventoryService.adjust`가 이를 `INVENTORY_ADJUSTMENT_CONFLICT`로 변환하고 재고 및 감사 변경을 함께 롤백하는지 확인함.
+
+최종 fresh 실행 결과: `BUILD SUCCESSFUL in 42s`, exit code 0. XML 합계는 37 tests, 0 failures, 0 errors, 0 skipped.
