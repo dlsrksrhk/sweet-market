@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.payment.api.PaymentResponse;
@@ -18,15 +19,18 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final PaymentGateway paymentGateway;
+    private final InventoryService inventoryService;
 
     public PaymentService(
             PaymentRepository paymentRepository,
             OrderRepository orderRepository,
-            PaymentGateway paymentGateway
+            PaymentGateway paymentGateway,
+            InventoryService inventoryService
     ) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
         this.paymentGateway = paymentGateway;
+        this.inventoryService = inventoryService;
     }
 
     @Transactional
@@ -63,10 +67,14 @@ public class PaymentService {
             if (payment.getStatus() == PaymentStatus.APPROVED && !payment.canCancel()) {
                 throw new BusinessException(ErrorCode.PAYMENT_CANCEL_NOT_ALLOWED);
             }
-            if (payment.canCancel()) {
+            boolean canCancel = payment.canCancel();
+            if (canCancel) {
                 paymentGateway.cancel(payment.getExternalPaymentId());
             }
             payment.cancel();
+            if (canCancel) {
+                inventoryService.releaseForPreShippingExit(order);
+            }
         } catch (BusinessException exception) {
             throw exception;
         } catch (IllegalStateException exception) {

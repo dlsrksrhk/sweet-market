@@ -12,21 +12,62 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.lang.reflect.Method;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.inventory.application.InventoryService;
+import com.sweet.market.member.domain.Member;
+import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.repository.OrderRepository;
+import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductSalesPolicy;
+import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.refund.repository.RefundRequestRepository;
+import com.sweet.market.store.domain.Store;
+import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.support.IntegrationTestSupport;
 
 import jakarta.persistence.LockModeType;
 
 class RefundRequestApiTest extends IntegrationTestSupport {
+
+    @Autowired
+    private MemberRepository memberRepository;
+
+    @Autowired
+    private StoreRepository storeRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private InventoryService inventoryService;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Test
+    void 재고형_상품은_환불되어도_출고_확정된_재고를_자동_복원하지_않는다() throws Exception {
+        String sellerToken = signupAndLogin("stock-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("stock-buyer@example.com", "password123", "buyer");
+        Long productId = createStockProduct("stock-seller@example.com", 5);
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+
+        approveRefundRequest(sellerToken, refundRequestId);
+
+        assertInventory(productId, 4, 0);
+        assertThat(countInventoryAdjustments(orderId, "SHIPMENT_COMMITMENT")).isEqualTo(1);
+        assertThat(countInventoryAdjustments(orderId, "RELEASE")).isZero();
+    }
 
     @Test
     void 구매자는_배송완료_주문에_환불을_요청할_수_있다() throws Exception {
@@ -839,6 +880,51 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .getContentAsString();
 
         return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private Long createStockProduct(String sellerEmail, int totalQuantity) {
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            Member seller = memberRepository.findByEmail(sellerEmail).orElseThrow();
+            Store store = Store.applyBusiness(seller, "재고 상점", "소개", "법인", "123-45-67890");
+            store.approve();
+            storeRepository.save(store);
+            Product product = Product.create(
+                    store,
+                    "재고 상품",
+                    "설명",
+                    10_000L,
+                    ProductSalesPolicy.STOCK_MANAGED,
+                    2,
+                    totalQuantity
+            );
+            product.addLegacyImage("stock.jpg");
+            Product savedProduct = productRepository.save(product);
+            inventoryService.initialize(savedProduct, totalQuantity, seller.getId());
+            return savedProduct.getId();
+        });
+    }
+
+    private void assertInventory(Long productId, int totalQuantity, int reservedQuantity) {
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT total_quantity FROM inventories WHERE product_id = ?",
+                Integer.class,
+                productId
+        )).isEqualTo(totalQuantity);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT reserved_quantity FROM inventories WHERE product_id = ?",
+                Integer.class,
+                productId
+        )).isEqualTo(reservedQuantity);
+    }
+
+    private long countInventoryAdjustments(Long orderId, String changeType) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM inventory_adjustments WHERE order_id = ? AND change_type = ?",
+                Long.class,
+                orderId,
+                changeType
+        );
+        return count == null ? 0 : count;
     }
 
     private Long uploadImage(String accessToken, String fileName) throws Exception {

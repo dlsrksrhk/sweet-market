@@ -18,6 +18,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import com.sweet.market.cart.api.CartResponse;
 import com.sweet.market.cart.domain.CartItem;
 import com.sweet.market.cart.repository.CartItemRepository;
+import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.repository.OrderRepository;
@@ -32,12 +33,14 @@ class CartServiceTest {
         ProductRepository productRepository = mock(ProductRepository.class);
         MemberRepository memberRepository = mock(MemberRepository.class);
         OrderRepository orderRepository = mock(OrderRepository.class);
+        InventoryService inventoryService = mock(InventoryService.class);
         PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
         CartService cartService = new CartService(
                 cartItemRepository,
                 productRepository,
                 memberRepository,
                 orderRepository,
+                inventoryService,
                 transactionManager
         );
         Member buyer = member(1L, "buyer@example.com", "buyer");
@@ -48,6 +51,7 @@ class CartServiceTest {
 
         when(memberRepository.findById(1L)).thenReturn(Optional.of(buyer));
         when(productRepository.findWithStoreById(10L)).thenReturn(Optional.of(product));
+        when(inventoryService.isAvailableForOrder(product)).thenReturn(true);
         when(cartItemRepository.existsByBuyerIdAndProductId(1L, 10L)).thenReturn(false);
         when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
         when(cartItemRepository.saveAndFlush(any(CartItem.class)))

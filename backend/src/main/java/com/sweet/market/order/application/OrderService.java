@@ -7,6 +7,7 @@ import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.order.api.OrderResponse;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderStatus;
@@ -26,19 +27,22 @@ public class OrderService {
     private final MemberRepository memberRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentGateway paymentGateway;
+    private final InventoryService inventoryService;
 
     public OrderService(
             OrderRepository orderRepository,
             ProductRepository productRepository,
             MemberRepository memberRepository,
             PaymentRepository paymentRepository,
-            PaymentGateway paymentGateway
+            PaymentGateway paymentGateway,
+            InventoryService inventoryService
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.memberRepository = memberRepository;
         this.paymentRepository = paymentRepository;
         this.paymentGateway = paymentGateway;
+        this.inventoryService = inventoryService;
     }
 
     @Transactional
@@ -56,6 +60,7 @@ public class OrderService {
         }
 
         Order savedOrder = orderRepository.save(order);
+        inventoryService.reserveForOrder(savedOrder);
         return OrderResponse.from(savedOrder);
     }
 
@@ -72,6 +77,7 @@ public class OrderService {
         }
         if (order.getStatus() == OrderStatus.CREATED) {
             order.cancel();
+            inventoryService.releaseForPreShippingExit(order);
             return OrderResponse.from(order);
         }
         if (order.getStatus() != OrderStatus.PAID) {
@@ -89,6 +95,7 @@ public class OrderService {
                 paymentGateway.cancel(payment.getExternalPaymentId());
             }
             payment.cancel();
+            inventoryService.releaseForPreShippingExit(order);
         } catch (BusinessException exception) {
             throw exception;
         } catch (IllegalStateException exception) {

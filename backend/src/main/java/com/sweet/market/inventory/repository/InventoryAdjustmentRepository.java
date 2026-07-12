@@ -7,8 +7,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.sweet.market.inventory.domain.InventoryAdjustment;
+import com.sweet.market.inventory.domain.InventoryChangeType;
 
 public interface InventoryAdjustmentRepository extends JpaRepository<InventoryAdjustment, Long> {
+
+    boolean existsByOrderIdAndChangeType(Long orderId, InventoryChangeType changeType);
 
     @Query(
             value = """
