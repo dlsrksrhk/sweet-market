@@ -3,6 +3,7 @@ package com.sweet.market.store;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -18,9 +19,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.sweet.market.auth.security.JwtProvider;
+import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreMembership;
 import com.sweet.market.store.repository.StoreMembershipRepository;
@@ -51,6 +54,9 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private InventoryService inventoryService;
 
     @Test
     void 소유자는_활성_멤버십을_소유자와_매니저_순으로_조회한다() throws Exception {
@@ -433,6 +439,84 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
         assertStatus(hidden, "HIDDEN");
     }
 
+    @Test
+    void 소유자와_매니저는_재고를_조정하고_이력을_조회한다() throws Exception {
+        Member owner = saveMember("inventory-owner@example.com", "재고 소유자");
+        Member manager = saveMember("inventory-manager@example.com", "재고 매니저");
+        Store store = saveActiveBusinessStore(owner, "재고 상점");
+        storeMembershipRepository.save(StoreMembership.createManager(store, manager));
+        Product product = saveStockProduct(store, "재고 상품", 5);
+
+        adjust(store, owner, product.getId(), 7, "STOCKTAKE", null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productId").value(product.getId()))
+                .andExpect(jsonPath("$.data.beforeTotalQuantity").value(5))
+                .andExpect(jsonPath("$.data.afterTotalQuantity").value(7))
+                .andExpect(jsonPath("$.data.actorMemberId").value(owner.getId()));
+        adjust(store, manager, product.getId(), 9, "RESTOCK", "입고전표-7")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.afterTotalQuantity").value(9))
+                .andExpect(jsonPath("$.data.referenceNote").value("입고전표-7"));
+
+        getHistory(store, manager, product.getId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(3)))
+                .andExpect(jsonPath("$.data.content[0].changeType").value("MANUAL_ADJUSTMENT"))
+                .andExpect(jsonPath("$.data.content[0].afterTotalQuantity").value(9))
+                .andExpect(jsonPath("$.data.content[0].actorNickname").value("재고 매니저"))
+                .andExpect(jsonPath("$.data.content[1].afterTotalQuantity").value(7))
+                .andExpect(jsonPath("$.data.content[2].changeType").value("INITIALIZATION"));
+    }
+
+    @Test
+    void 외부인은_재고를_조정하거나_이력을_조회할_수_없다() throws Exception {
+        Member owner = saveMember("inventory-denied-owner@example.com", "소유자");
+        Member outsider = saveMember("inventory-denied-outsider@example.com", "외부인");
+        Store store = saveActiveBusinessStore(owner, "재고 권한 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+
+        adjust(store, outsider, product.getId(), 6, "RESTOCK", null)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+        getHistory(store, outsider, product.getId())
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+    }
+
+    @Test
+    void 중단된_상점의_운영자는_재고_이력만_조회할_수_있다() throws Exception {
+        Member owner = saveMember("inventory-suspended-owner@example.com", "소유자");
+        Member manager = saveMember("inventory-suspended-manager@example.com", "매니저");
+        Store store = saveActiveBusinessStore(owner, "중단 재고 상점");
+        storeMembershipRepository.save(StoreMembership.createManager(store, manager));
+        Product product = saveStockProduct(store, "재고 상품", 5);
+        store.suspend();
+        storeRepository.saveAndFlush(store);
+
+        getHistory(store, manager, product.getId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)));
+        adjust(store, manager, product.getId(), 6, "RESTOCK", null)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+    }
+
+    @Test
+    void 예약량보다_낮은_재고_조정은_충돌하고_이력을_남기지_않는다() throws Exception {
+        Member owner = saveMember("inventory-conflict-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "재고 충돌 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+        jdbcTemplate.update("update inventories set reserved_quantity = 2 where product_id = ?", product.getId());
+
+        adjust(store, owner, product.getId(), 1, "STOCKTAKE", "실사")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVENTORY_ADJUSTMENT_CONFLICT"));
+        getHistory(store, owner, product.getId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].changeType").value("INITIALIZATION"));
+    }
+
     private void assertReadableSummary(Member member, Store store) throws Exception {
         mockMvc.perform(get("/api/store-operations/{storeId}/summary", store.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearer(member)))
@@ -498,6 +582,38 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
                 .content(content));
     }
 
+    private org.springframework.test.web.servlet.ResultActions adjust(
+            Store store,
+            Member member,
+            Long productId,
+            int totalQuantity,
+            String reason,
+            String referenceNote
+    ) throws Exception {
+        String note = referenceNote == null ? "null" : "\"" + referenceNote + "\"";
+        return mockMvc.perform(patch("/api/store-operations/{storeId}/products/{productId}/inventory",
+                        store.getId(), productId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(member))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "totalQuantity": %d,
+                          "reason": "%s",
+                          "referenceNote": %s
+                        }
+                        """.formatted(totalQuantity, reason, note)));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions getHistory(
+            Store store,
+            Member member,
+            Long productId
+    ) throws Exception {
+        return mockMvc.perform(get("/api/store-operations/{storeId}/products/{productId}/inventory/history",
+                        store.getId(), productId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(member)));
+    }
+
     private void assertStatus(Product product, String expectedStatus) {
         String actualStatus = jdbcTemplate.queryForObject(
                 "select status from products where id = ?",
@@ -528,6 +644,25 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
             entityManager.flush();
             return product;
         });
+    }
+
+    private Product saveStockProduct(Store store, String title, int initialTotalQuantity) {
+        Product product = transactionTemplate.execute(status -> {
+            Product saved = Product.create(
+                    entityManager.find(Store.class, store.getId()),
+                    title,
+                    "설명",
+                    10_000L,
+                    ProductSalesPolicy.STOCK_MANAGED,
+                    3,
+                    initialTotalQuantity
+            );
+            entityManager.persist(saved);
+            entityManager.flush();
+            return saved;
+        });
+        inventoryService.initialize(product, initialTotalQuantity, store.getOwnerMember().getId());
+        return product;
     }
 
     private void changeStatus(Product product, String status) {

@@ -8,13 +8,18 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sweet.market.auth.security.AuthenticatedMember;
 import com.sweet.market.common.api.ApiResponse;
+import com.sweet.market.inventory.application.InventoryAdjustmentRequest;
+import com.sweet.market.inventory.application.InventoryAdjustmentResponse;
+import com.sweet.market.inventory.application.InventoryService;
 
 import jakarta.validation.Valid;
 
@@ -26,17 +31,20 @@ public class StoreOperationsController {
     private final StoreCatalogCommandService storeCatalogCommandService;
     private final StoreMembershipQueryService storeMembershipQueryService;
     private final StoreMembershipCommandService storeMembershipCommandService;
+    private final InventoryService inventoryService;
 
     public StoreOperationsController(
             StoreCatalogQueryService storeCatalogQueryService,
             StoreCatalogCommandService storeCatalogCommandService,
             StoreMembershipQueryService storeMembershipQueryService,
-            StoreMembershipCommandService storeMembershipCommandService
+            StoreMembershipCommandService storeMembershipCommandService,
+            InventoryService inventoryService
     ) {
         this.storeCatalogQueryService = storeCatalogQueryService;
         this.storeCatalogCommandService = storeCatalogCommandService;
         this.storeMembershipQueryService = storeMembershipQueryService;
         this.storeMembershipCommandService = storeMembershipCommandService;
+        this.inventoryService = inventoryService;
     }
 
     @GetMapping
@@ -97,6 +105,27 @@ public class StoreOperationsController {
     ) {
         storeCatalogCommandService.show(memberId(authentication), storeId, request.productIds());
         return ApiResponse.ok(null);
+    }
+
+    @PatchMapping("/{storeId}/products/{productId}/inventory")
+    public ApiResponse<InventoryAdjustmentResponse> adjustInventory(
+            Authentication authentication,
+            @PathVariable Long storeId,
+            @PathVariable Long productId,
+            @Valid @RequestBody InventoryAdjustmentRequest request
+    ) {
+        return ApiResponse.ok(inventoryService.adjust(memberId(authentication), storeId, productId, request));
+    }
+
+    @GetMapping("/{storeId}/products/{productId}/inventory/history")
+    public ApiResponse<Page<InventoryAdjustmentResponse>> inventoryHistory(
+            Authentication authentication,
+            @PathVariable Long storeId,
+            @PathVariable Long productId,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
+        return ApiResponse.ok(inventoryService.history(memberId(authentication), storeId, productId, page, size));
     }
 
     private Long memberId(Authentication authentication) {
