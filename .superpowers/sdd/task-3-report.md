@@ -171,3 +171,25 @@ $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 리뷰 문구의 commit 시점을 실제 Spring 트랜잭션으로 추가 검증하기 위해, 감사 저장 뒤 `TransactionSynchronization.beforeCommit`에서 `ObjectOptimisticLockingFailureException`을 발생시키는 통합 테스트를 추가함. 이는 내부 트랜잭션 메서드 본문이 완료된 뒤 프록시 commit 단계에서 예외가 발생하며, 외부 `InventoryService.adjust`가 이를 `INVENTORY_ADJUSTMENT_CONFLICT`로 변환하고 재고 및 감사 변경을 함께 롤백하는지 확인함.
 
 최종 fresh 실행 결과: `BUILD SUCCESSFUL in 42s`, exit code 0. XML 합계는 37 tests, 0 failures, 0 errors, 0 skipped.
+
+## 최종 테스트 보정 (2026-07-12)
+
+- `beforeCommit` 충돌 테스트의 저장소 스파이가 감사 엔티티를 그대로 반환하던 false positive를 제거함.
+- 스파이 답변은 실제 `inventoryAdjustmentRepository.saveAndFlush(adjustment)`를 먼저 호출하고, 감사 ID가 할당되어 INSERT가 flush됐음을 확인한 뒤 `beforeCommit` 충돌을 등록함.
+- commit 충돌 이후 재고 총수량이 원래 값이고 실제 flush됐던 수동 감사 행의 조회 건수가 0임을 검증하여 두 변경의 롤백을 확인함.
+
+트랜잭션 테스트 명령:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.inventory.application.InventoryServiceTransactionTest'
+```
+
+결과: `BUILD SUCCESSFUL in 24s`, exit code 0.
+
+Task 3 집중 명령:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.inventory.*' --tests 'com.sweet.market.store.StoreOperationsApiTest'
+```
+
+결과: `BUILD SUCCESSFUL in 28s`, exit code 0. XML 합계는 37 tests, 0 failures, 0 errors, 0 skipped.

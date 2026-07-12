@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -74,15 +76,19 @@ class InventoryServiceTransactionTest extends IntegrationTestSupport {
     @Test
     void 내부_메서드_완료_후_커밋_충돌도_재고_충돌로_변환하고_롤백한다() {
         StockFixture fixture = 재고_준비("inventory-commit-failure@example.com", "778-77-77777");
+        AtomicBoolean auditFlushed = new AtomicBoolean();
         doAnswer(invocation -> {
             InventoryAdjustment adjustment = invocation.getArgument(0);
+            InventoryAdjustment persisted = inventoryAdjustmentRepository.saveAndFlush(adjustment);
+            assertThat(persisted.getId()).isNotNull();
+            auditFlushed.set(true);
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void beforeCommit(boolean readOnly) {
                     throw new ObjectOptimisticLockingFailureException(Inventory.class, adjustment.getInventory().getId());
                 }
             });
-            return adjustment;
+            return persisted;
         }).when(inventoryAdjustmentRepository).save(argThat((InventoryAdjustment adjustment) ->
                 adjustment.getChangeType() == InventoryChangeType.MANUAL_ADJUSTMENT));
 
@@ -91,6 +97,7 @@ class InventoryServiceTransactionTest extends IntegrationTestSupport {
                 .extracting(exception -> ((BusinessException) exception).errorCode())
                 .isEqualTo(ErrorCode.INVENTORY_ADJUSTMENT_CONFLICT);
 
+        assertThat(auditFlushed).isTrue();
         재고와_감사가_롤백된다(fixture.productId());
     }
 
