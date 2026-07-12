@@ -71,3 +71,53 @@ git diff --check
 - 정지 상점 운영자의 조회 허용과 조정 거부
 - 예약량 미만 결과 총수량의 409 응답과 부분 감사 레코드 미생성
 - 기존 재고 도메인 불변식 회귀
+
+## 리뷰 수정 검증 (2026-07-12)
+
+### 원인과 수정
+
+- 원인: `InventoryService.adjust`의 `saveAndFlush` 내부에서는 일반 버전 충돌을 변환하지만, 서비스 메서드 반환 뒤 트랜잭션 commit에서 발생하는 `ObjectOptimisticLockingFailureException`은 전역 핸들러의 기존 `ORDER_CONFLICT` 경로로 전달될 수 있었음.
+- 수정: 전역 낙관적 잠금 예외 처리에서 영속 클래스가 `Inventory`인 경우에만 `INVENTORY_ADJUSTMENT_CONFLICT`로 변환하고, 다른 엔티티의 기존 `ORDER_CONFLICT` 동작은 유지함.
+- 실제 DB 검증: 재고 조회 직후 래치로 요청을 정지하고 별도 PostgreSQL 트랜잭션에서 버전과 수량을 갱신한 뒤 요청을 재개하여 실제 버전 충돌을 결정적으로 발생시킴. 응답은 정확히 HTTP 409와 `INVENTORY_ADJUSTMENT_CONFLICT`였음.
+- 원자성 검증: 수동 감사 레코드 저장에 `DataIntegrityViolationException`을 주입하고 재고 총수량과 수동 감사 건수가 모두 원래 값으로 롤백됨을 확인함.
+
+### 추가 경계 테스트
+
+- 결과 총수량 `null` 및 음수, 알 수 없는 사유, 501자 참조 메모는 `VALIDATION_ERROR`(400).
+- 이력 기본 페이지는 0/20, 최대 크기는 100이며 음수 페이지, 크기 0, 크기 101은 400.
+- 같은 발생 시각의 이력 101건을 생성해 ID 역순이 안정적으로 유지되는지 검증.
+- 크기 100의 첫 페이지와 다음 페이지에서 총 102건이 누락·중복 없이 이어지는지 검증.
+
+### RED
+
+명령:
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+.\gradlew.bat test --tests 'com.sweet.market.inventory.application.InventoryOptimisticLockExceptionMappingTest'
+```
+
+결과: `BUILD FAILED`, 1 test, 1 failure. 재고 영속 클래스의 commit 시점 낙관적 잠금 예외가 `ORDER_CONFLICT`로 반환되어 예상한 `INVENTORY_ADJUSTMENT_CONFLICT`와 불일치함.
+
+### 수정 후 집중 검증
+
+명령:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.inventory.application.InventoryOptimisticLockExceptionMappingTest' --tests 'com.sweet.market.inventory.application.InventoryServiceTransactionTest' --tests 'com.sweet.market.store.StoreOperationsApiTest.실제_낙관적_잠금_충돌은_재고_조정_충돌로_응답한다'
+```
+
+결과: `BUILD SUCCESSFUL in 31s`, exit code 0.
+
+### 리뷰 수정 최종 검증
+
+명령:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.inventory.*' --tests 'com.sweet.market.store.StoreOperationsApiTest'
+```
+
+최종 fresh 실행 결과: `BUILD SUCCESSFUL in 43s`, exit code 0. XML 합계는 34 tests, 0 failures, 0 errors, 0 skipped.

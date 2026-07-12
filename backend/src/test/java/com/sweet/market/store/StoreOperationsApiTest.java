@@ -1,6 +1,8 @@
 package com.sweet.market.store;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -8,6 +10,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -16,10 +24,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.sweet.market.auth.security.JwtProvider;
 import com.sweet.market.inventory.application.InventoryService;
+import com.sweet.market.inventory.domain.Inventory;
+import com.sweet.market.inventory.repository.InventoryRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.domain.Product;
@@ -57,6 +69,9 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
 
     @Autowired
     private InventoryService inventoryService;
+
+    @MockitoSpyBean
+    private InventoryRepository inventoryRepository;
 
     @Test
     void 소유자는_활성_멤버십을_소유자와_매니저_순으로_조회한다() throws Exception {
@@ -517,6 +532,128 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].changeType").value("INITIALIZATION"));
     }
 
+    @Test
+    void 재고_조정_입력의_수량_사유와_메모_경계를_검증한다() throws Exception {
+        Member owner = saveMember("inventory-validation-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "재고 검증 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+
+        adjustRaw(store, owner, product.getId(), "{\"totalQuantity\":null,\"reason\":\"RESTOCK\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        adjustRaw(store, owner, product.getId(), "{\"totalQuantity\":-1,\"reason\":\"RESTOCK\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        adjustRaw(store, owner, product.getId(), "{\"totalQuantity\":5,\"reason\":\"UNKNOWN\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        adjustRaw(store, owner, product.getId(), """
+                {"totalQuantity":5,"reason":"OTHER","referenceNote":"%s"}
+                """.formatted("가".repeat(501)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 재고_이력은_기본값과_최대_크기와_다음_페이지를_안정적으로_조회한다() throws Exception {
+        Member owner = saveMember("inventory-page-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "재고 페이징 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+        jdbcTemplate.update("""
+                insert into inventory_adjustments (
+                    inventory_id, product_id, change_type,
+                    before_total_quantity, after_total_quantity,
+                    before_reserved_quantity, after_reserved_quantity, occurred_at
+                )
+                select inventory.id, ?, 'MANUAL_ADJUSTMENT', sequence - 1, sequence, 0, 0,
+                       timestamp '2099-01-01 00:00:00'
+                from inventories inventory
+                cross join generate_series(1, 101) sequence
+                where inventory.product_id = ?
+                """, product.getId(), product.getId());
+
+        getHistory(store, owner, product.getId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.number").value(0))
+                .andExpect(jsonPath("$.data.size").value(20))
+                .andExpect(jsonPath("$.data.content", hasSize(20)))
+                .andExpect(jsonPath("$.data.content[0].afterTotalQuantity").value(101));
+        getHistory(store, owner, product.getId(), 0, 100)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(100)))
+                .andExpect(jsonPath("$.data.totalElements").value(102))
+                .andExpect(jsonPath("$.data.content[0].afterTotalQuantity").value(101))
+                .andExpect(jsonPath("$.data.content[99].afterTotalQuantity").value(2));
+        getHistory(store, owner, product.getId(), 1, 100)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(2)))
+                .andExpect(jsonPath("$.data.content[0].afterTotalQuantity").value(1))
+                .andExpect(jsonPath("$.data.content[1].changeType").value("INITIALIZATION"));
+    }
+
+    @Test
+    void 재고_이력의_페이지와_크기_범위를_검증한다() throws Exception {
+        Member owner = saveMember("inventory-page-validation-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "재고 페이지 검증 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+
+        getHistory(store, owner, product.getId(), -1, 20)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        getHistory(store, owner, product.getId(), 0, 0)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        getHistory(store, owner, product.getId(), 0, 101)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 실제_낙관적_잠금_충돌은_재고_조정_충돌로_응답한다() throws Exception {
+        Member owner = saveMember("inventory-lock-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "재고 잠금 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+        CountDownLatch inventoryLoaded = new CountDownLatch(1);
+        CountDownLatch continueAdjustment = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            Optional<Inventory> result = inventoryRepository.findByProductIdAndProductStoreId(
+                    product.getId(),
+                    store.getId()
+            );
+            inventoryLoaded.countDown();
+            if (!continueAdjustment.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("재고 조정 재개 대기 시간 초과");
+            }
+            return result;
+        }).when(inventoryRepository).findForAdjustment(store.getId(), product.getId());
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<MvcResult> adjustment = executor.submit(() ->
+                    adjust(store, owner, product.getId(), 7, "RESTOCK", null).andReturn());
+            if (!inventoryLoaded.await(10, TimeUnit.SECONDS)) {
+                MvcResult earlyResult = adjustment.get(1, TimeUnit.SECONDS);
+                throw new AssertionError(
+                        "재고 조회 전 요청 종료: status=" + earlyResult.getResponse().getStatus()
+                                + ", body=" + earlyResult.getResponse().getContentAsString()
+                );
+            }
+            jdbcTemplate.update(
+                    "update inventories set total_quantity = 6, version = version + 1 where product_id = ?",
+                    product.getId()
+            );
+            continueAdjustment.countDown();
+
+            MvcResult result = adjustment.get(10, TimeUnit.SECONDS);
+            assertThat(result.getResponse().getStatus()).isEqualTo(409);
+            assertThat(objectMapper.readTree(result.getResponse().getContentAsString()).path("code").asText())
+                    .isEqualTo("INVENTORY_ADJUSTMENT_CONFLICT");
+        } finally {
+            continueAdjustment.countDown();
+            executor.shutdownNow();
+        }
+    }
+
     private void assertReadableSummary(Member member, Store store) throws Exception {
         mockMvc.perform(get("/api/store-operations/{storeId}/summary", store.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearer(member)))
@@ -591,17 +728,26 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
             String referenceNote
     ) throws Exception {
         String note = referenceNote == null ? "null" : "\"" + referenceNote + "\"";
+        return adjustRaw(store, member, productId, """
+                {
+                  "totalQuantity": %d,
+                  "reason": "%s",
+                  "referenceNote": %s
+                }
+                """.formatted(totalQuantity, reason, note));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions adjustRaw(
+            Store store,
+            Member member,
+            Long productId,
+            String content
+    ) throws Exception {
         return mockMvc.perform(patch("/api/store-operations/{storeId}/products/{productId}/inventory",
                         store.getId(), productId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(member))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                        {
-                          "totalQuantity": %d,
-                          "reason": "%s",
-                          "referenceNote": %s
-                        }
-                        """.formatted(totalQuantity, reason, note)));
+                .content(content));
     }
 
     private org.springframework.test.web.servlet.ResultActions getHistory(
@@ -611,6 +757,20 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
     ) throws Exception {
         return mockMvc.perform(get("/api/store-operations/{storeId}/products/{productId}/inventory/history",
                         store.getId(), productId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(member)));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions getHistory(
+            Store store,
+            Member member,
+            Long productId,
+            int page,
+            int size
+    ) throws Exception {
+        return mockMvc.perform(get("/api/store-operations/{storeId}/products/{productId}/inventory/history",
+                        store.getId(), productId)
+                .queryParam("page", String.valueOf(page))
+                .queryParam("size", String.valueOf(size))
                 .header(HttpHeaders.AUTHORIZATION, bearer(member)));
     }
 
