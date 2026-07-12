@@ -284,6 +284,7 @@ class OrderApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,

@@ -12,6 +12,7 @@ import {
   type ProductCreateImageInput,
   type ProductCreateInput,
   type ProductImage,
+  type ProductSalesPolicy,
   type ProductUpdateImageInput,
   type ProductUpdateInput,
 } from '../features/products/productApi';
@@ -34,6 +35,9 @@ type ProductFormValues = {
   title: string;
   description: string;
   price: number;
+  salesPolicy: ProductSalesPolicy;
+  initialTotalQuantity?: number;
+  lowStockThreshold?: number;
 };
 
 type ManagedImage = {
@@ -87,6 +91,9 @@ export function ProductFormPage() {
       title: '',
       description: '',
       price: 0,
+      salesPolicy: 'SINGLE_ITEM',
+      initialTotalQuantity: undefined,
+      lowStockThreshold: undefined,
     }),
     [],
   );
@@ -96,7 +103,10 @@ export function ProductFormPage() {
     handleSubmit,
     register,
     reset,
+    setValue,
+    watch,
   } = useForm<ProductFormValues>({ defaultValues });
+  const selectedSalesPolicy = watch('salesPolicy');
 
   useEffect(() => {
     if (isEditMode) {
@@ -141,6 +151,9 @@ export function ProductFormPage() {
         title: product.title,
         description: product.description,
         price: product.price,
+        salesPolicy: product.availability.policy,
+        initialTotalQuantity: undefined,
+        lowStockThreshold: undefined,
       });
       setImages(productImages);
       setLoadedProductId(product.id);
@@ -152,6 +165,16 @@ export function ProductFormPage() {
       setImages(productImages);
     }
   }, [isImageDirty, loadedProductId, product, reset]);
+
+  useEffect(() => {
+    if (isEditMode) return;
+    const selectedStore = activeStores.find((store) => store.storeId === selectedStoreId);
+    if (selectedStore?.type !== 'BUSINESS') {
+      setValue('salesPolicy', 'SINGLE_ITEM');
+      setValue('initialTotalQuantity', undefined);
+      setValue('lowStockThreshold', undefined);
+    }
+  }, [activeStores, isEditMode, selectedStoreId, setValue]);
 
   const createMutation = useMutation({
     mutationFn: (input: ProductCreateInput) => createProduct(input),
@@ -314,11 +337,19 @@ export function ProductFormPage() {
       let savedProduct;
 
       if (isEditMode) {
-        savedProduct = await updateMutation.mutateAsync({ ...payload, images: toUpdateImages(normalizedImages) });
+        savedProduct = await updateMutation.mutateAsync({
+          ...payload,
+          lowStockThreshold: product?.availability.policy === 'STOCK_MANAGED' ? values.lowStockThreshold : undefined,
+          images: toUpdateImages(normalizedImages),
+        });
       } else if (selectedActiveStore) {
+        const salesPolicy = selectedActiveStore.type === 'BUSINESS' ? values.salesPolicy : 'SINGLE_ITEM';
         savedProduct = await createMutation.mutateAsync({
           ...payload,
           storeId: selectedActiveStore.storeId,
+          salesPolicy,
+          initialTotalQuantity: salesPolicy === 'STOCK_MANAGED' ? values.initialTotalQuantity : undefined,
+          lowStockThreshold: salesPolicy === 'STOCK_MANAGED' ? values.lowStockThreshold : undefined,
           images: toCreateImages(normalizedImages),
         });
       } else {
@@ -400,6 +431,80 @@ export function ProductFormPage() {
             {storeError ? <p className="error-text">{storeError}</p> : null}
           </fieldset>
         )}
+        {isEditMode && product ? (
+          <fieldset>
+            <legend>판매 정책</legend>
+            <div className="resource-state">
+              <strong>{product.availability.policy === 'STOCK_MANAGED' ? '재고 관리형' : '단일 상품'}</strong>
+              <p>등록 후에는 판매 정책을 변경할 수 없습니다.</p>
+            </div>
+            {product.availability.policy === 'STOCK_MANAGED' ? (
+              <label>
+                재고 부족 알림 기준
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="변경할 때만 입력"
+                  {...register('lowStockThreshold', {
+                    min: { value: 1, message: '재고 부족 알림 기준은 1개 이상이어야 합니다.' },
+                    setValueAs: optionalNumber,
+                  })}
+                />
+                <span className="status-text">비워두면 기존 기준을 유지합니다.</span>
+                {errors.lowStockThreshold ? <span className="error-text">{errors.lowStockThreshold.message}</span> : null}
+              </label>
+            ) : null}
+          </fieldset>
+        ) : activeStores.find((store) => store.storeId === selectedStoreId)?.type === 'BUSINESS' ? (
+          <fieldset>
+            <legend>판매 정책</legend>
+            <div className="product-sales-policy-options" role="radiogroup" aria-label="판매 정책">
+              <label className="resource-state">
+                <input type="radio" value="SINGLE_ITEM" {...register('salesPolicy')} />
+                <strong>단일 상품</strong>
+                <p>한 번 판매되면 품절되는 상품입니다.</p>
+              </label>
+              <label className="resource-state">
+                <input type="radio" value="STOCK_MANAGED" {...register('salesPolicy')} />
+                <strong>재고 관리형</strong>
+                <p>여러 개의 재고를 수량으로 관리합니다.</p>
+              </label>
+            </div>
+            {selectedSalesPolicy === 'STOCK_MANAGED' ? (
+              <div className="product-stock-fields">
+                <label>
+                  초기 총 재고
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    {...register('initialTotalQuantity', {
+                      required: '초기 총 재고를 입력해주세요.',
+                      min: { value: 0, message: '초기 총 재고는 0개 이상이어야 합니다.' },
+                      valueAsNumber: true,
+                    })}
+                  />
+                  {errors.initialTotalQuantity ? <span className="error-text">{errors.initialTotalQuantity.message}</span> : null}
+                </label>
+                <label>
+                  재고 부족 알림 기준
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    {...register('lowStockThreshold', {
+                      required: '재고 부족 알림 기준을 입력해주세요.',
+                      min: { value: 1, message: '재고 부족 알림 기준은 1개 이상이어야 합니다.' },
+                      valueAsNumber: true,
+                    })}
+                  />
+                  {errors.lowStockThreshold ? <span className="error-text">{errors.lowStockThreshold.message}</span> : null}
+                </label>
+              </div>
+            ) : null}
+          </fieldset>
+        ) : null}
         <label>
           상품명
           <input
@@ -536,6 +641,10 @@ function toPayload(values: ProductFormValues) {
     description: values.description.trim(),
     price: values.price,
   };
+}
+
+function optionalNumber(value: unknown) {
+  return value === '' || value === undefined ? undefined : Number(value);
 }
 
 function toStoreStatusGuidance(status: StoreStatus) {

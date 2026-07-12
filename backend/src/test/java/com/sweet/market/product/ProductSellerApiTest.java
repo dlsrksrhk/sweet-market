@@ -65,6 +65,7 @@ class ProductSellerApiTest extends IntegrationTestSupport {
                                   "title": "Seller Product",
                                   "description": "Seller Product description",
                                   "price": 10000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -108,6 +109,7 @@ class ProductSellerApiTest extends IntegrationTestSupport {
                                   "title": "%s",
                                   "description": "%s description",
                                   "price": %d,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,

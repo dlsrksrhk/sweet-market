@@ -20,6 +20,7 @@ a {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -337,7 +338,7 @@ textarea {
 .store-catalog-table-head,
 .store-catalog-row {
   display: grid;
-  grid-template-columns: 42px minmax(220px, 1fr) 100px 120px 190px;
+  grid-template-columns: 42px minmax(180px, 1fr) 90px minmax(160px, 1fr) 110px 220px;
   gap: 12px;
   align-items: center;
   padding: 12px 14px;
@@ -407,6 +408,131 @@ textarea {
 
 .store-catalog-actions .text-button {
   padding: 8px 10px;
+}
+
+.store-catalog-inventory > span {
+  display: grid;
+  gap: 3px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.store-catalog-inventory small {
+  color: #637282;
+  font-size: 11px;
+}
+
+.secondary-button {
+  border: 1px solid #cfd9e3;
+  background: #ffffff;
+  color: #52616f;
+}
+
+.inventory-history {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  border: 1px solid #cfd9e3;
+  border-radius: 8px;
+  padding: 18px;
+  background: #f9fbfd;
+}
+
+.inventory-history-heading,
+.inventory-modal-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.inventory-history-heading h3,
+.inventory-modal-heading h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.inventory-history-list {
+  display: grid;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.inventory-history-list article {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.inventory-history-list article + article {
+  border-top: 1px solid #e7edf3;
+}
+
+.inventory-history-list article > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inventory-history-list p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.inventory-history-list time {
+  color: #637282;
+  font-size: 12px;
+}
+
+.inventory-modal-backdrop {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow-y: auto;
+  background: rgb(23 32 38 / 58%);
+}
+
+.inventory-modal {
+  display: grid;
+  gap: 16px;
+  width: min(520px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  border-radius: 10px;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 25%);
+}
+
+.inventory-adjustment-form,
+.product-stock-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.inventory-adjustment-form label,
+.product-stock-fields label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: #52616f;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.inventory-adjustment-form input,
+.inventory-adjustment-form select,
+.inventory-adjustment-form textarea {
+  min-width: 0;
+  border: 1px solid #cfd9e3;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
 }
 
 .store-catalog-pagination {
@@ -519,6 +645,18 @@ textarea {
 
   .store-catalog-actions .text-button {
     flex: 1;
+  }
+
+  .inventory-history,
+  .inventory-modal {
+    padding: 16px;
+  }
+
+  .inventory-history-heading,
+  .inventory-modal-heading,
+  .inventory-history-list article > div {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 
@@ -1024,6 +1162,17 @@ textarea {
 .status-badge-sold_out {
   background: #fff2cc;
   color: #8a5b00;
+}
+
+.status-badge-availability-low_stock,
+.status-badge-availability-sold_out {
+  background: #fff2cc;
+  color: #8a5b00;
+}
+
+.status-badge-availability-in_stock {
+  background: #e7f5f4;
+  color: #0f7b78;
 }
 
 .status-badge-created,
@@ -1620,6 +1769,35 @@ a.wishlist-card-main:hover h2 {
 
 .product-form .product-image-list[role="radiogroup"] .status-text {
   margin: 0;
+}
+
+.product-sales-policy-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.product-sales-policy-options .resource-state {
+  align-content: start;
+  justify-items: start;
+  min-width: 0;
+  padding: 18px;
+  background: #f9fbfd;
+  cursor: pointer;
+  text-align: left;
+}
+
+.product-sales-policy-options .resource-state:has(input:checked) {
+  border-color: #0f7b78;
+  background: #f0fbfa;
+  box-shadow: 0 0 0 3px rgb(15 123 120 / 16%);
+}
+
+.product-sales-policy-options input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #0f7b78;
 }
 
 .product-form > div > .resource-state {
@@ -2616,6 +2794,10 @@ a.wishlist-card-main:hover h2 {
   }
 
   .product-form .product-image-list[role="radiogroup"] {
+    grid-template-columns: 1fr;
+  }
+
+  .product-sales-policy-options {
     grid-template-columns: 1fr;
   }
 

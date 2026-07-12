@@ -3,6 +3,8 @@ package com.sweet.market.cart.api;
 import java.time.LocalDateTime;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
+import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.product.domain.ProductStatus;
 
 public record CartItemResponse(
@@ -15,6 +17,7 @@ public record CartItemResponse(
         String status,
         String thumbnailUrl,
         LocalDateTime cartedAt,
+        BuyerAvailabilityResponse availability,
         boolean checkoutAvailable,
         @JsonInclude(JsonInclude.Include.NON_NULL)
         String unavailableReason
@@ -30,6 +33,9 @@ public record CartItemResponse(
             ProductStatus status,
             String thumbnailUrl,
             LocalDateTime cartedAt,
+            ProductSalesPolicy salesPolicy,
+            Integer availableQuantity,
+            Integer lowStockThreshold,
             boolean checkoutAvailable,
             String unavailableReason
     ) {
@@ -43,6 +49,7 @@ public record CartItemResponse(
                 status.name(),
                 thumbnailUrl,
                 cartedAt,
+                new BuyerAvailabilityResponse(salesPolicy, status, availableQuantity, lowStockThreshold),
                 checkoutAvailable,
                 unavailableReason
         );

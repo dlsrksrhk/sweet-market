@@ -66,7 +66,9 @@ public class Order {
         if (!product.isPurchasable()) {
             throw new IllegalStateException("Product is not purchasable");
         }
-        product.reserve();
+        if (product.isSingleItem()) {
+            product.reserve();
+        }
         return new Order(buyer, product, product.getStore().getOwnerMember(), OrderStatus.CREATED, LocalDateTime.now());
     }
 
@@ -77,7 +79,9 @@ public class Order {
         if (status != OrderStatus.CREATED) {
             throw new IllegalStateException("Order cannot be canceled: " + status);
         }
-        product.restoreOnSaleFromReservation();
+        if (product.isSingleItem()) {
+            product.restoreOnSaleFromReservation();
+        }
         this.status = OrderStatus.CANCELED;
         this.canceledAt = LocalDateTime.now();
     }
@@ -96,7 +100,9 @@ public class Order {
         if (status != OrderStatus.PAID) {
             throw new IllegalStateException("Paid order cannot be canceled: " + status);
         }
-        product.restoreOnSaleFromReservation();
+        if (product.isSingleItem()) {
+            product.restoreOnSaleFromReservation();
+        }
         this.status = OrderStatus.CANCELED;
         this.canceledAt = LocalDateTime.now();
     }
@@ -140,7 +146,9 @@ public class Order {
         if (status != OrderStatus.DELIVERED) {
             throw new IllegalStateException("Order cannot be confirmed: " + status);
         }
-        product.markSoldOutFromReservation();
+        if (product.isSingleItem()) {
+            product.markSoldOutFromReservation();
+        }
         this.status = OrderStatus.CONFIRMED;
         this.confirmedAt = LocalDateTime.now();
     }

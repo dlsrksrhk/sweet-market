@@ -11,16 +11,100 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.inventory.application.InventoryService;
+import com.sweet.market.member.domain.Member;
+import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductSalesPolicy;
+import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.store.domain.Store;
+import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.support.IntegrationTestSupport;
 
 class CartCheckoutApiTest extends IntegrationTestSupport {
+
+    @Autowired
+    private MemberRepository memberRepository;
+
+    @Autowired
+    private StoreRepository storeRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private InventoryService inventoryService;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Test
+    void 기존_장바구니_상품도_다시_추가할_때_재고를_재검증한다() throws Exception {
+        signupAndLogin("stock-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("stock-buyer@example.com", "password123", "buyer");
+        String otherBuyerToken = signupAndLogin("other-stock-buyer@example.com", "password123", "other");
+        Long productId = createStockProduct("stock-seller@example.com", 1);
+        addCart(buyerToken, productId);
+
+        mockMvc.perform(post("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherBuyerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productId": %d
+                                }
+                                """.formatted(productId)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/products/{productId}/cart", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CART_PRODUCT_NOT_ON_SALE"));
+    }
+
+    @Test
+    void 재고형_상품은_장바구니에서_예약하지_않고_체크아웃에서_예약하며_취소는_한번만_해제한다() throws Exception {
+        String sellerToken = signupAndLogin("stock-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("stock-buyer@example.com", "password123", "buyer");
+        Long buyerId = findMemberIdByEmail("stock-buyer@example.com");
+        Long productId = createStockProduct("stock-seller@example.com", 5);
+
+        addCart(buyerToken, productId);
+        assertInventory(productId, 5, 0);
+        Long cartItemId = findCartItemId(buyerId, productId);
+
+        String response = mockMvc.perform(post("/api/me/cart/checkout")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "cartItemIds": [%d]
+                                }
+                                """.formatted(cartItemId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orders[0].productStatus").value("ON_SALE"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        Long orderId = objectMapper.readTree(response).path("data").path("orders").get(0).path("id").asLong();
+        assertInventory(productId, 5, 1);
+
+        cancelOrder(buyerToken, orderId);
+        cancelOrder(buyerToken, orderId);
+
+        assertInventory(productId, 5, 0);
+        assertThat(countInventoryAdjustments(orderId, "RELEASE")).isEqualTo(1);
+    }
 
     @Test
     void 선택한_장바구니_항목을_상품별_주문으로_전환한다() throws Exception {
@@ -235,6 +319,7 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
                                   "title": "%s",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -251,6 +336,57 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("id").asLong();
+    }
+
+    private Long createStockProduct(String sellerEmail, int totalQuantity) {
+        return new TransactionTemplate(transactionManager).execute(status -> {
+            Member seller = memberRepository.findByEmail(sellerEmail).orElseThrow();
+            Store store = Store.applyBusiness(seller, "재고 상점", "소개", "법인", "123-45-67890");
+            store.approve();
+            storeRepository.save(store);
+            Product product = Product.create(
+                    store,
+                    "재고 상품",
+                    "설명",
+                    10_000L,
+                    ProductSalesPolicy.STOCK_MANAGED,
+                    2,
+                    totalQuantity
+            );
+            product.addLegacyImage("stock.jpg");
+            Product savedProduct = productRepository.save(product);
+            inventoryService.initialize(savedProduct, totalQuantity, seller.getId());
+            return savedProduct.getId();
+        });
+    }
+
+    private void cancelOrder(String accessToken, Long orderId) throws Exception {
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
+    }
+
+    private void assertInventory(Long productId, int totalQuantity, int reservedQuantity) {
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT total_quantity FROM inventories WHERE product_id = ?",
+                Integer.class,
+                productId
+        )).isEqualTo(totalQuantity);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT reserved_quantity FROM inventories WHERE product_id = ?",
+                Integer.class,
+                productId
+        )).isEqualTo(reservedQuantity);
+    }
+
+    private long countInventoryAdjustments(Long orderId, String changeType) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM inventory_adjustments WHERE order_id = ? AND change_type = ?",
+                Long.class,
+                orderId,
+                changeType
+        );
+        return count == null ? 0 : count;
     }
 
     private Long uploadImage(String accessToken, String fileName) throws Exception {

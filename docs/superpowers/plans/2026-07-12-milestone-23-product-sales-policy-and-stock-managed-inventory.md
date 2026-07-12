@@ -31,7 +31,7 @@
 
 **Files:** Create V5 migration; ProductSalesPolicy.java; Inventory.java; InventoryAdjustment.java; InventoryChangeType.java; InventoryAdjustmentReason.java. Modify Product.java. Test InventoryTest.java and InventoryMigrationTest.java.
 
-**Interfaces:** Inventory.initialize(Product,int); reserve(Order); release(Order); commitShipment(Order); adjust(int,InventoryAdjustmentReason,String,Member). Product.create(Store,String,String,long,ProductSalesPolicy,Integer,Integer).
+**Interfaces:** Inventory.initialize(Product,int); reserve(Order); release(Order); commitShipment(Order); adjust(int,InventoryAdjustmentReason,String,Member). Product.create(Store,String,String,long,ProductSalesPolicy,Integer,Integer), isSingleItem(), and isVisibleForNewOrder().
 
 - [ ] **Step 1: Write failing domain/migration tests**
 
@@ -71,7 +71,7 @@ Expected: PASS.
 
 ### Task 2: Add policy-aware product create and update contracts
 
-**Files:** Modify ProductCreateRequest.java, ProductUpdateRequest.java, ProductService.java, Product.java, ErrorCode.java. Test ProductApiTest.java and ProductTest.java.
+**Files:** Create InventoryRepository.java, InventoryAdjustmentRepository.java, and InventoryService.java with initialization support. Modify ProductCreateRequest.java, ProductUpdateRequest.java, ProductService.java, Product.java, ErrorCode.java. Test ProductApiTest.java and ProductTest.java.
 
 **Interfaces:** POST /api/products accepts salesPolicy, initialTotalQuantity, and lowStockThreshold. PATCH /api/products/{productId} accepts lowStockThreshold only for a persisted STOCK_MANAGED product; it never accepts a policy change.
 
@@ -110,7 +110,7 @@ Require salesPolicy on every new creation request. Reject personal-store stock p
 
 ### Task 3: Add operator adjustment and history APIs
 
-**Files:** Create InventoryRepository.java, InventoryAdjustmentRepository.java, InventoryService.java, InventoryAdjustmentRequest.java, InventoryAdjustmentResponse.java. Modify StoreOperationsController.java and ErrorCode.java. Test StoreOperationsApiTest.java.
+**Files:** Modify InventoryRepository.java, InventoryAdjustmentRepository.java, and InventoryService.java to add adjustment/history support; create InventoryAdjustmentRequest.java and InventoryAdjustmentResponse.java. Modify StoreOperationsController.java and ErrorCode.java. Test StoreOperationsApiTest.java.
 
 **Interfaces:** PATCH /api/store-operations/{storeId}/products/{productId}/inventory; GET /api/store-operations/{storeId}/products/{productId}/inventory/history?page=&size=.
 
@@ -165,7 +165,7 @@ Expected: FAIL because stock is not reserved or committed.
 
 - [ ] **Step 3: Implement policy-specific delegation**
 
-After saving a newly created stock-managed order, call reserveForOrder. In OrderService.cancel and PaymentService.cancel, call releaseForPreShippingExit only after the existing state transition accepts a CREATED/PAID cancellation. In DeliveryService.start, commitForShipment in the same transaction as Delivery.start. Do not call these methods for SINGLE_ITEM. Keep cart additions unreserved and revalidate availability in add and checkout.
+Change Order.create so it validates the active store and product visibility for every policy, but calls Product.reserve() only when product.isSingleItem() is true. After saving a newly created stock-managed order, call reserveForOrder in the same transaction; an unavailable-stock conflict rolls back the saved order. In OrderService.cancel and PaymentService.cancel, call releaseForPreShippingExit only after the existing state transition accepts a CREATED/PAID cancellation. In DeliveryService.start, commitForShipment in the same transaction as Delivery.start. Keep cart additions unreserved and revalidate availability in add and checkout.
 
 - [ ] **Step 4: Re-run including refund regression and commit**
 

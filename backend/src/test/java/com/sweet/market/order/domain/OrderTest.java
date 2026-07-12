@@ -7,7 +7,9 @@ import org.junit.jupiter.api.Test;
 
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.product.domain.ProductStatus;
+import com.sweet.market.store.domain.Store;
 
 class OrderTest {
 
@@ -25,6 +27,57 @@ class OrderTest {
         assertThat(order.getOrderedAt()).isNotNull();
         assertThat(order.getCanceledAt()).isNull();
         assertThat(product.getStatus()).isEqualTo(ProductStatus.RESERVED);
+    }
+
+    @Test
+    void 재고형_주문을_생성해도_상품_상태는_판매중이다() {
+        Member seller = Member.create("stock-seller@example.com", "encoded-password", "seller");
+        Member buyer = Member.create("stock-buyer@example.com", "encoded-password", "buyer");
+        Store store = Store.applyBusiness(seller, "상점", "소개", "법인", "123-45-67890");
+        store.approve();
+        Product product = Product.create(
+                store,
+                "재고 상품",
+                "설명",
+                10_000L,
+                ProductSalesPolicy.STOCK_MANAGED,
+                2,
+                5
+        );
+
+        Order order = Order.create(buyer, product);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CREATED);
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
+    }
+
+    @Test
+    void 재고형_주문의_취소와_구매확정은_상품_상태를_바꾸지_않는다() {
+        Member seller = Member.create("stock-seller@example.com", "encoded-password", "seller");
+        Member buyer = Member.create("stock-buyer@example.com", "encoded-password", "buyer");
+        Store store = Store.applyBusiness(seller, "상점", "소개", "법인", "123-45-67890");
+        store.approve();
+        Product product = Product.create(
+                store,
+                "재고 상품",
+                "설명",
+                10_000L,
+                ProductSalesPolicy.STOCK_MANAGED,
+                2,
+                5
+        );
+        Order canceledOrder = Order.create(buyer, product);
+        Order confirmedOrder = Order.create(buyer, product);
+
+        canceledOrder.cancel();
+        confirmedOrder.markPaid();
+        confirmedOrder.startShipping();
+        confirmedOrder.completeDelivery();
+        confirmedOrder.confirm();
+
+        assertThat(canceledOrder.getStatus()).isEqualTo(OrderStatus.CANCELED);
+        assertThat(confirmedOrder.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
     }
 
     @Test

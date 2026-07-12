@@ -15,9 +15,12 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
+import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductSalesPolicy;
+import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.wishlist.api.WishlistResponse;
 import com.sweet.market.wishlist.domain.WishlistItem;
@@ -45,6 +48,14 @@ class WishlistServiceTest {
 
         when(memberRepository.findById(1L)).thenReturn(Optional.of(buyer));
         when(productRepository.findWithStoreById(10L)).thenReturn(Optional.of(product));
+        when(productRepository.findBuyerAvailabilityByProductId(10L)).thenReturn(Optional.of(
+                new BuyerAvailabilityResponse(
+                        ProductSalesPolicy.SINGLE_ITEM,
+                        ProductStatus.ON_SALE,
+                        null,
+                        null
+                )
+        ));
         when(wishlistItemRepository.existsByBuyerIdAndProductId(1L, 10L)).thenReturn(false);
         when(transactionManager.getTransaction(any())).thenReturn(transactionStatus);
         when(wishlistItemRepository.saveAndFlush(any(WishlistItem.class)))

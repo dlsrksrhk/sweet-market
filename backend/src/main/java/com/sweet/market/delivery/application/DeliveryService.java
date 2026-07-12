@@ -8,6 +8,7 @@ import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.delivery.api.DeliveryResponse;
 import com.sweet.market.delivery.domain.Delivery;
 import com.sweet.market.delivery.repository.DeliveryRepository;
+import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.repository.OrderRepository;
 
@@ -17,15 +18,18 @@ public class DeliveryService {
     private final DeliveryRepository deliveryRepository;
     private final OrderRepository orderRepository;
     private final DeliveryClient deliveryClient;
+    private final InventoryService inventoryService;
 
     public DeliveryService(
             DeliveryRepository deliveryRepository,
             OrderRepository orderRepository,
-            DeliveryClient deliveryClient
+            DeliveryClient deliveryClient,
+            InventoryService inventoryService
     ) {
         this.deliveryRepository = deliveryRepository;
         this.orderRepository = orderRepository;
         this.deliveryClient = deliveryClient;
+        this.inventoryService = inventoryService;
     }
 
     @Transactional
@@ -40,6 +44,7 @@ public class DeliveryService {
         try {
             String trackingNumber = deliveryClient.start(order.getId());
             delivery = Delivery.start(order, trackingNumber);
+            inventoryService.commitForShipment(order);
         } catch (IllegalStateException exception) {
             throw new BusinessException(ErrorCode.DELIVERY_START_NOT_ALLOWED);
         }

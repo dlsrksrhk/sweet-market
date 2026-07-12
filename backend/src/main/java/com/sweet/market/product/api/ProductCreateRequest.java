@@ -2,6 +2,8 @@ package com.sweet.market.product.api;
 
 import java.util.List;
 
+import com.sweet.market.product.domain.ProductSalesPolicy;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -22,6 +24,13 @@ public record ProductCreateRequest(
 
         @Positive
         long price,
+
+        @NotNull
+        ProductSalesPolicy salesPolicy,
+
+        Integer initialTotalQuantity,
+
+        Integer lowStockThreshold,
 
         @NotNull
         @Size(max = 10)

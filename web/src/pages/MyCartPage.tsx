@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { checkoutCart, getMyCart, removeCart, type CartItem } from '../features/cart/cartApi';
 import { toProductImageSrc } from '../features/products/productApi';
 import { type ApiError } from '../shared/api/http';
-import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
+import { BuyerAvailabilityBadge, EmptyState, ErrorState } from '../shared/ui/ResourceStates';
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR');
 
@@ -150,7 +150,7 @@ function CartCard({ item, checked, removePending, onToggle, onRemove }: CartCard
       <div className="wishlist-card-body">
         <div className="wishlist-card-title-row">
           <h2>{item.title}</h2>
-          <StatusBadge status={item.status} />
+          <BuyerAvailabilityBadge availability={item.availability} />
         </div>
         <strong>{currencyFormatter.format(item.price)}원</strong>
         <span>{item.sellerNickname}</span>
@@ -185,7 +185,7 @@ function formatUnavailableReason(reason: string | null) {
     case 'RESERVED':
       return '예약된 상품입니다.';
     case 'SOLD_OUT':
-      return '판매완료된 상품입니다.';
+      return '품절된 상품입니다.';
     case 'HIDDEN':
       return '숨김 처리된 상품입니다.';
     case 'OWN_PRODUCT':

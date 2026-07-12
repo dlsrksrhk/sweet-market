@@ -16,6 +16,13 @@ export type Page<T> = {
 
 export type ProductStatus = 'ON_SALE' | 'RESERVED' | 'SOLD_OUT' | 'HIDDEN';
 
+export type ProductSalesPolicy = 'SINGLE_ITEM' | 'STOCK_MANAGED';
+
+export type BuyerAvailability = {
+  status: 'IN_STOCK' | 'LOW_STOCK' | 'SOLD_OUT';
+  quantity?: number;
+};
+
 export type ProductSummary = {
   id: number;
   storeId: number;
@@ -30,6 +37,7 @@ export type ProductSummary = {
   wishlistCount: number;
   wishlisted: boolean;
   carted: boolean;
+  availability: BuyerAvailability;
 };
 
 export type ProductImage = {
@@ -76,6 +84,7 @@ export type Product = Omit<ProductSummary, 'thumbnailUrl'> & {
   averageRating: number | null;
   sellerReviewCount: number;
   sellerAverageRating: number | null;
+  availability: BuyerAvailability & { policy: ProductSalesPolicy };
 };
 
 export type ProductCreateInput = {
@@ -83,6 +92,9 @@ export type ProductCreateInput = {
   title: string;
   description: string;
   price: number;
+  salesPolicy: ProductSalesPolicy;
+  initialTotalQuantity?: number;
+  lowStockThreshold?: number;
   images: ProductCreateImageInput[];
 };
 
@@ -90,6 +102,7 @@ export type ProductUpdateInput = {
   title: string;
   description: string;
   price: number;
+  lowStockThreshold?: number;
   images: ProductUpdateImageInput[];
 };
 
@@ -110,6 +123,7 @@ export type WishlistItem = {
   thumbnailUrl: string | null;
   wishlisted: boolean;
   wishlistCount: number;
+  availability: BuyerAvailability;
   wishedAt: string;
 };
 

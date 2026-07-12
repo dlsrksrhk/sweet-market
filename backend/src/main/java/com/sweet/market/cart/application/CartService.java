@@ -19,6 +19,7 @@ import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.order.api.OrderSummaryResponse;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.repository.OrderRepository;
@@ -32,6 +33,7 @@ public class CartService {
     private final ProductRepository productRepository;
     private final MemberRepository memberRepository;
     private final OrderRepository orderRepository;
+    private final InventoryService inventoryService;
     private final TransactionTemplate insertTransaction;
 
     public CartService(
@@ -39,12 +41,14 @@ public class CartService {
             ProductRepository productRepository,
             MemberRepository memberRepository,
             OrderRepository orderRepository,
+            InventoryService inventoryService,
             PlatformTransactionManager transactionManager
     ) {
         this.cartItemRepository = cartItemRepository;
         this.productRepository = productRepository;
         this.memberRepository = memberRepository;
         this.orderRepository = orderRepository;
+        this.inventoryService = inventoryService;
         this.insertTransaction = new TransactionTemplate(transactionManager);
         this.insertTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -53,11 +57,11 @@ public class CartService {
         Product product = productRepository.findWithStoreById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
 
+        validateCartable(buyerId, product);
+
         if (cartItemRepository.existsByBuyerIdAndProductId(buyerId, productId)) {
             return new CartResponse(productId, true);
         }
-
-        validateCartable(buyerId, product);
 
         Member buyer = memberRepository.findById(buyerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
@@ -111,7 +115,7 @@ public class CartService {
 
         List<Order> orders = cartItems.stream()
                 .map(cartItem -> Order.create(cartItem.getBuyer(), cartItem.getProduct()))
-                .map(orderRepository::save)
+                .map(this::saveAndReserve)
                 .toList();
         cartItemRepository.deleteAll(cartItems);
 
@@ -124,13 +128,28 @@ public class CartService {
         if (product.isOwnedBy(buyerId)) {
             throw new BusinessException(ErrorCode.CART_OWN_PRODUCT_NOT_ALLOWED);
         }
-        if (!product.isPurchasable()) {
+        if (!product.isPurchasable() || !inventoryService.isAvailableForOrder(product)) {
             throw new BusinessException(ErrorCode.CART_PRODUCT_NOT_ON_SALE);
         }
     }
 
     private boolean isCheckoutNotAllowed(Long buyerId, CartItem cartItem) {
         Product product = cartItem.getProduct();
-        return product.isOwnedBy(buyerId) || !product.isPurchasable();
+        return product.isOwnedBy(buyerId)
+                || !product.isPurchasable()
+                || !inventoryService.isAvailableForOrder(product);
+    }
+
+    private Order saveAndReserve(Order order) {
+        Order savedOrder = orderRepository.save(order);
+        try {
+            inventoryService.reserveForOrder(savedOrder);
+        } catch (BusinessException exception) {
+            if (exception.errorCode() == ErrorCode.PRODUCT_NOT_ON_SALE) {
+                throw new BusinessException(ErrorCode.CART_CHECKOUT_NOT_ALLOWED);
+            }
+            throw exception;
+        }
+        return savedOrder;
     }
 }

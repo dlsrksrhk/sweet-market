@@ -1,12 +1,21 @@
 package com.sweet.market.store;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -15,12 +24,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.sweet.market.auth.security.JwtProvider;
+import com.sweet.market.inventory.application.InventoryService;
+import com.sweet.market.inventory.domain.Inventory;
+import com.sweet.market.inventory.repository.InventoryRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.order.domain.Order;
+import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreMembership;
 import com.sweet.market.store.repository.StoreMembershipRepository;
@@ -51,6 +68,15 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private InventoryService inventoryService;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @MockitoSpyBean
+    private InventoryRepository inventoryRepository;
 
     @Test
     void 소유자는_활성_멤버십을_소유자와_매니저_순으로_조회한다() throws Exception {
@@ -433,6 +459,304 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
         assertStatus(hidden, "HIDDEN");
     }
 
+    @Test
+    void 운영_카탈로그는_재고형_수량과_계산된_상태를_필터링하고_숨김을_우선한다() throws Exception {
+        Member owner = saveMember("stock-catalog-owner@example.com", "재고 운영자");
+        Store store = saveActiveBusinessStore(owner, "재고 카탈로그 상점");
+        Product available = saveStockProduct(store, "판매 재고 상품", 5);
+        jdbcTemplate.update("update inventories set reserved_quantity = 2 where product_id = ?", available.getId());
+        Product soldOut = saveStockProduct(store, "품절 재고 상품", 4);
+        jdbcTemplate.update("update inventories set reserved_quantity = 4 where product_id = ?", soldOut.getId());
+        Product hidden = saveStockProduct(store, "숨김 재고 상품", 7);
+        changeStatus(hidden, "HIDDEN");
+
+        mockMvc.perform(get("/api/store-operations/{storeId}/products", store.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner))
+                        .queryParam("status", "ON_SALE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].productId").value(available.getId()))
+                .andExpect(jsonPath("$.data.content[0].status").value("ON_SALE"))
+                .andExpect(jsonPath("$.data.content[0].salesPolicy").value("STOCK_MANAGED"))
+                .andExpect(jsonPath("$.data.content[0].totalQuantity").value(5))
+                .andExpect(jsonPath("$.data.content[0].reservedQuantity").value(2))
+                .andExpect(jsonPath("$.data.content[0].availableQuantity").value(3))
+                .andExpect(jsonPath("$.data.content[0].lowStockThreshold").value(3));
+
+        mockMvc.perform(get("/api/store-operations/{storeId}/products", store.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner))
+                        .queryParam("status", "SOLD_OUT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].productId").value(soldOut.getId()))
+                .andExpect(jsonPath("$.data.content[0].status").value("SOLD_OUT"))
+                .andExpect(jsonPath("$.data.content[0].availableQuantity").value(0));
+
+        mockMvc.perform(get("/api/store-operations/{storeId}/products", store.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner))
+                        .queryParam("status", "HIDDEN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].productId").value(hidden.getId()))
+                .andExpect(jsonPath("$.data.content[0].status").value("HIDDEN"))
+                .andExpect(jsonPath("$.data.content[0].availableQuantity").value(7));
+
+        mockMvc.perform(get("/api/store-operations/{storeId}/summary", store.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.onSaleCount").value(1))
+                .andExpect(jsonPath("$.data.reservedCount").value(0))
+                .andExpect(jsonPath("$.data.soldOutCount").value(1))
+                .andExpect(jsonPath("$.data.hiddenCount").value(1));
+    }
+
+    @Test
+    void 소유자와_매니저는_재고를_조정하고_이력을_조회한다() throws Exception {
+        Member owner = saveMember("inventory-owner@example.com", "재고 소유자");
+        Member manager = saveMember("inventory-manager@example.com", "재고 매니저");
+        Store store = saveActiveBusinessStore(owner, "재고 상점");
+        storeMembershipRepository.save(StoreMembership.createManager(store, manager));
+        Product product = saveStockProduct(store, "재고 상품", 5);
+
+        adjust(store, owner, product.getId(), 7, "STOCKTAKE", null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productId").value(product.getId()))
+                .andExpect(jsonPath("$.data.beforeTotalQuantity").value(5))
+                .andExpect(jsonPath("$.data.afterTotalQuantity").value(7))
+                .andExpect(jsonPath("$.data.actorMemberId").value(owner.getId()));
+        adjust(store, manager, product.getId(), 9, "RESTOCK", "입고전표-7")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.afterTotalQuantity").value(9))
+                .andExpect(jsonPath("$.data.referenceNote").value("입고전표-7"));
+
+        getHistory(store, manager, product.getId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(3)))
+                .andExpect(jsonPath("$.data.content[0].changeType").value("MANUAL_ADJUSTMENT"))
+                .andExpect(jsonPath("$.data.content[0].afterTotalQuantity").value(9))
+                .andExpect(jsonPath("$.data.content[0].actorNickname").value("재고 매니저"))
+                .andExpect(jsonPath("$.data.content[1].afterTotalQuantity").value(7))
+                .andExpect(jsonPath("$.data.content[2].changeType").value("INITIALIZATION"));
+    }
+
+    @Test
+    void 주문_기반_재고_이력은_예약_해제_배송확정의_주문번호를_응답한다() throws Exception {
+        Member owner = saveMember("inventory-order-owner@example.com", "재고 소유자");
+        Member buyer = saveMember("inventory-order-buyer@example.com", "구매자");
+        Store store = saveActiveBusinessStore(owner, "주문 재고 상점");
+        Product product = saveStockProduct(store, "주문 재고 상품", 5);
+        Long[] orderIds = transactionTemplate.execute(status -> {
+            Product managedProduct = entityManager.find(Product.class, product.getId());
+            Member managedBuyer = entityManager.find(Member.class, buyer.getId());
+            Order reservedOrder = orderRepository.save(Order.create(managedBuyer, managedProduct));
+            inventoryService.reserveForOrder(reservedOrder);
+            Order releasedOrder = orderRepository.save(Order.create(managedBuyer, managedProduct));
+            inventoryService.reserveForOrder(releasedOrder);
+            inventoryService.releaseForPreShippingExit(releasedOrder);
+            Order shippedOrder = orderRepository.save(Order.create(managedBuyer, managedProduct));
+            inventoryService.reserveForOrder(shippedOrder);
+            inventoryService.commitForShipment(shippedOrder);
+            return new Long[]{reservedOrder.getId(), releasedOrder.getId(), shippedOrder.getId()};
+        });
+
+        getHistory(store, owner, product.getId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].changeType").value("SHIPMENT_COMMITMENT"))
+                .andExpect(jsonPath("$.data.content[0].orderId").value(orderIds[2]))
+                .andExpect(jsonPath("$.data.content[2].changeType").value("RELEASE"))
+                .andExpect(jsonPath("$.data.content[2].orderId").value(orderIds[1]))
+                .andExpect(jsonPath("$.data.content[4].changeType").value("RESERVATION"))
+                .andExpect(jsonPath("$.data.content[4].orderId").value(orderIds[0]));
+    }
+
+    @Test
+    void 외부인은_재고를_조정하거나_이력을_조회할_수_없다() throws Exception {
+        Member owner = saveMember("inventory-denied-owner@example.com", "소유자");
+        Member outsider = saveMember("inventory-denied-outsider@example.com", "외부인");
+        Store store = saveActiveBusinessStore(owner, "재고 권한 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+
+        adjust(store, outsider, product.getId(), 6, "RESTOCK", null)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+        getHistory(store, outsider, product.getId())
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+    }
+
+    @Test
+    void 중단된_상점의_운영자는_재고_이력만_조회할_수_있다() throws Exception {
+        Member owner = saveMember("inventory-suspended-owner@example.com", "소유자");
+        Member manager = saveMember("inventory-suspended-manager@example.com", "매니저");
+        Store store = saveActiveBusinessStore(owner, "중단 재고 상점");
+        storeMembershipRepository.save(StoreMembership.createManager(store, manager));
+        Product product = saveStockProduct(store, "재고 상품", 5);
+        store.suspend();
+        storeRepository.saveAndFlush(store);
+
+        getHistory(store, manager, product.getId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)));
+        adjust(store, manager, product.getId(), 6, "RESTOCK", null)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
+    }
+
+    @Test
+    void 예약량보다_낮은_재고_조정은_충돌하고_이력을_남기지_않는다() throws Exception {
+        Member owner = saveMember("inventory-conflict-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "재고 충돌 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+        jdbcTemplate.update("update inventories set reserved_quantity = 2 where product_id = ?", product.getId());
+
+        adjust(store, owner, product.getId(), 1, "STOCKTAKE", "실사")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("INVENTORY_ADJUSTMENT_CONFLICT"));
+        getHistory(store, owner, product.getId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].changeType").value("INITIALIZATION"));
+    }
+
+    @Test
+    void 재고_조정_입력의_수량_사유와_메모_경계를_검증한다() throws Exception {
+        Member owner = saveMember("inventory-validation-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "재고 검증 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+
+        adjustRaw(store, owner, product.getId(), "{\"totalQuantity\":null,\"reason\":\"RESTOCK\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        adjustRaw(store, owner, product.getId(), "{\"totalQuantity\":-1,\"reason\":\"RESTOCK\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        adjustRaw(store, owner, product.getId(), "{\"totalQuantity\":5,\"reason\":\"UNKNOWN\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        adjustRaw(store, owner, product.getId(), """
+                {"totalQuantity":5,"reason":"OTHER","referenceNote":"%s"}
+                """.formatted("가".repeat(501)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 재고_이력은_기본값과_최대_크기와_다음_페이지를_안정적으로_조회한다() throws Exception {
+        Member owner = saveMember("inventory-page-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "재고 페이징 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+        jdbcTemplate.update("""
+                insert into inventory_adjustments (
+                    inventory_id, product_id, change_type,
+                    before_total_quantity, after_total_quantity,
+                    before_reserved_quantity, after_reserved_quantity, occurred_at
+                )
+                select inventory.id, ?, 'MANUAL_ADJUSTMENT', sequence - 1, sequence, 0, 0,
+                       timestamp '2099-01-01 00:00:00'
+                from inventories inventory
+                cross join generate_series(1, 101) sequence
+                where inventory.product_id = ?
+                """, product.getId(), product.getId());
+
+        getHistory(store, owner, product.getId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.number").value(0))
+                .andExpect(jsonPath("$.data.size").value(20))
+                .andExpect(jsonPath("$.data.content", hasSize(20)))
+                .andExpect(jsonPath("$.data.content[0].afterTotalQuantity").value(101));
+        getHistory(store, owner, product.getId(), 0, 100)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(100)))
+                .andExpect(jsonPath("$.data.totalElements").value(102))
+                .andExpect(jsonPath("$.data.content[0].afterTotalQuantity").value(101))
+                .andExpect(jsonPath("$.data.content[99].afterTotalQuantity").value(2));
+        getHistory(store, owner, product.getId(), 1, 100)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(2)))
+                .andExpect(jsonPath("$.data.content[0].afterTotalQuantity").value(1))
+                .andExpect(jsonPath("$.data.content[1].changeType").value("INITIALIZATION"));
+    }
+
+    @Test
+    void 재고_이력의_페이지와_크기_범위를_검증한다() throws Exception {
+        Member owner = saveMember("inventory-page-validation-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "재고 페이지 검증 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+
+        getHistory(store, owner, product.getId(), -1, 20)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        getHistory(store, owner, product.getId(), 0, 0)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        getHistory(store, owner, product.getId(), 0, 101)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 재고_이력은_수정과_삭제_엔드포인트를_제공하지_않는다() throws Exception {
+        Member owner = saveMember("inventory-immutable-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "불변 재고 이력 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+        Long adjustmentId = jdbcTemplate.queryForObject(
+                "select id from inventory_adjustments where product_id = ?",
+                Long.class,
+                product.getId()
+        );
+
+        mockMvc.perform(delete("/api/store-operations/{storeId}/products/{productId}/inventory/history/{id}",
+                        store.getId(), product.getId(), adjustmentId)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 실제_낙관적_잠금_충돌은_재고_조정_충돌로_응답한다() throws Exception {
+        Member owner = saveMember("inventory-lock-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "재고 잠금 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+        CountDownLatch inventoryLoaded = new CountDownLatch(1);
+        CountDownLatch continueAdjustment = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            Optional<Inventory> result = inventoryRepository.findByProductIdAndProductStoreId(
+                    product.getId(),
+                    store.getId()
+            );
+            inventoryLoaded.countDown();
+            if (!continueAdjustment.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("재고 조정 재개 대기 시간 초과");
+            }
+            return result;
+        }).when(inventoryRepository).findForAdjustment(store.getId(), product.getId());
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<MvcResult> adjustment = executor.submit(() ->
+                    adjust(store, owner, product.getId(), 7, "RESTOCK", null).andReturn());
+            if (!inventoryLoaded.await(10, TimeUnit.SECONDS)) {
+                MvcResult earlyResult = adjustment.get(1, TimeUnit.SECONDS);
+                throw new AssertionError(
+                        "재고 조회 전 요청 종료: status=" + earlyResult.getResponse().getStatus()
+                                + ", body=" + earlyResult.getResponse().getContentAsString()
+                );
+            }
+            jdbcTemplate.update(
+                    "update inventories set total_quantity = 6, version = version + 1 where product_id = ?",
+                    product.getId()
+            );
+            continueAdjustment.countDown();
+
+            MvcResult result = adjustment.get(10, TimeUnit.SECONDS);
+            assertThat(result.getResponse().getStatus()).isEqualTo(409);
+            assertThat(objectMapper.readTree(result.getResponse().getContentAsString()).path("code").asText())
+                    .isEqualTo("INVENTORY_ADJUSTMENT_CONFLICT");
+        } finally {
+            continueAdjustment.countDown();
+            executor.shutdownNow();
+        }
+    }
+
     private void assertReadableSummary(Member member, Store store) throws Exception {
         mockMvc.perform(get("/api/store-operations/{storeId}/summary", store.getId())
                         .header(HttpHeaders.AUTHORIZATION, bearer(member)))
@@ -498,6 +822,61 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
                 .content(content));
     }
 
+    private org.springframework.test.web.servlet.ResultActions adjust(
+            Store store,
+            Member member,
+            Long productId,
+            int totalQuantity,
+            String reason,
+            String referenceNote
+    ) throws Exception {
+        String note = referenceNote == null ? "null" : "\"" + referenceNote + "\"";
+        return adjustRaw(store, member, productId, """
+                {
+                  "totalQuantity": %d,
+                  "reason": "%s",
+                  "referenceNote": %s
+                }
+                """.formatted(totalQuantity, reason, note));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions adjustRaw(
+            Store store,
+            Member member,
+            Long productId,
+            String content
+    ) throws Exception {
+        return mockMvc.perform(patch("/api/store-operations/{storeId}/products/{productId}/inventory",
+                        store.getId(), productId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(member))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(content));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions getHistory(
+            Store store,
+            Member member,
+            Long productId
+    ) throws Exception {
+        return mockMvc.perform(get("/api/store-operations/{storeId}/products/{productId}/inventory/history",
+                        store.getId(), productId)
+                .header(HttpHeaders.AUTHORIZATION, bearer(member)));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions getHistory(
+            Store store,
+            Member member,
+            Long productId,
+            int page,
+            int size
+    ) throws Exception {
+        return mockMvc.perform(get("/api/store-operations/{storeId}/products/{productId}/inventory/history",
+                        store.getId(), productId)
+                .queryParam("page", String.valueOf(page))
+                .queryParam("size", String.valueOf(size))
+                .header(HttpHeaders.AUTHORIZATION, bearer(member)));
+    }
+
     private void assertStatus(Product product, String expectedStatus) {
         String actualStatus = jdbcTemplate.queryForObject(
                 "select status from products where id = ?",
@@ -528,6 +907,25 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
             entityManager.flush();
             return product;
         });
+    }
+
+    private Product saveStockProduct(Store store, String title, int initialTotalQuantity) {
+        Product product = transactionTemplate.execute(status -> {
+            Product saved = Product.create(
+                    entityManager.find(Store.class, store.getId()),
+                    title,
+                    "설명",
+                    10_000L,
+                    ProductSalesPolicy.STOCK_MANAGED,
+                    3,
+                    initialTotalQuantity
+            );
+            entityManager.persist(saved);
+            entityManager.flush();
+            return saved;
+        });
+        inventoryService.initialize(product, initialTotalQuantity, store.getOwnerMember().getId());
+        return product;
     }
 
     private void changeStatus(Product product, String status) {

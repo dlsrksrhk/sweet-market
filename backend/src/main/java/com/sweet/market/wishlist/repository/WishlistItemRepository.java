@@ -62,12 +62,16 @@ public interface WishlistItemRepository extends JpaRepository<WishlistItem, Long
                     from WishlistItem allItem
                     where allItem.product = p
                 ),
+                p.salesPolicy,
+                inventory.totalQuantity - inventory.reservedQuantity,
+                p.lowStockThreshold,
                 wi.createdAt
             )
             from WishlistItem wi
             join wi.product p
             join p.store store
             join store.ownerMember seller
+            left join Inventory inventory on inventory.product = p
             where wi.buyer.id = :buyerId
               and p.status in :visibleStatuses
               and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE

@@ -1,5 +1,5 @@
 import { api } from '../../shared/api/http';
-import type { Page, ProductStatus, ProductSummary } from '../products/productApi';
+import type { BuyerAvailability, Page, ProductStatus, ProductSummary } from '../products/productApi';
 
 export type StoreType = 'PERSONAL' | 'BUSINESS';
 
@@ -27,6 +27,7 @@ export type StorefrontProductStatus = Exclude<ProductStatus, 'HIDDEN'>;
 
 export type StorefrontProduct = Omit<ProductSummary, 'status'> & {
   status: StorefrontProductStatus;
+  availability: BuyerAvailability;
 };
 
 export type StorefrontProductSort = 'NEWEST' | 'PRICE_ASC' | 'PRICE_DESC';

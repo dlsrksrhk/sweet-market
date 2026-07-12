@@ -1,5 +1,5 @@
 import { api } from '../../shared/api/http';
-import type { Page, ProductStatus } from '../products/productApi';
+import type { Page, ProductSalesPolicy, ProductStatus } from '../products/productApi';
 import type { StoreStatus, StoreType } from './storeApi';
 
 export type StoreMemberRole = 'OWNER' | 'MANAGER';
@@ -26,6 +26,35 @@ export type StoreCatalogProduct = {
   title: string;
   price: number;
   status: ProductStatus;
+  salesPolicy: ProductSalesPolicy;
+  totalQuantity: number | null;
+  reservedQuantity: number | null;
+  availableQuantity: number | null;
+  lowStockThreshold: number | null;
+};
+
+export type InventoryAdjustmentReason = 'RESTOCK' | 'STOCKTAKE' | 'DAMAGE_OR_DISPOSAL' | 'RETURN_RESTOCK' | 'OTHER';
+
+export type InventoryAdjustmentInput = {
+  totalQuantity: number;
+  reason: InventoryAdjustmentReason;
+  referenceNote?: string;
+};
+
+export type InventoryAdjustment = {
+  adjustmentId: number;
+  productId: number;
+  orderId: number | null;
+  changeType: 'INITIALIZATION' | 'MANUAL_ADJUSTMENT' | 'RESERVATION' | 'RELEASE' | 'SHIPMENT_COMMITMENT';
+  reason: InventoryAdjustmentReason | null;
+  referenceNote: string | null;
+  beforeTotalQuantity: number;
+  afterTotalQuantity: number;
+  beforeReservedQuantity: number;
+  afterReservedQuantity: number;
+  actorMemberId: number | null;
+  actorNickname: string | null;
+  occurredAt: string;
 };
 
 export type StoreCatalogSort = 'NEWEST' | 'OLDEST';
@@ -65,6 +94,10 @@ export const storeOperationQueryKeys = {
       input.page,
       input.size,
     ] as const,
+  inventory: (storeId: number, productId: number) =>
+    [...storeOperationQueryKeys.products(storeId), productId, 'inventory'] as const,
+  inventoryHistory: (storeId: number, productId: number, page: number, size: number) =>
+    [...storeOperationQueryKeys.inventory(storeId, productId), 'history', page, size] as const,
   memberships: (storeId: number) => [...storeOperationQueryKeys.store(storeId), 'memberships'] as const,
 };
 
@@ -107,6 +140,20 @@ export function showStoreProducts(storeId: number, productIds: number[]) {
     method: 'POST',
     body: JSON.stringify({ productIds }),
   });
+}
+
+export function adjustProductInventory(storeId: number, productId: number, input: InventoryAdjustmentInput) {
+  return api<InventoryAdjustment>(`/api/store-operations/${storeId}/products/${productId}/inventory`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function getProductInventoryHistory(storeId: number, productId: number, page: number, size: number) {
+  const searchParams = new URLSearchParams({ page: String(page), size: String(size) });
+  return api<Page<InventoryAdjustment>>(
+    `/api/store-operations/${storeId}/products/${productId}/inventory/history?${searchParams.toString()}`,
+  );
 }
 
 export function getStoreMemberships(storeId: number) {

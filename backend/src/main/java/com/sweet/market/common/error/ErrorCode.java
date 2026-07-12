@@ -20,6 +20,7 @@ public enum ErrorCode {
     PRODUCT_IMAGE_UPLOAD_EXPIRED(HttpStatus.BAD_REQUEST, "임시 업로드 상품 이미지가 만료되었습니다."),
     PRODUCT_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "변경할 수 없는 상품 상태입니다."),
     PRODUCT_NOT_ON_SALE(HttpStatus.CONFLICT, "판매 중인 상품만 주문할 수 있습니다."),
+    INVENTORY_ADJUSTMENT_CONFLICT(HttpStatus.CONFLICT, "재고 조정 요청이 현재 재고 상태와 충돌합니다."),
     WISHLIST_PRODUCT_NOT_ON_SALE(HttpStatus.CONFLICT, "판매 중인 상품만 찜할 수 있습니다."),
     WISHLIST_OWN_PRODUCT_NOT_ALLOWED(HttpStatus.FORBIDDEN, "자기 상품은 찜할 수 없습니다."),
     CART_OWN_PRODUCT_NOT_ALLOWED(HttpStatus.FORBIDDEN, "자기 상품은 장바구니에 담을 수 없습니다."),

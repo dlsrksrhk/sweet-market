@@ -122,6 +122,36 @@ class CartApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 재고형_상품의_장바구니는_가용_재고와_구매_가능성을_함께_계산한다() throws Exception {
+        String sellerToken = signupAndLogin("stock-cart-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("stock-cart-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "Stock Product", "stock-product.jpg");
+        addCart(buyerToken, productId);
+        makeStockManaged(productId, 5, 2, 3);
+
+        mockMvc.perform(get("/api/me/cart")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].availability.policy").value("STOCK_MANAGED"))
+                .andExpect(jsonPath("$.data.content[0].availability.status").value("LOW_STOCK"))
+                .andExpect(jsonPath("$.data.content[0].availability.quantity").value(3))
+                .andExpect(jsonPath("$.data.content[0].checkoutAvailable").value(true))
+                .andExpect(jsonPath("$.data.content[0].totalQuantity").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].reservedQuantity").doesNotExist());
+
+        jdbcTemplate.update("UPDATE inventories SET reserved_quantity = total_quantity WHERE product_id = ?", productId);
+
+        mockMvc.perform(get("/api/me/cart")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].status").value("SOLD_OUT"))
+                .andExpect(jsonPath("$.data.content[0].availability.status").value("SOLD_OUT"))
+                .andExpect(jsonPath("$.data.content[0].availability.quantity").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].checkoutAvailable").value(false))
+                .andExpect(jsonPath("$.data.content[0].unavailableReason").value("SOLD_OUT"));
+    }
+
+    @Test
     void 로그인한_사용자는_상품_목록에서_장바구니_상태를_본다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
@@ -336,6 +366,7 @@ class CartApiTest extends IntegrationTestSupport {
                                   "title": "%s",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -391,6 +422,20 @@ class CartApiTest extends IntegrationTestSupport {
                 "UPDATE products SET status = ? WHERE id = ?",
                 status,
                 productId
+        );
+    }
+
+    private void makeStockManaged(Long productId, int totalQuantity, int reservedQuantity, int lowStockThreshold) {
+        jdbcTemplate.update(
+                "UPDATE products SET sales_policy = 'STOCK_MANAGED', low_stock_threshold = ? WHERE id = ?",
+                lowStockThreshold,
+                productId
+        );
+        jdbcTemplate.update(
+                "INSERT INTO inventories (version, product_id, total_quantity, reserved_quantity) VALUES (0, ?, ?, ?)",
+                productId,
+                totalQuantity,
+                reservedQuantity
         );
     }
 

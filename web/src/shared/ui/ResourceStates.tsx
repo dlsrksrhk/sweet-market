@@ -1,3 +1,5 @@
+import type { BuyerAvailability } from '../../features/products/productApi';
+
 type EmptyStateProps = {
   title: string;
   description?: string;
@@ -32,6 +34,24 @@ type StatusBadgeProps = {
 
 export function StatusBadge({ status }: StatusBadgeProps) {
   return <span className={`status-badge status-badge-${status.toLowerCase()}`}>{formatStatus(status)}</span>;
+}
+
+type BuyerAvailabilityBadgeProps = {
+  availability: BuyerAvailability;
+};
+
+export function BuyerAvailabilityBadge({ availability }: BuyerAvailabilityBadgeProps) {
+  const label = availability.status === 'LOW_STOCK' && availability.quantity !== undefined
+    ? `재고 ${availability.quantity}개 남음`
+    : availability.status === 'SOLD_OUT'
+      ? '품절'
+      : '재고 있음';
+
+  return (
+    <span className={`status-badge status-badge-availability-${availability.status.toLowerCase()}`}>
+      {label}
+    </span>
+  );
 }
 
 function formatStatus(status: string) {

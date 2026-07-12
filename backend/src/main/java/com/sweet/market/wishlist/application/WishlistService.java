@@ -13,6 +13,7 @@ import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
 import com.sweet.market.wishlist.api.WishlistResponse;
 import com.sweet.market.wishlist.domain.WishlistItem;
 import com.sweet.market.wishlist.repository.WishlistItemRepository;
@@ -46,7 +47,9 @@ public class WishlistService {
             return response(productId, true);
         }
 
-        validateWishlistable(buyerId, product);
+        BuyerAvailabilityResponse availability = productRepository.findBuyerAvailabilityByProductId(productId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+        validateWishlistable(buyerId, product, availability);
 
         Member buyer = memberRepository.findById(buyerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
@@ -73,11 +76,16 @@ public class WishlistService {
         return response(productId, false);
     }
 
-    private void validateWishlistable(Long buyerId, Product product) {
+    private void validateWishlistable(
+            Long buyerId,
+            Product product,
+            BuyerAvailabilityResponse availability
+    ) {
         if (product.isOwnedBy(buyerId)) {
             throw new BusinessException(ErrorCode.WISHLIST_OWN_PRODUCT_NOT_ALLOWED);
         }
-        if (!product.isPurchasable()) {
+        if (!product.isPurchasable()
+                || availability.status() == BuyerAvailabilityResponse.AvailabilityStatus.SOLD_OUT) {
             throw new BusinessException(ErrorCode.WISHLIST_PRODUCT_NOT_ON_SALE);
         }
     }
