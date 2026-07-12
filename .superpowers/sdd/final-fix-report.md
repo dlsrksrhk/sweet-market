@@ -42,3 +42,34 @@ Hygiene: `git diff --check` returned exit 0 with no diagnostics before the imple
 
 - This final-review pass did not rerun the full backend suite; it deliberately claims only the relevant 79-test selection above.
 - No authenticated browser walkthrough or live 390px viewport measurement was available. The web production build is the UI verification evidence.
+
+## Full-suite regression fixture follow-up
+
+The later full-suite run exposed one stale unit-test fixture, not a production regression: `WishlistServiceTest` did not stub the inventory-aware `findBuyerAvailabilityByProductId(10L)` lookup added by the final fix.
+
+RED command:
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+.\gradlew.bat test --tests 'com.sweet.market.wishlist.application.WishlistServiceTest.중복_삽입_충돌이_발생하면_기존_찜을_읽고_성공으로_응답한다' --rerun-tasks
+```
+
+Result: exit 1, `BUILD FAILED in 13s`; 1 test, 1 failure with `BusinessException` at `WishlistServiceTest.java:55`.
+
+The fixture now returns a `BuyerAvailabilityResponse` for `SINGLE_ITEM` / `ON_SALE`. Production code was unchanged.
+
+GREEN command:
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+$env:SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE='4'
+.\gradlew.bat test --tests 'com.sweet.market.wishlist.application.WishlistServiceTest' --tests 'com.sweet.market.wishlist.WishlistApiTest' --rerun-tasks
+```
+
+Result: exit 0, `BUILD SUCCESSFUL in 34s`; 19 tests across 2 suites, 0 failures, 0 errors, 0 skipped (`WishlistServiceTest` 1, `WishlistApiTest` 18).
