@@ -64,19 +64,49 @@ public class Product {
     @Column(nullable = false, length = 20)
     private ProductStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "sales_policy", nullable = false, length = 20, updatable = false)
+    private ProductSalesPolicy salesPolicy;
+
+    @Column(name = "low_stock_threshold")
+    private Integer lowStockThreshold;
+
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductImage> images = new ArrayList<>();
 
-    private Product(Store store, String title, String description, long price, ProductStatus status) {
+    private Product(
+            Store store,
+            String title,
+            String description,
+            long price,
+            ProductStatus status,
+            ProductSalesPolicy salesPolicy,
+            Integer lowStockThreshold
+    ) {
         this.store = store;
         this.title = title;
         this.description = description;
         this.price = price;
         this.status = status;
+        this.salesPolicy = salesPolicy;
+        this.lowStockThreshold = lowStockThreshold;
     }
 
     public static Product create(Store store, String title, String description, long price) {
-        return new Product(store, title, description, price, ProductStatus.ON_SALE);
+        return create(store, title, description, price, ProductSalesPolicy.SINGLE_ITEM, null, null);
+    }
+
+    public static Product create(
+            Store store,
+            String title,
+            String description,
+            long price,
+            ProductSalesPolicy salesPolicy,
+            Integer lowStockThreshold,
+            Integer initialTotalQuantity
+    ) {
+        validateSalesPolicy(salesPolicy, lowStockThreshold, initialTotalQuantity);
+        return new Product(store, title, description, price, ProductStatus.ON_SALE, salesPolicy, lowStockThreshold);
     }
 
     /**
@@ -131,6 +161,14 @@ public class Product {
     }
 
     public boolean isPurchasable() {
+        return isVisibleForNewOrder();
+    }
+
+    public boolean isSingleItem() {
+        return salesPolicy == ProductSalesPolicy.SINGLE_ITEM;
+    }
+
+    public boolean isVisibleForNewOrder() {
         return status == ProductStatus.ON_SALE && store.getStatus() == StoreStatus.ACTIVE;
     }
 
@@ -228,6 +266,28 @@ public class Product {
     private void validateNotReserved() {
         if (status == ProductStatus.RESERVED) {
             throw new IllegalStateException("Reserved product cannot be changed");
+        }
+    }
+
+    private static void validateSalesPolicy(
+            ProductSalesPolicy salesPolicy,
+            Integer lowStockThreshold,
+            Integer initialTotalQuantity
+    ) {
+        if (salesPolicy == null) {
+            throw new IllegalArgumentException("Product sales policy is required");
+        }
+        if (salesPolicy == ProductSalesPolicy.SINGLE_ITEM) {
+            if (lowStockThreshold != null || initialTotalQuantity != null) {
+                throw new IllegalArgumentException("Single-item product cannot have stock settings");
+            }
+            return;
+        }
+        if (lowStockThreshold == null || lowStockThreshold <= 0) {
+            throw new IllegalArgumentException("Stock-managed product requires a positive low-stock threshold");
+        }
+        if (initialTotalQuantity == null || initialTotalQuantity < 0) {
+            throw new IllegalArgumentException("Stock-managed product requires a non-negative initial quantity");
         }
     }
 }
