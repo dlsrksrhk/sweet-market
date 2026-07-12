@@ -660,6 +660,23 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 재고_이력은_수정과_삭제_엔드포인트를_제공하지_않는다() throws Exception {
+        Member owner = saveMember("inventory-immutable-owner@example.com", "소유자");
+        Store store = saveActiveBusinessStore(owner, "불변 재고 이력 상점");
+        Product product = saveStockProduct(store, "재고 상품", 5);
+        Long adjustmentId = jdbcTemplate.queryForObject(
+                "select id from inventory_adjustments where product_id = ?",
+                Long.class,
+                product.getId()
+        );
+
+        mockMvc.perform(delete("/api/store-operations/{storeId}/products/{productId}/inventory/history/{id}",
+                        store.getId(), product.getId(), adjustmentId)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void 실제_낙관적_잠금_충돌은_재고_조정_충돌로_응답한다() throws Exception {
         Member owner = saveMember("inventory-lock-owner@example.com", "소유자");
         Store store = saveActiveBusinessStore(owner, "재고 잠금 상점");
