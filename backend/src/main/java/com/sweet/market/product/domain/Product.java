@@ -123,6 +123,16 @@ public class Product {
         this.price = price;
     }
 
+    public void changeLowStockThreshold(int lowStockThreshold) {
+        if (salesPolicy != ProductSalesPolicy.STOCK_MANAGED) {
+            throw new IllegalStateException("Single-item product does not have stock settings");
+        }
+        if (lowStockThreshold <= 0) {
+            throw new IllegalArgumentException("Low-stock threshold must be positive");
+        }
+        this.lowStockThreshold = lowStockThreshold;
+    }
+
     public void hide() {
         validateNotReserved();
         this.status = ProductStatus.HIDDEN;

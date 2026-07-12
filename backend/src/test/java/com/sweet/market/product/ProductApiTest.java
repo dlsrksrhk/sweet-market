@@ -24,6 +24,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -38,6 +39,91 @@ class ProductApiTest extends IntegrationTestSupport {
     private FailingImageConfirmService failingImageConfirmService;
 
     @Test
+    void 활성_사업자_상점만_재고형_상품을_등록할_수_있다() throws Exception {
+        String personalToken = signupAndLogin("stock-personal@example.com", "password123", "seller");
+        Long personalStoreId = activePersonalStoreId(personalToken);
+
+        createStockProduct(personalToken, personalStoreId, 5, 3)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("STORE_INVALID_TYPE"));
+    }
+
+    @Test
+    void 재고형_상품은_초기수량과_저재고_임계값을_검증한다() throws Exception {
+        String businessToken = signupAndLogin("stock-business@example.com", "password123", "seller");
+        Long businessStoreId = createActiveBusinessStore("stock-business@example.com");
+
+        createStockProduct(businessToken, businessStoreId, -1, 3)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 재고형_상품을_등록하면_초기_재고와_이력이_생성된다() throws Exception {
+        String businessToken = signupAndLogin("stock-initialization@example.com", "password123", "seller");
+        Long businessStoreId = createActiveBusinessStore("stock-initialization@example.com");
+
+        Long productId = createStockProductId(businessToken, businessStoreId, 5, 3);
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select total_quantity from inventories where product_id = ?", Integer.class, productId
+        )).isEqualTo(5);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from inventory_adjustments where product_id = ? and change_type = 'INITIALIZATION'",
+                Integer.class,
+                productId
+        )).isEqualTo(1);
+    }
+
+    @Test
+    void 재고형_상품만_저재고_임계값을_수정할_수_있다() throws Exception {
+        String businessToken = signupAndLogin("stock-threshold@example.com", "password123", "seller");
+        Long businessStoreId = createActiveBusinessStore("stock-threshold@example.com");
+        Long stockProductId = createStockProductId(businessToken, businessStoreId, 5, 3);
+        Long imageId = getFirstImageId(stockProductId);
+
+        mockMvc.perform(patch("/api/products/{productId}", stockProductId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + businessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "재고 상품",
+                                  "description": "재고로 판매하는 상품",
+                                  "price": 10000,
+                                  "lowStockThreshold": 2,
+                                  "images": [{"imageId": %d, "sortOrder": 0, "representative": true}]
+                                }
+                                """.formatted(imageId)))
+                .andExpect(status().isOk());
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select low_stock_threshold from products where id = ?", Integer.class, stockProductId
+        )).isEqualTo(2);
+    }
+
+    @Test
+    void 상품_수정으로_판매정책을_변경할_수_없다() throws Exception {
+        String accessToken = signupAndLogin("policy-update@example.com", "password123", "seller");
+        Long productId = createProduct(accessToken);
+        Long imageId = getFirstImageId(productId);
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "MacBook Pro",
+                                  "description": "M3 laptop",
+                                  "price": 2000000,
+                                  "salesPolicy": "STOCK_MANAGED",
+                                  "images": [{"imageId": %d, "sortOrder": 0, "representative": true}]
+                                }
+                                """.formatted(imageId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
     void 비활성_사업자_상점에는_상품을_등록할_수_없다() throws Exception {
         String token = signupAndLogin("inactive-create@example.com", "password123", "seller");
         Long storeId = createInactiveBusinessStore("inactive-create@example.com");
@@ -45,7 +131,7 @@ class ProductApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/products").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"storeId\":%d,\"title\":\"상품\",\"description\":\"설명\",\"price\":10000,\"images\":[{\"uploadId\":%d,\"sortOrder\":0,\"representative\":true}]}".formatted(storeId, uploadId)))
+                        .content("{\"storeId\":%d,\"title\":\"상품\",\"description\":\"설명\",\"price\":10000,\"salesPolicy\":\"SINGLE_ITEM\",\"images\":[{\"uploadId\":%d,\"sortOrder\":0,\"representative\":true}]}".formatted(storeId, uploadId)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("STORE_ACCESS_DENIED"));
     }
@@ -91,12 +177,22 @@ class ProductApiTest extends IntegrationTestSupport {
         return storeId;
     }
 
+    private Long createActiveBusinessStore(String email) {
+        Long memberId = jdbcTemplate.queryForObject("select id from members where email = ?", Long.class, email);
+        Long storeId = jdbcTemplate.queryForObject("""
+                insert into stores (version, owner_member_id, type, public_name, introduction, status, created_at, updated_at)
+                values (0, ?, 'BUSINESS', '활성 사업자 상점', '', 'ACTIVE', current_timestamp, current_timestamp) returning id
+                """, Long.class, memberId);
+        jdbcTemplate.update("insert into store_memberships (store_id, member_id, role, active, created_at) values (?, ?, 'OWNER', true, current_timestamp)", storeId, memberId);
+        return storeId;
+    }
+
     private Long createInactiveBusinessProduct(String email) throws Exception {
         signupAndLogin(email, "password123", "seller");
         Long storeId = createInactiveBusinessStore(email);
         return jdbcTemplate.queryForObject("""
-                insert into products (version, store_id, title, description, price, status)
-                values (0, ?, '비활성 상품', '설명', 10000, 'ON_SALE') returning id
+                insert into products (version, store_id, title, description, price, status, sales_policy)
+                values (0, ?, '비활성 상품', '설명', 10000, 'ON_SALE', 'SINGLE_ITEM') returning id
                 """, Long.class, storeId);
     }
 
@@ -115,6 +211,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -148,6 +245,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": []
                                 }
                                 """))
@@ -167,6 +265,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "",
                                   "description": "",
                                   "price": 0,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": null,
@@ -195,6 +294,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": []
                                 }
                                 """.formatted(storeId)))
@@ -218,6 +318,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -246,6 +347,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -267,6 +369,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -298,6 +401,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -324,6 +428,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -353,6 +458,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -379,6 +485,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -411,6 +518,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -946,6 +1054,7 @@ class ProductApiTest extends IntegrationTestSupport {
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
                                   "price": 2000000,
+                                  "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
                                       "uploadId": %d,
@@ -962,6 +1071,50 @@ class ProductApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("id").asLong();
+    }
+
+    private ResultActions createStockProduct(
+            String accessToken,
+            Long storeId,
+            int initialTotalQuantity,
+            int lowStockThreshold
+    ) throws Exception {
+        Long uploadId = uploadImage(accessToken, "stock-product.jpg");
+        return mockMvc.perform(post("/api/products")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "storeId": %d,
+                          "title": "재고 상품",
+                          "description": "재고로 판매하는 상품",
+                          "price": 10000,
+                          "salesPolicy": "STOCK_MANAGED",
+                          "initialTotalQuantity": %d,
+                          "lowStockThreshold": %d,
+                          "images": [
+                            {
+                              "uploadId": %d,
+                              "sortOrder": 0,
+                              "representative": true
+                            }
+                          ]
+                        }
+                        """.formatted(storeId, initialTotalQuantity, lowStockThreshold, uploadId)));
+    }
+
+    private Long createStockProductId(
+            String accessToken,
+            Long storeId,
+            int initialTotalQuantity,
+            int lowStockThreshold
+    ) throws Exception {
+        String response = createStockProduct(accessToken, storeId, initialTotalQuantity, lowStockThreshold)
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asLong();
     }
 
     private void addWishlist(String accessToken, Long productId) throws Exception {

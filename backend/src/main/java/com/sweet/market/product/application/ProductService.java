@@ -12,6 +12,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.product.api.ProductCreateImageRequest;
 import com.sweet.market.product.api.ProductCreateRequest;
 import com.sweet.market.product.api.ProductResponse;
@@ -19,10 +20,12 @@ import com.sweet.market.product.api.ProductUpdateImageRequest;
 import com.sweet.market.product.api.ProductUpdateRequest;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductImage;
+import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.product.storage.ProductImageStorageService;
 import com.sweet.market.store.application.StoreAccessService;
 import com.sweet.market.store.domain.Store;
+import com.sweet.market.store.domain.StoreType;
 import com.sweet.market.wishlist.repository.WishlistItemRepository;
 
 @Service
@@ -33,23 +36,30 @@ public class ProductService {
     private final ProductImageUploadService productImageUploadService;
     private final ProductImageStorageService productImageStorageService;
     private final WishlistItemRepository wishlistItemRepository;
+    private final InventoryService inventoryService;
 
     public ProductService(
             ProductRepository productRepository,
             StoreAccessService storeAccessService,
             ProductImageUploadService productImageUploadService,
             ProductImageStorageService productImageStorageService,
-            WishlistItemRepository wishlistItemRepository
+            WishlistItemRepository wishlistItemRepository,
+            InventoryService inventoryService
     ) {
         this.productRepository = productRepository;
         this.storeAccessService = storeAccessService;
         this.productImageUploadService = productImageUploadService;
         this.productImageStorageService = productImageStorageService;
         this.wishlistItemRepository = wishlistItemRepository;
+        this.inventoryService = inventoryService;
     }
 
     @Transactional
     public ProductResponse create(Long memberId, ProductCreateRequest request) {
+        Store store = storeAccessService.requireCatalogOperator(memberId, request.storeId());
+        validateSalesPolicy(store, request);
+        Product product = createProduct(store, request);
+
         validateCreateImages(request.images());
         productImageUploadService.validateConfirmableUploads(
                 memberId,
@@ -58,8 +68,6 @@ public class ProductService {
                         .toList()
         );
 
-        Store store = storeAccessService.requireCatalogOperator(memberId, request.storeId());
-        Product product = Product.create(store, request.title(), request.description(), request.price());
         List<ProductImage> images = request.images().stream()
                 .map(image -> productImageUploadService.confirm(
                         memberId,
@@ -75,16 +83,29 @@ public class ProductService {
         }
 
         Product savedProduct = productRepository.save(product);
+        if (savedProduct.getSalesPolicy() == ProductSalesPolicy.STOCK_MANAGED) {
+            inventoryService.initialize(savedProduct, request.initialTotalQuantity(), memberId);
+        }
         return sellerResponse(savedProduct);
     }
 
     @Transactional
     public ProductResponse update(Long memberId, Long productId, ProductUpdateRequest request) {
         Product product = findProductForOwner(memberId, productId);
+        if (request.salesPolicy() != null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
         try {
             product.update(request.title(), request.description(), request.price());
         } catch (IllegalStateException exception) {
             throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED);
+        }
+        if (request.lowStockThreshold() != null) {
+            try {
+                product.changeLowStockThreshold(request.lowStockThreshold());
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+            }
         }
         validateUpdateImages(product, request.images());
         List<Long> uploadIds = request.images().stream()
@@ -119,6 +140,28 @@ public class ProductService {
 
     private ProductResponse sellerResponse(Product product) {
         return ProductResponse.from(product, wishlistItemRepository.countByProductId(product.getId()), false);
+    }
+
+    private void validateSalesPolicy(Store store, ProductCreateRequest request) {
+        if (request.salesPolicy() == ProductSalesPolicy.STOCK_MANAGED && store.getType() != StoreType.BUSINESS) {
+            throw new BusinessException(ErrorCode.STORE_INVALID_TYPE);
+        }
+    }
+
+    private Product createProduct(Store store, ProductCreateRequest request) {
+        try {
+            return Product.create(
+                    store,
+                    request.title(),
+                    request.description(),
+                    request.price(),
+                    request.salesPolicy(),
+                    request.lowStockThreshold(),
+                    request.initialTotalQuantity()
+            );
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
     }
 
     private Product findProductForOwner(Long memberId, Long productId) {
