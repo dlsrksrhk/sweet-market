@@ -31,7 +31,7 @@
 
 **Files:** Create V5 migration; ProductSalesPolicy.java; Inventory.java; InventoryAdjustment.java; InventoryChangeType.java; InventoryAdjustmentReason.java. Modify Product.java. Test InventoryTest.java and InventoryMigrationTest.java.
 
-**Interfaces:** Inventory.initialize(Product,int); reserve(Order); release(Order); commitShipment(Order); adjust(int,InventoryAdjustmentReason,String,Member). Product.create(Store,String,String,long,ProductSalesPolicy,Integer,Integer).
+**Interfaces:** Inventory.initialize(Product,int); reserve(Order); release(Order); commitShipment(Order); adjust(int,InventoryAdjustmentReason,String,Member). Product.create(Store,String,String,long,ProductSalesPolicy,Integer,Integer), isSingleItem(), and isVisibleForNewOrder().
 
 - [ ] **Step 1: Write failing domain/migration tests**
 
@@ -165,7 +165,7 @@ Expected: FAIL because stock is not reserved or committed.
 
 - [ ] **Step 3: Implement policy-specific delegation**
 
-After saving a newly created stock-managed order, call reserveForOrder. In OrderService.cancel and PaymentService.cancel, call releaseForPreShippingExit only after the existing state transition accepts a CREATED/PAID cancellation. In DeliveryService.start, commitForShipment in the same transaction as Delivery.start. Do not call these methods for SINGLE_ITEM. Keep cart additions unreserved and revalidate availability in add and checkout.
+Change Order.create so it validates the active store and product visibility for every policy, but calls Product.reserve() only when product.isSingleItem() is true. After saving a newly created stock-managed order, call reserveForOrder in the same transaction; an unavailable-stock conflict rolls back the saved order. In OrderService.cancel and PaymentService.cancel, call releaseForPreShippingExit only after the existing state transition accepts a CREATED/PAID cancellation. In DeliveryService.start, commitForShipment in the same transaction as Delivery.start. Keep cart additions unreserved and revalidate availability in add and checkout.
 
 - [ ] **Step 4: Re-run including refund regression and commit**
 
