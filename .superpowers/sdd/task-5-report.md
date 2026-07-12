@@ -21,3 +21,9 @@
 - A full backend run completed 69 test-class reports but two contexts initially failed because PostgreSQL rejected connections with `too many clients already`.
 - The two affected classes (`SettlementBatchJobTest`, `StoreOperationsApiTest`) passed together on an immediate isolated rerun.
 - `package-lock.json` was not staged.
+
+## Review Follow-up
+
+- Added a zero-stock product-detail regression proving the public `status` and availability are both `SOLD_OUT`, purchase is disabled, and operational quantities remain private.
+- Product detail now computes the public catalog status for stock-managed products while retaining raw status behavior for single-item products and giving `HIDDEN` priority.
+- Added store-operations API coverage for stock-managed policy, total/reserved/available quantities, low-stock threshold, computed status filters, summary counts, and hidden-state priority.

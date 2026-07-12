@@ -76,6 +76,24 @@ class ProductApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 재고가_없는_재고형_상품_상세는_계산된_품절_상태만_노출한다() throws Exception {
+        String businessToken = signupAndLogin("stock-detail@example.com", "password123", "seller");
+        Long businessStoreId = createActiveBusinessStore("stock-detail@example.com");
+        Long productId = createStockProductId(businessToken, businessStoreId, 0, 3);
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("SOLD_OUT"))
+                .andExpect(jsonPath("$.data.availability.status").value("SOLD_OUT"))
+                .andExpect(jsonPath("$.data.availability.quantity").doesNotExist())
+                .andExpect(jsonPath("$.data.purchasable").value(false))
+                .andExpect(jsonPath("$.data.totalQuantity").doesNotExist())
+                .andExpect(jsonPath("$.data.reservedQuantity").doesNotExist())
+                .andExpect(jsonPath("$.data.availableQuantity").doesNotExist())
+                .andExpect(jsonPath("$.data.lowStockThreshold").doesNotExist());
+    }
+
+    @Test
     void 재고형_상품만_저재고_임계값을_수정할_수_있다() throws Exception {
         String businessToken = signupAndLogin("stock-threshold@example.com", "password123", "seller");
         Long businessStoreId = createActiveBusinessStore("stock-threshold@example.com");

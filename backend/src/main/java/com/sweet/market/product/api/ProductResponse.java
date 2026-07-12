@@ -4,6 +4,8 @@ import java.util.List;
 
 import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductSalesPolicy;
+import com.sweet.market.product.domain.ProductStatus;
 
 public record ProductResponse(
         Long id,
@@ -70,7 +72,7 @@ public record ProductResponse(
                 product.getTitle(),
                 product.getDescription(),
                 product.getPrice(),
-                product.getStatus().name(),
+                catalogStatus(product, availability).name(),
                 product.isPurchasable()
                         && availability.status() != BuyerAvailabilityResponse.AvailabilityStatus.SOLD_OUT,
                 product.getImages().stream()
@@ -89,5 +91,17 @@ public record ProductResponse(
 
     private static BuyerAvailabilityResponse defaultAvailability(Product product) {
         return new BuyerAvailabilityResponse(product.getSalesPolicy(), product.getStatus(), null, product.getLowStockThreshold());
+    }
+
+    private static ProductStatus catalogStatus(Product product, BuyerAvailabilityResponse availability) {
+        if (product.getSalesPolicy() == ProductSalesPolicy.SINGLE_ITEM) {
+            return product.getStatus();
+        }
+        if (product.getStatus() == ProductStatus.HIDDEN) {
+            return ProductStatus.HIDDEN;
+        }
+        return availability.status() == BuyerAvailabilityResponse.AvailabilityStatus.SOLD_OUT
+                ? ProductStatus.SOLD_OUT
+                : ProductStatus.ON_SALE;
     }
 }

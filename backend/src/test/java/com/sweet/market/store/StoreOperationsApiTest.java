@@ -455,6 +455,57 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 운영_카탈로그는_재고형_수량과_계산된_상태를_필터링하고_숨김을_우선한다() throws Exception {
+        Member owner = saveMember("stock-catalog-owner@example.com", "재고 운영자");
+        Store store = saveActiveBusinessStore(owner, "재고 카탈로그 상점");
+        Product available = saveStockProduct(store, "판매 재고 상품", 5);
+        jdbcTemplate.update("update inventories set reserved_quantity = 2 where product_id = ?", available.getId());
+        Product soldOut = saveStockProduct(store, "품절 재고 상품", 4);
+        jdbcTemplate.update("update inventories set reserved_quantity = 4 where product_id = ?", soldOut.getId());
+        Product hidden = saveStockProduct(store, "숨김 재고 상품", 7);
+        changeStatus(hidden, "HIDDEN");
+
+        mockMvc.perform(get("/api/store-operations/{storeId}/products", store.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner))
+                        .queryParam("status", "ON_SALE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].productId").value(available.getId()))
+                .andExpect(jsonPath("$.data.content[0].status").value("ON_SALE"))
+                .andExpect(jsonPath("$.data.content[0].salesPolicy").value("STOCK_MANAGED"))
+                .andExpect(jsonPath("$.data.content[0].totalQuantity").value(5))
+                .andExpect(jsonPath("$.data.content[0].reservedQuantity").value(2))
+                .andExpect(jsonPath("$.data.content[0].availableQuantity").value(3))
+                .andExpect(jsonPath("$.data.content[0].lowStockThreshold").value(3));
+
+        mockMvc.perform(get("/api/store-operations/{storeId}/products", store.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner))
+                        .queryParam("status", "SOLD_OUT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].productId").value(soldOut.getId()))
+                .andExpect(jsonPath("$.data.content[0].status").value("SOLD_OUT"))
+                .andExpect(jsonPath("$.data.content[0].availableQuantity").value(0));
+
+        mockMvc.perform(get("/api/store-operations/{storeId}/products", store.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner))
+                        .queryParam("status", "HIDDEN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].productId").value(hidden.getId()))
+                .andExpect(jsonPath("$.data.content[0].status").value("HIDDEN"))
+                .andExpect(jsonPath("$.data.content[0].availableQuantity").value(7));
+
+        mockMvc.perform(get("/api/store-operations/{storeId}/summary", store.getId())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.onSaleCount").value(1))
+                .andExpect(jsonPath("$.data.reservedCount").value(0))
+                .andExpect(jsonPath("$.data.soldOutCount").value(1))
+                .andExpect(jsonPath("$.data.hiddenCount").value(1));
+    }
+
+    @Test
     void 소유자와_매니저는_재고를_조정하고_이력을_조회한다() throws Exception {
         Member owner = saveMember("inventory-owner@example.com", "재고 소유자");
         Member manager = saveMember("inventory-manager@example.com", "재고 매니저");
