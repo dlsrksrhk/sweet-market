@@ -139,7 +139,13 @@ public class ProductService {
     }
 
     private ProductResponse sellerResponse(Product product) {
-        return ProductResponse.from(product, wishlistItemRepository.countByProductId(product.getId()), false);
+        return ProductResponse.from(
+                product,
+                wishlistItemRepository.countByProductId(product.getId()),
+                false,
+                productRepository.findBuyerAvailabilityByProductId(product.getId())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND))
+        );
     }
 
     private void validateSalesPolicy(Store store, ProductCreateRequest request) {

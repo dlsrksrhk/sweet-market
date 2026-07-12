@@ -68,6 +68,10 @@ class StorefrontQueryOptimizationTest extends QueryOptimizationTestSupport {
         assertThat(storefront.reviewCount()).isEqualTo(2);
         assertThat(products.getContent()).hasSize(12);
         assertThat(products.getContent()).allSatisfy(product -> assertThat(product.thumbnailUrl()).isNotBlank());
+        assertThat(products.getContent()).allSatisfy(product -> {
+            assertThat(product.availability()).isNotNull();
+            assertThat(product.availability().status().name()).isEqualTo("IN_STOCK");
+        });
         assertThat(products.getContent()).anySatisfy(product -> {
             assertThat(product.wishlistCount()).isPositive();
             assertThat(product.wishlisted()).isTrue();
@@ -96,6 +100,13 @@ class StorefrontQueryOptimizationTest extends QueryOptimizationTestSupport {
         assertThat(summary.onSaleCount()).isEqualTo(20);
         assertThat(products.getContent()).hasSize(12);
         assertThat(products.getContent()).allSatisfy(product -> assertThat(product.thumbnailUrl()).isNotBlank());
+        assertThat(products.getContent()).allSatisfy(product -> {
+            assertThat(product.salesPolicy().name()).isEqualTo("SINGLE_ITEM");
+            assertThat(product.totalQuantity()).isNull();
+            assertThat(product.reservedQuantity()).isNull();
+            assertThat(product.availableQuantity()).isNull();
+            assertThat(product.lowStockThreshold()).isNull();
+        });
         assertThat(queryCount()).isLessThanOrEqualTo(6L);
         assertThat(collectionFetchCount()).isZero();
     }

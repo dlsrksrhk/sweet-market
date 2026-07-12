@@ -12,10 +12,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.sweet.market.auth.security.JwtProvider;
 import com.sweet.market.cart.domain.CartItem;
+import com.sweet.market.inventory.domain.Inventory;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.review.domain.Review;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.repository.StoreRepository;
@@ -194,6 +196,35 @@ class StorefrontApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 재고형_상품은_저재고만_구매자에게_수량을_보여주고_품절_상태를_계산한다() throws Exception {
+        Store store = saveActiveBusinessStore("availability-storefront@example.com");
+        Product lowStock = saveStockProduct(store, "저재고 상품", 5, 3);
+        Product soldOut = saveStockProduct(store, "품절 상품", 5, 0);
+
+        mockMvc.perform(get("/api/products/{productId}", lowStock.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.availability.policy").value("STOCK_MANAGED"))
+                .andExpect(jsonPath("$.data.availability.status").value("LOW_STOCK"))
+                .andExpect(jsonPath("$.data.availability.quantity").value(3))
+                .andExpect(jsonPath("$.data.totalQuantity").doesNotExist())
+                .andExpect(jsonPath("$.data.reservedQuantity").doesNotExist());
+
+        mockMvc.perform(get("/api/stores/{storeId}/products", store.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(lowStock.getId()))
+                .andExpect(jsonPath("$.data.content[0].availability.status").value("LOW_STOCK"));
+
+        mockMvc.perform(get("/api/stores/{storeId}/products", store.getId())
+                        .queryParam("status", "SOLD_OUT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content.length()").value(1))
+                .andExpect(jsonPath("$.data.content[0].id").value(soldOut.getId()))
+                .andExpect(jsonPath("$.data.content[0].availability.status").value("SOLD_OUT"))
+                .andExpect(jsonPath("$.data.content[0].availability.quantity").doesNotExist());
+    }
+
+    @Test
     void 상점_상품은_가격순과_동일가격_ID_내림차순으로_정렬한다() throws Exception {
         Store store = saveActiveBusinessStore("catalog-sort@example.com");
         Product expensive = saveProduct(store, "고가 상품", 30_000L);
@@ -278,6 +309,25 @@ class StorefrontApiTest extends IntegrationTestSupport {
             Store managedStore = entityManager.find(Store.class, store.getId());
             Product product = Product.create(managedStore, title, "설명", price);
             entityManager.persist(product);
+            entityManager.flush();
+            return product;
+        });
+    }
+
+    private Product saveStockProduct(Store store, String title, int lowStockThreshold, int totalQuantity) {
+        return transactionTemplate.execute(status -> {
+            Store managedStore = entityManager.find(Store.class, store.getId());
+            Product product = Product.create(
+                    managedStore,
+                    title,
+                    "설명",
+                    10_000L,
+                    ProductSalesPolicy.STOCK_MANAGED,
+                    lowStockThreshold,
+                    totalQuantity
+            );
+            entityManager.persist(product);
+            entityManager.persist(Inventory.initialize(product, totalQuantity));
             entityManager.flush();
             return product;
         });

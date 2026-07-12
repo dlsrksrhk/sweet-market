@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.sweet.market.cart.repository.CartItemRepository;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
 import com.sweet.market.product.api.ProductResponse;
 import com.sweet.market.product.api.ProductSummaryResponse;
 import com.sweet.market.product.domain.Product;
@@ -66,11 +67,14 @@ public class ProductQueryService {
         boolean carted = viewerId != null && cartItemRepository.existsByBuyerIdAndProductId(viewerId, productId);
         ReviewSummary productSummary = reviewRepository.summarizeByProductId(productId);
         ReviewSummary sellerSummary = reviewRepository.summarizeBySellerId(product.getStore().getOwnerMember().getId());
+        BuyerAvailabilityResponse availability = productRepository.findBuyerAvailabilityByProductId(productId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
         return ProductResponse.from(
                 product,
                 wishlistCount,
                 wishlisted,
                 carted,
+                availability,
                 productSummary.reviewCount(),
                 productSummary.averageRating(),
                 sellerSummary.reviewCount(),

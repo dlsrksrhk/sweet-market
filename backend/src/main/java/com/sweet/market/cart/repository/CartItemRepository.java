@@ -29,7 +29,16 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
                 seller.nickname,
                 p.title,
                 p.price,
-                p.status,
+                case
+                    when p.status = com.sweet.market.product.domain.ProductStatus.HIDDEN
+                        then com.sweet.market.product.domain.ProductStatus.HIDDEN
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                         and inventory.totalQuantity - inventory.reservedQuantity > 0
+                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                    else p.status
+                end,
                 coalesce(
                     (
                         select min(representativeImage.imageUrl)
@@ -55,17 +64,26 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
                     )
                 ),
                 ci.createdAt,
+                p.salesPolicy,
+                inventory.totalQuantity - inventory.reservedQuantity,
+                p.lowStockThreshold,
                 case
-                    when p.status = com.sweet.market.product.domain.ProductStatus.ON_SALE
+                    when p.status <> com.sweet.market.product.domain.ProductStatus.HIDDEN
+                     and (p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                          and inventory.totalQuantity - inventory.reservedQuantity > 0
+                          or p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.SINGLE_ITEM
+                          and p.status = com.sweet.market.product.domain.ProductStatus.ON_SALE)
                      and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
                      and seller.id <> :buyerId then true
                     else false
                 end,
                 case
                     when seller.id = :buyerId then 'OWN_PRODUCT'
+                    when p.status = com.sweet.market.product.domain.ProductStatus.HIDDEN then 'HIDDEN'
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                         and inventory.totalQuantity - inventory.reservedQuantity <= 0 then 'SOLD_OUT'
                     when p.status = com.sweet.market.product.domain.ProductStatus.RESERVED then 'RESERVED'
                     when p.status = com.sweet.market.product.domain.ProductStatus.SOLD_OUT then 'SOLD_OUT'
-                    when p.status = com.sweet.market.product.domain.ProductStatus.HIDDEN then 'HIDDEN'
                     else null
                 end
             )
@@ -73,6 +91,7 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
             join ci.product p
             join p.store store
             join store.ownerMember seller
+            left join Inventory inventory on inventory.product = p
             where ci.buyer.id = :buyerId
             order by ci.createdAt desc, ci.id desc
             """,

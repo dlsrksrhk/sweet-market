@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.sweet.market.product.admin.AdminProductSummaryResponse;
+import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
 import com.sweet.market.product.api.ProductSummaryResponse;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductStatus;
@@ -45,6 +46,28 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             """)
     Optional<Product> findBuyerVisibleDetailById(@Param("id") Long id);
 
+    @Query("""
+            select new com.sweet.market.inventory.api.BuyerAvailabilityResponse(
+                p.salesPolicy,
+                case
+                    when p.status = com.sweet.market.product.domain.ProductStatus.HIDDEN
+                        then com.sweet.market.product.domain.ProductStatus.HIDDEN
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                         and inventory.totalQuantity - inventory.reservedQuantity > 0
+                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                    else p.status
+                end,
+                inventory.totalQuantity - inventory.reservedQuantity,
+                p.lowStockThreshold
+            )
+            from Product p
+            left join Inventory inventory on inventory.product = p
+            where p.id = :productId
+            """)
+    Optional<BuyerAvailabilityResponse> findBuyerAvailabilityByProductId(@Param("productId") Long productId);
+
     @EntityGraph(attributePaths = {"store", "store.ownerMember"})
     Page<Product> findByStatusOrderByIdDesc(ProductStatus status, Pageable pageable);
 
@@ -58,7 +81,14 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 owner.nickname,
                 p.title,
                 p.price,
-                p.status,
+                case
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                         and inventory.totalQuantity - inventory.reservedQuantity > 0
+                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                    else p.status
+                end,
                 coalesce(
                     (
                         select min(representativeImage.imageUrl)
@@ -107,12 +137,24 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                           and cartItem.buyer.id = :viewerId
                     ) > 0 then true
                     else false
-                end
+                end,
+                p.salesPolicy,
+                inventory.totalQuantity - inventory.reservedQuantity,
+                p.lowStockThreshold
             )
             from Product p
             join p.store store
             join store.ownerMember owner
-            where p.status = :status
+            left join Inventory inventory on inventory.product = p
+            where p.status <> com.sweet.market.product.domain.ProductStatus.HIDDEN
+              and case
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                         and inventory.totalQuantity - inventory.reservedQuantity > 0
+                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                    else p.status
+                  end = :status
               and (store.type <> com.sweet.market.store.domain.StoreType.BUSINESS
                    or store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE)
             order by p.id desc
@@ -121,7 +163,16 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             select count(p)
             from Product p
             join p.store store
-            where p.status = :status
+            left join Inventory inventory on inventory.product = p
+            where p.status <> com.sweet.market.product.domain.ProductStatus.HIDDEN
+              and case
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                         and inventory.totalQuantity - inventory.reservedQuantity > 0
+                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                    else p.status
+                  end = :status
               and (store.type <> com.sweet.market.store.domain.StoreType.BUSINESS
                    or store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE)
             """)
@@ -141,7 +192,14 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 owner.nickname,
                 p.title,
                 p.price,
-                p.status,
+                case
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                         and inventory.totalQuantity - inventory.reservedQuantity > 0
+                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                    else p.status
+                end,
                 coalesce(
                     (
                         select min(representativeImage.imageUrl)
@@ -190,22 +248,43 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                           and cartItem.buyer.id = :viewerId
                     ) > 0 then true
                     else false
-                end
+                end,
+                p.salesPolicy,
+                inventory.totalQuantity - inventory.reservedQuantity,
+                p.lowStockThreshold
             )
             from Product p
             join p.store store
             join store.ownerMember owner
+            left join Inventory inventory on inventory.product = p
             where store.id = :storeId
               and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
-              and p.status = :status
+              and p.status <> com.sweet.market.product.domain.ProductStatus.HIDDEN
+              and case
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                         and inventory.totalQuantity - inventory.reservedQuantity > 0
+                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                    else p.status
+                  end = :status
             """,
             countQuery = """
             select count(p)
             from Product p
             join p.store store
+            left join Inventory inventory on inventory.product = p
             where store.id = :storeId
               and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
-              and p.status = :status
+              and p.status <> com.sweet.market.product.domain.ProductStatus.HIDDEN
+              and case
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                         and inventory.totalQuantity - inventory.reservedQuantity > 0
+                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                    else p.status
+                  end = :status
             """)
     Page<StorefrontProductResponse> findStorefrontProducts(
             @Param("storeId") Long storeId,
@@ -216,12 +295,22 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     @Query("""
             select new com.sweet.market.store.operations.StoreCatalogSummaryResponse(
-                coalesce(sum(case when p.status = com.sweet.market.product.domain.ProductStatus.ON_SALE then 1 else 0 end), 0),
-                coalesce(sum(case when p.status = com.sweet.market.product.domain.ProductStatus.RESERVED then 1 else 0 end), 0),
-                coalesce(sum(case when p.status = com.sweet.market.product.domain.ProductStatus.SOLD_OUT then 1 else 0 end), 0),
+                coalesce(sum(case when p.status <> com.sweet.market.product.domain.ProductStatus.HIDDEN
+                    and (p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        and inventory.totalQuantity - inventory.reservedQuantity > 0
+                        or p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.SINGLE_ITEM
+                        and p.status = com.sweet.market.product.domain.ProductStatus.ON_SALE) then 1 else 0 end), 0),
+                coalesce(sum(case when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.SINGLE_ITEM
+                    and p.status = com.sweet.market.product.domain.ProductStatus.RESERVED then 1 else 0 end), 0),
+                coalesce(sum(case when p.status <> com.sweet.market.product.domain.ProductStatus.HIDDEN
+                    and (p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        and inventory.totalQuantity - inventory.reservedQuantity <= 0
+                        or p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.SINGLE_ITEM
+                        and p.status = com.sweet.market.product.domain.ProductStatus.SOLD_OUT) then 1 else 0 end), 0),
                 coalesce(sum(case when p.status = com.sweet.market.product.domain.ProductStatus.HIDDEN then 1 else 0 end), 0)
             )
             from Product p
+            left join Inventory inventory on inventory.product = p
             where p.store.id = :storeId
             """)
     StoreCatalogSummaryResponse summarizeStoreCatalog(@Param("storeId") Long storeId);
@@ -255,18 +344,52 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                 ),
                 p.title,
                 p.price,
-                p.status
+                case
+                    when p.status = com.sweet.market.product.domain.ProductStatus.HIDDEN
+                        then com.sweet.market.product.domain.ProductStatus.HIDDEN
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                         and inventory.totalQuantity - inventory.reservedQuantity > 0
+                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                    else p.status
+                end,
+                p.salesPolicy,
+                inventory.totalQuantity,
+                inventory.reservedQuantity,
+                inventory.totalQuantity - inventory.reservedQuantity,
+                p.lowStockThreshold
             )
             from Product p
+            left join Inventory inventory on inventory.product = p
             where p.store.id = :storeId
-              and (:status is null or p.status = :status)
+              and (:status is null or case
+                    when p.status = com.sweet.market.product.domain.ProductStatus.HIDDEN
+                        then com.sweet.market.product.domain.ProductStatus.HIDDEN
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                         and inventory.totalQuantity - inventory.reservedQuantity > 0
+                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                    else p.status
+                  end = :status)
               and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
             """,
             countQuery = """
             select count(p)
             from Product p
+            left join Inventory inventory on inventory.product = p
             where p.store.id = :storeId
-              and (:status is null or p.status = :status)
+              and (:status is null or case
+                    when p.status = com.sweet.market.product.domain.ProductStatus.HIDDEN
+                        then com.sweet.market.product.domain.ProductStatus.HIDDEN
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                         and inventory.totalQuantity - inventory.reservedQuantity > 0
+                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                    else p.status
+                  end = :status)
               and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
             """)
     Page<StoreCatalogProductResponse> searchStoreCatalog(
