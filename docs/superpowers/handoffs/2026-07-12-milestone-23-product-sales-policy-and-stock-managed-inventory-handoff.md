@@ -8,7 +8,7 @@ Milestone 23 adds an immutable product sales policy and a stock-managed inventor
 - `Inventory` owns total and reserved quantities. Available quantity is derived as total minus reserved, and total cannot fall below reservations.
 - Initialization, manual adjustment, reservation, release, and shipment commitment append `InventoryAdjustment` records. The product and inventory mappings do not expose an eager adjustment collection.
 - `V5__add_product_sales_policy_and_inventory.sql` backfills existing products to `SINGLE_ITEM`, adds quantity constraints, and indexes history by `(product_id, occurred_at DESC, id DESC)`.
-- Buyer product, storefront, and cart projections expose only `IN_STOCK`, `LOW_STOCK`, or `SOLD_OUT`, with a quantity only for low stock. Operator projections additionally expose total, reserved, available, and threshold values.
+- Buyer product, storefront, cart, and wishlist projections expose only `IN_STOCK`, `LOW_STOCK`, or `SOLD_OUT`, with a quantity only for low stock. Operator projections additionally expose total, reserved, available, and threshold values.
 - The web console supports business-store policy selection, operator adjustment, paginated history, inactive-store read-only behavior, and the required query invalidations.
 
 ## Authorization and immutable-history evidence
@@ -17,15 +17,15 @@ Milestone 23 adds an immutable product sales policy and a stock-managed inventor
 - History reads use `requireOperator`: OWNER and MANAGER may read history, including for a suspended store, while an outsider is denied.
 - `StoreOperationsApiTest` covers owner/manager adjustment and history, outsider denial, suspended-store read-only behavior, validation limits, deterministic pagination, optimistic-lock conflict mapping, and rollback of inventory plus audit changes.
 - The final regression creates a real initialization adjustment and verifies authenticated `DELETE /api/store-operations/{storeId}/products/{productId}/inventory/history/{id}` returns 404. Controller inspection shows only the inventory PATCH and history GET mappings; no history update or delete command is implemented.
-- Fresh full-run XML: `StoreOperationsApiTest` ran 27 tests with 0 failures, 0 errors, and 0 skipped. The four inventory suites ran 12 tests with 0 failures, 0 errors, and 0 skipped.
+- Pre-final-review full-run XML: `StoreOperationsApiTest` ran 27 tests with 0 failures, 0 errors, and 0 skipped. The four inventory suites ran 12 tests with 0 failures, 0 errors, and 0 skipped. The final-review focused run below supersedes the store-operation count with 28 tests.
 
 ## Order lifecycle evidence
 
 - Direct order and cart checkout reserve one unit for `STOCK_MANAGED`; cart addition only revalidates availability.
-- Created-order cancellation and approved-payment cancellation release the reservation exactly once.
+- Created-order cancellation and approved-payment cancellation release the reservation exactly once. A failed stock-managed payment approval now rolls back the approval attempt, then cancels the still-created order and releases its reservation in a separate `REQUIRES_NEW` transaction; retries do not append another release.
 - Shipment start commits the sale by decrementing total and reserved together.
 - A later refund does not restore shipped inventory automatically.
-- Fresh full-run XML included `OrderApiTest` 11, `CartApiTest` 17, `CartCheckoutApiTest` 9, `PaymentApiTest` 9, and `RefundRequestApiTest` 30 tests, all with 0 failures, 0 errors, and 0 skipped.
+- Pre-final-review full-run XML included `OrderApiTest` 11, `CartApiTest` 17, `CartCheckoutApiTest` 9, `PaymentApiTest` 9, and `RefundRequestApiTest` 30 tests, all with 0 failures, 0 errors, and 0 skipped. The final-review focused run below supersedes the payment count with 10 tests.
 
 ## Query-shape evidence
 
@@ -77,6 +77,29 @@ Result: exit 0; both TypeScript checks passed, Vite 6.4.3 transformed 138 module
 ## Known verification limitation
 
 Task 6 could not run authenticated OWNER/MANAGER/PERSONAL browser flows or a live 390px overflow measurement because no in-app browser runtime was available. The production web build and static responsive/privacy checks passed; this handoff does not claim interactive browser evidence.
+
+## Final-review corrections (2026-07-12)
+
+Implementation commit: `0adc7d35e5f4e2a39e6eccac107d4da287cf60e7` (`fix: close inventory final review gaps`).
+
+- Failed stock-managed payment approval is coordinated outside the failed transaction. The isolated approval attempt rolls back first; a `REQUIRES_NEW` cleanup then locks the still-created order, cancels it, restores availability, and appends one release audit. A repeated request remains `PAYMENT_APPROVE_NOT_ALLOWED` without another release. Single-item and already-paid behavior is unchanged.
+- Wishlist add checks the buyer-safe availability projection and rejects zero stock with `WISHLIST_PRODUCT_NOT_ON_SALE`. Wishlist list uses a lightweight inventory join, computes stock-managed `ON_SALE`/`SOLD_OUT`, exposes low-stock quantity only, and the web renders `BuyerAvailabilityBadge`.
+- Authorized inventory history exposes nullable `orderId`; API regression covers reservation, release, and shipment commitment, and the operator UI displays `주문 #N` for those entries.
+
+The final-review backend verification intentionally ran relevant suites, not the full suite:
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+$env:SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE='4'
+.\gradlew.bat test --tests 'com.sweet.market.payment.PaymentApiTest' --tests 'com.sweet.market.wishlist.WishlistApiTest' --tests 'com.sweet.market.store.StoreOperationsApiTest' --tests 'com.sweet.market.inventory.*' --tests 'com.sweet.market.order.OrderApiTest' --rerun-tasks
+```
+
+Result: exit 0, `BUILD SUCCESSFUL in 51s`; 79 tests in 8 suites, 0 failures, 0 errors, 0 skipped. Suite counts: Payment 10, Wishlist 18, StoreOperations 28, inventory 12, Order 11.
+
+`cd web; npm run build` returned exit 0; TypeScript checks passed, Vite transformed 138 modules and built in 1.65s. `git diff --check` returned exit 0 with no diagnostics. The root `package-lock.json` remained untracked and unstaged.
 
 ## M24 boundary
 
