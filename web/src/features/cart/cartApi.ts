@@ -1,6 +1,6 @@
 import { api } from '../../shared/api/http';
 import { type OrderSummary } from '../orders/orderApi';
-import { type Page, type ProductStatus } from '../products/productApi';
+import { type BuyerAvailability, type Page, type ProductStatus } from '../products/productApi';
 
 export type CartResponse = {
   productId: number;
@@ -19,6 +19,7 @@ export type CartItem = {
   cartedAt: string;
   checkoutAvailable: boolean;
   unavailableReason: string | null;
+  availability: BuyerAvailability;
 };
 
 export type CartCheckoutResponse = {

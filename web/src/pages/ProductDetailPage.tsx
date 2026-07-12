@@ -10,7 +10,7 @@ import { getProductReviews } from '../features/reviews/reviewApi';
 import { getMyStores, storeQueryKeys } from '../features/stores/storeApi';
 import { WishlistToggle } from '../features/wishlist/WishlistToggle';
 import { type ApiError } from '../shared/api/http';
-import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
+import { BuyerAvailabilityBadge, EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
 import { parsePositiveIntegerParam } from '../shared/utils/parseId';
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR');
@@ -115,7 +115,7 @@ export function ProductDetailPage() {
       <article className="product-detail-info">
         <div className="product-detail-heading">
           <div className="product-detail-status-row">
-            <StatusBadge status={product.status} />
+            <BuyerAvailabilityBadge availability={product.availability} />
             <WishlistToggle
               productId={product.id}
               sellerId={product.sellerId}

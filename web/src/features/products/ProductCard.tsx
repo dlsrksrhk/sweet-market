@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import { CartToggle } from '../cart/CartToggle';
 import { WishlistToggle } from '../wishlist/WishlistToggle';
-import { StatusBadge } from '../../shared/ui/ResourceStates';
-import type { ProductStatus } from './productApi';
+import { BuyerAvailabilityBadge, StatusBadge } from '../../shared/ui/ResourceStates';
+import type { BuyerAvailability, ProductStatus } from './productApi';
 import { toProductImageSrc } from './productApi';
 import type { StoreType } from '../stores/storeApi';
 
@@ -21,6 +21,7 @@ export type BuyerProductCard = {
   wishlistCount: number;
   wishlisted: boolean;
   carted: boolean;
+  availability: BuyerAvailability;
 };
 
 type ProductCardProps = {
@@ -35,7 +36,7 @@ export function ProductCard({ product }: ProductCardProps) {
         <div className="product-card-body">
           <div className="product-card-title-row">
             <h2>{product.title}</h2>
-            <StatusBadge status={product.status} />
+            <BuyerAvailabilityBadge availability={product.availability} />
           </div>
           <strong>{currencyFormatter.format(product.price)}원</strong>
         </div>

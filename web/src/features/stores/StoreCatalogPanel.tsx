@@ -4,10 +4,15 @@ import { Link } from 'react-router-dom';
 import { toProductImageSrc, type ProductStatus } from '../products/productApi';
 import { storeQueryKeys } from './storeApi';
 import {
+  adjustProductInventory,
+  getProductInventoryHistory,
   getStoreCatalogProducts,
   hideStoreProducts,
   showStoreProducts,
   storeOperationQueryKeys,
+  type InventoryAdjustmentInput,
+  type InventoryAdjustmentReason,
+  type StoreCatalogProduct,
   type StoreCatalogSort,
 } from './storeOperationsApi';
 import { type ApiError } from '../../shared/api/http';
@@ -21,6 +26,7 @@ type StoreCatalogPanelProps = {
 type CatalogAction = 'hide' | 'show';
 
 const PAGE_SIZE = 20;
+const HISTORY_PAGE_SIZE = 10;
 const currencyFormatter = new Intl.NumberFormat('ko-KR');
 const statusOptions: { value: ProductStatus | ''; label: string }[] = [
   { value: '', label: '전체 상태' },
@@ -28,6 +34,13 @@ const statusOptions: { value: ProductStatus | ''; label: string }[] = [
   { value: 'RESERVED', label: '예약중' },
   { value: 'SOLD_OUT', label: '판매완료' },
   { value: 'HIDDEN', label: '숨김' },
+];
+const adjustmentReasons: { value: InventoryAdjustmentReason; label: string }[] = [
+  { value: 'RESTOCK', label: '입고' },
+  { value: 'STOCKTAKE', label: '재고 실사' },
+  { value: 'DAMAGE_OR_DISPOSAL', label: '파손·폐기' },
+  { value: 'RETURN_RESTOCK', label: '반품 재입고' },
+  { value: 'OTHER', label: '기타' },
 ];
 
 export function StoreCatalogPanel({ storeId, catalogWritable }: StoreCatalogPanelProps) {
@@ -40,6 +53,9 @@ export function StoreCatalogPanel({ storeId, catalogWritable }: StoreCatalogPane
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [adjustmentProduct, setAdjustmentProduct] = useState<StoreCatalogProduct | null>(null);
+  const [historyProduct, setHistoryProduct] = useState<StoreCatalogProduct | null>(null);
+  const [historyPage, setHistoryPage] = useState(0);
   const searchInput = { status: status || undefined, keyword, sort, page, size: PAGE_SIZE };
   const catalogQuery = useQuery({
     queryKey: storeOperationQueryKeys.productList(storeId, searchInput),
@@ -49,11 +65,28 @@ export function StoreCatalogPanel({ storeId, catalogWritable }: StoreCatalogPane
     mutationFn: ({ action, productIds }: { action: CatalogAction; productIds: number[] }) =>
       action === 'hide' ? hideStoreProducts(storeId, productIds) : showStoreProducts(storeId, productIds),
   });
+  const adjustmentMutation = useMutation({
+    mutationFn: ({ productId, input }: { productId: number; input: InventoryAdjustmentInput }) =>
+      adjustProductInventory(storeId, productId, input),
+  });
+  const historyQuery = useQuery({
+    queryKey: storeOperationQueryKeys.inventoryHistory(
+      storeId,
+      historyProduct?.productId ?? 0,
+      historyPage,
+      HISTORY_PAGE_SIZE,
+    ),
+    queryFn: () => getProductInventoryHistory(storeId, historyProduct?.productId ?? 0, historyPage, HISTORY_PAGE_SIZE),
+    enabled: historyProduct !== null,
+  });
 
   useEffect(() => {
     setSelectedIds(new Set());
     setMutationError(null);
     setSuccessMessage(null);
+    setAdjustmentProduct(null);
+    setHistoryProduct(null);
+    setHistoryPage(0);
   }, [keyword, page, sort, status, storeId]);
 
   const products = useMemo(() => catalogQuery.data?.content ?? [], [catalogQuery.data]);
@@ -64,7 +97,7 @@ export function StoreCatalogPanel({ storeId, catalogWritable }: StoreCatalogPane
       ? 'show'
       : null;
   const allRowsSelected = products.length > 0 && products.every((product) => selectedIds.has(product.productId));
-  const commandsDisabled = !catalogWritable || mutation.isPending;
+  const commandsDisabled = !catalogWritable || mutation.isPending || adjustmentMutation.isPending;
 
   const submitSearch = (event: FormEvent) => {
     event.preventDefault();
@@ -88,6 +121,26 @@ export function StoreCatalogPanel({ storeId, catalogWritable }: StoreCatalogPane
       setMutationError(toErrorMessage(error, `상품을 ${actionLabel} 처리하지 못했습니다.`));
       await reconcileCatalogQueries(queryClient, storeId, true);
       setSelectedIds(new Set());
+    }
+  };
+
+  const submitAdjustment = async (input: InventoryAdjustmentInput) => {
+    if (!adjustmentProduct || commandsDisabled) return;
+
+    setMutationError(null);
+    setSuccessMessage(null);
+    try {
+      await adjustmentMutation.mutateAsync({ productId: adjustmentProduct.productId, input });
+      await Promise.allSettled([
+        reconcileCatalogQueries(queryClient, storeId),
+        queryClient.invalidateQueries({ queryKey: storeOperationQueryKeys.inventory(storeId, adjustmentProduct.productId) }),
+      ]);
+      setHistoryProduct(adjustmentProduct);
+      setHistoryPage(0);
+      setSuccessMessage(`${adjustmentProduct.title}의 총 재고를 ${input.totalQuantity}개로 조정했습니다.`);
+      setAdjustmentProduct(null);
+    } catch (error) {
+      setMutationError(toErrorMessage(error, '재고를 조정하지 못했습니다.'));
     }
   };
 
@@ -121,20 +174,47 @@ export function StoreCatalogPanel({ storeId, catalogWritable }: StoreCatalogPane
       {catalogQuery.data?.content.length === 0 ? <EmptyState title="조건에 맞는 상품이 없습니다" description="검색 조건을 바꿔보세요." /> : null}
       {products.length > 0 ? (
         <div className="store-catalog-table">
-          <div className="store-catalog-table-head"><span><input type="checkbox" aria-label="현재 페이지 전체 선택" checked={allRowsSelected} disabled={commandsDisabled} onChange={() => toggleAll(products.map((product) => product.productId), allRowsSelected, setSelectedIds)} /></span><span>상품</span><span>상태</span><span>가격</span><span>작업</span></div>
+          <div className="store-catalog-table-head"><span><input type="checkbox" aria-label="현재 페이지 전체 선택" checked={allRowsSelected} disabled={commandsDisabled} onChange={() => toggleAll(products.map((product) => product.productId), allRowsSelected, setSelectedIds)} /></span><span>상품</span><span>상태</span><span>재고</span><span>가격</span><span>작업</span></div>
           {products.map((product) => (
             <div className={`store-catalog-row${selectedIds.has(product.productId) ? ' is-selected' : ''}`} key={product.productId}>
               <label className="store-catalog-select"><input type="checkbox" aria-label={`${product.title} 선택`} checked={selectedIds.has(product.productId)} disabled={commandsDisabled} onChange={() => toggleOne(product.productId, setSelectedIds)} /></label>
               <div className="store-catalog-product">{product.thumbnailUrl ? <img src={toProductImageSrc(product.thumbnailUrl) ?? product.thumbnailUrl} alt="" /> : <div className="store-catalog-thumbnail-placeholder">이미지 없음</div>}<strong>{product.title}</strong></div>
               <div data-label="상태"><StatusBadge status={product.status} /></div>
+              <div className="store-catalog-inventory" data-label="재고">{renderInventory(product)}</div>
               <strong data-label="가격">{currencyFormatter.format(product.price)}원</strong>
-              <div className="store-catalog-actions" data-label="작업">{renderRowActions(product.productId, product.status, commandsDisabled, runAction)}</div>
+              <div className="store-catalog-actions" data-label="작업">
+                {renderRowActions(product, commandsDisabled, runAction)}
+                {product.salesPolicy === 'STOCK_MANAGED' ? (
+                  <>
+                    <button className="text-button" type="button" disabled={commandsDisabled} onClick={() => setAdjustmentProduct(product)}>재고 조정</button>
+                    <button className="text-button secondary-button" type="button" onClick={() => { setHistoryProduct(product); setHistoryPage(0); }}>변경 이력</button>
+                  </>
+                ) : null}
+              </div>
             </div>
           ))}
         </div>
       ) : null}
+      {historyProduct ? (
+        <InventoryHistoryPanel
+          product={historyProduct}
+          page={historyPage}
+          query={historyQuery}
+          onClose={() => setHistoryProduct(null)}
+          onMovePage={setHistoryPage}
+        />
+      ) : null}
       {catalogQuery.data && catalogQuery.data.totalPages > 0 ? (
         <nav className="store-catalog-pagination" aria-label="카탈로그 페이지 이동"><button className="text-button" type="button" disabled={page === 0 || catalogQuery.isFetching} onClick={() => setPage(page - 1)}>이전</button><span>{page + 1} / {Math.max(catalogQuery.data.totalPages, 1)}</span><button className="text-button" type="button" disabled={page + 1 >= catalogQuery.data.totalPages || catalogQuery.isFetching} onClick={() => setPage(page + 1)}>다음</button></nav>
+      ) : null}
+      {adjustmentProduct ? (
+        <InventoryAdjustmentModal
+          product={adjustmentProduct}
+          error={mutationError}
+          pending={adjustmentMutation.isPending}
+          onClose={() => { if (!adjustmentMutation.isPending) { setAdjustmentProduct(null); setMutationError(null); } }}
+          onSubmit={submitAdjustment}
+        />
       ) : null}
     </section>
   );
@@ -146,6 +226,7 @@ async function reconcileCatalogQueries(queryClient: QueryClient, storeId: number
     queryClient.invalidateQueries({ queryKey: storeOperationQueryKeys.products(storeId) }),
     queryClient.invalidateQueries({ queryKey: storeQueryKeys.publicProducts(storeId) }),
     queryClient.invalidateQueries({ queryKey: ['products'] }),
+    queryClient.invalidateQueries({ queryKey: ['my-cart'] }),
   ];
 
   if (includeStoreList) {
@@ -155,11 +236,112 @@ async function reconcileCatalogQueries(queryClient: QueryClient, storeId: number
   await Promise.allSettled(invalidations);
 }
 
-function renderRowActions(productId: number, status: ProductStatus, disabled: boolean, runAction: (action: CatalogAction, productIds: number[]) => void) {
+function renderRowActions(product: StoreCatalogProduct, disabled: boolean, runAction: (action: CatalogAction, productIds: number[]) => void) {
+  const { productId, status } = product;
   if (status === 'ON_SALE') return <>{disabled ? <button type="button" className="text-button" disabled>수정</button> : <Link className="text-button" to={`/products/${productId}/edit`}>수정</Link>}<button className="text-button danger-button" type="button" disabled={disabled} onClick={() => runAction('hide', [productId])}>숨기기</button></>;
   if (status === 'HIDDEN') return <button className="text-button" type="button" disabled={disabled} onClick={() => runAction('show', [productId])}>공개하기</button>;
   if (status === 'SOLD_OUT') return disabled ? <button type="button" className="text-button" disabled>수정</button> : <Link className="text-button" to={`/products/${productId}/edit`}>수정</Link>;
   return <span className="status-text">작업 없음</span>;
+}
+
+function renderInventory(product: StoreCatalogProduct) {
+  if (product.salesPolicy === 'SINGLE_ITEM') {
+    return <span className="status-text">단일 상품</span>;
+  }
+
+  return (
+    <span>
+      총 {product.totalQuantity ?? 0} · 예약 {product.reservedQuantity ?? 0} · 가용 {product.availableQuantity ?? 0}
+      <small>부족 기준 {product.lowStockThreshold ?? '-'}개</small>
+    </span>
+  );
+}
+
+type InventoryAdjustmentModalProps = {
+  product: StoreCatalogProduct;
+  error: string | null;
+  pending: boolean;
+  onClose: () => void;
+  onSubmit: (input: InventoryAdjustmentInput) => Promise<void>;
+};
+
+function InventoryAdjustmentModal({ product, error, pending, onClose, onSubmit }: InventoryAdjustmentModalProps) {
+  const [totalQuantity, setTotalQuantity] = useState(product.totalQuantity ?? 0);
+  const [reason, setReason] = useState<InventoryAdjustmentReason>('RESTOCK');
+  const [referenceNote, setReferenceNote] = useState('');
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    void onSubmit({
+      totalQuantity,
+      reason,
+      referenceNote: referenceNote.trim() || undefined,
+    });
+  };
+
+  return (
+    <div className="inventory-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="inventory-modal" role="dialog" aria-modal="true" aria-labelledby="inventory-adjustment-title">
+        <div className="inventory-modal-heading">
+          <div><p className="eyebrow">INVENTORY</p><h3 id="inventory-adjustment-title">{product.title} 재고 조정</h3></div>
+          <button type="button" className="text-button secondary-button" disabled={pending} onClick={onClose}>닫기</button>
+        </div>
+        <p className="status-text">현재 총 {product.totalQuantity ?? 0}개 · 예약 {product.reservedQuantity ?? 0}개</p>
+        <form className="inventory-adjustment-form" onSubmit={submit}>
+          <label>조정 후 총 재고<input type="number" min={product.reservedQuantity ?? 0} step="1" required value={totalQuantity} onChange={(event) => setTotalQuantity(Number(event.target.value))} /></label>
+          <label>조정 사유<select value={reason} onChange={(event) => setReason(event.target.value as InventoryAdjustmentReason)}>{adjustmentReasons.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          <label>참고 메모 (선택)<textarea rows={3} maxLength={500} value={referenceNote} onChange={(event) => setReferenceNote(event.target.value)} /></label>
+          {error ? <p className="error-text" role="alert">{error}</p> : null}
+          <button type="submit" className="text-button" disabled={pending}>{pending ? '조정 중' : '재고 조정하기'}</button>
+        </form>
+      </section>
+    </div>
+  );
+}
+
+type InventoryHistoryPanelProps = {
+  product: StoreCatalogProduct;
+  page: number;
+  query: ReturnType<typeof useQuery<Awaited<ReturnType<typeof getProductInventoryHistory>>, Error>>;
+  onClose: () => void;
+  onMovePage: (page: number) => void;
+};
+
+function InventoryHistoryPanel({ product, page, query, onClose, onMovePage }: InventoryHistoryPanelProps) {
+  return (
+    <section className="inventory-history" aria-labelledby="inventory-history-title">
+      <div className="inventory-history-heading">
+        <div><p className="eyebrow">HISTORY</p><h3 id="inventory-history-title">{product.title} 재고 변경 이력</h3></div>
+        <button type="button" className="text-button secondary-button" onClick={onClose}>닫기</button>
+      </div>
+      {query.isLoading ? <p className="status-text">재고 변경 이력을 불러오고 있습니다.</p> : null}
+      {query.error ? <ErrorState message={toErrorMessage(query.error, '재고 변경 이력을 불러오지 못했습니다.')} /> : null}
+      {query.data?.content.length === 0 ? <EmptyState title="재고 변경 이력이 없습니다" /> : null}
+      {query.data?.content.length ? (
+        <div className="inventory-history-list">
+          {query.data.content.map((adjustment) => (
+            <article key={adjustment.adjustmentId}>
+              <div><strong>{toAdjustmentReasonLabel(adjustment.reason)}</strong><time dateTime={adjustment.occurredAt}>{new Date(adjustment.occurredAt).toLocaleString('ko-KR')}</time></div>
+              <p>총 재고 {adjustment.beforeTotalQuantity} → {adjustment.afterTotalQuantity} · 예약 {adjustment.beforeReservedQuantity} → {adjustment.afterReservedQuantity}</p>
+              <span className="status-text">{adjustment.actorNickname ?? '시스템'}{adjustment.referenceNote ? ` · ${adjustment.referenceNote}` : ''}</span>
+            </article>
+          ))}
+        </div>
+      ) : null}
+      {query.data && query.data.totalPages > 0 ? (
+        <nav className="store-catalog-pagination" aria-label="재고 변경 이력 페이지 이동">
+          <button className="text-button" type="button" disabled={page === 0 || query.isFetching} onClick={() => onMovePage(page - 1)}>이전</button>
+          <span>{page + 1} / {Math.max(query.data.totalPages, 1)}</span>
+          <button className="text-button" type="button" disabled={page + 1 >= query.data.totalPages || query.isFetching} onClick={() => onMovePage(page + 1)}>다음</button>
+        </nav>
+      ) : null}
+    </section>
+  );
+}
+
+function toAdjustmentReasonLabel(reason: InventoryAdjustmentReason | null) {
+  if (reason === null) return '시스템 변경';
+  return adjustmentReasons.find((option) => option.value === reason)?.label ?? reason;
 }
 
 function toggleOne(productId: number, setSelectedIds: React.Dispatch<React.SetStateAction<Set<number>>>) {
