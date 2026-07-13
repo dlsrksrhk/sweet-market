@@ -13,6 +13,8 @@ import com.sweet.market.catalog.api.CatalogSearchRequest;
 import com.sweet.market.catalog.api.CatalogSearchResponse;
 import com.sweet.market.catalog.query.CatalogSearchQueryService;
 import com.sweet.market.common.api.ApiResponse;
+import com.sweet.market.common.error.BusinessException;
+import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.product.domain.ProductStatus;
 
 import jakarta.validation.constraints.Max;
@@ -66,9 +68,12 @@ public class StorefrontController {
             HttpServletRequest httpServletRequest,
             @Valid @org.springframework.web.bind.annotation.ModelAttribute CatalogSearchRequest request
     ) {
+        if (httpServletRequest.getParameterMap().containsKey("storeId")) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
         return ApiResponse.ok(catalogSearchQueryService.search(
                 authenticatedMemberId(authentication),
-                httpServletRequest.getParameter("storeId") == null ? withoutStoreId(request) : request,
+                withoutStoreId(request),
                 storeId
         ));
     }

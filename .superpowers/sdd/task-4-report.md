@@ -33,3 +33,21 @@ $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 ```
 
 Result: `BUILD SUCCESSFUL`.
+
+## P1 Follow-up: Blank Fixed-Route Store Filter Rejection
+
+- Added MockMvc assertions that both `?storeId=` and `?storeId=   ` on `GET /api/stores/{storeId}/catalog/products` return `VALIDATION_ERROR`.
+- RED: the focused `CatalogApiTest` run failed because an empty query value bound to a null `CatalogSearchRequest.storeId` and the endpoint returned 200.
+- GREEN: the storefront controller now rejects when the raw request parameter map contains `storeId`, before stripping the path-variable value from the model-bound request. A route with no query `storeId` still passes the fixed route-store context to the shared service.
+
+Verification:
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+.\gradlew.bat test --tests 'com.sweet.market.catalog.CatalogApiTest' --tests 'com.sweet.market.store.StorefrontApiTest' --rerun-tasks
+```
+
+Result: `BUILD SUCCESSFUL`.

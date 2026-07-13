@@ -182,6 +182,14 @@ class CatalogApiTest extends IntegrationTestSupport {
                         .queryParam("storeId", active.getId().toString()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/stores/{storeId}/catalog/products", active.getId())
+                        .queryParam("storeId", ""))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        mockMvc.perform(get("/api/stores/{storeId}/catalog/products", active.getId())
+                        .queryParam("storeId", "   "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
         assertCatalogStoreNotFound(pending.getId());
         assertCatalogStoreNotFound(suspended.getId());
         assertCatalogStoreNotFound(999_999L);
