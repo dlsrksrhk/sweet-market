@@ -1,5 +1,6 @@
 package com.sweet.market.cart.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +21,17 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
     Optional<CartItem> findByBuyerIdAndProductId(Long buyerId, Long productId);
 
     long deleteByBuyerIdAndProductId(Long buyerId, Long productId);
+
+    @Query("""
+            select cartItem.product.id
+            from CartItem cartItem
+            where cartItem.buyer.id = :buyerId
+              and cartItem.product.id in :productIds
+            """)
+    List<Long> findProductIdsByBuyerIdAndProductIdIn(
+            @Param("buyerId") Long buyerId,
+            @Param("productIds") Collection<Long> productIds
+    );
 
     @Query(value = """
             select new com.sweet.market.cart.api.CartItemResponse(

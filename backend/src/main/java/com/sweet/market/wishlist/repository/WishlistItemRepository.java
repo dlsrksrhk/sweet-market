@@ -1,5 +1,6 @@
 package com.sweet.market.wishlist.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -22,6 +23,17 @@ public interface WishlistItemRepository extends JpaRepository<WishlistItem, Long
     long countByProductId(Long productId);
 
     long deleteByBuyerIdAndProductId(Long buyerId, Long productId);
+
+    @Query("""
+            select wishlistItem.product.id
+            from WishlistItem wishlistItem
+            where wishlistItem.buyer.id = :buyerId
+              and wishlistItem.product.id in :productIds
+            """)
+    List<Long> findProductIdsByBuyerIdAndProductIdIn(
+            @Param("buyerId") Long buyerId,
+            @Param("productIds") Collection<Long> productIds
+    );
 
     @Query(value = """
             select new com.sweet.market.wishlist.api.WishlistItemResponse(
