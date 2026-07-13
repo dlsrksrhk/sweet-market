@@ -31,6 +31,7 @@ import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.payment.application.PaymentGateway;
+import com.sweet.market.payment.application.PaymentGatewayException;
 import com.sweet.market.payment.repository.PaymentRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductSalesPolicy;
@@ -102,7 +103,7 @@ class PaymentApiTest extends IntegrationTestSupport {
         String buyerToken = signupAndLogin("failed-stock-buyer@example.com", "password123", "buyer");
         Long productId = createStockProduct("failed-stock-seller@example.com", 5);
         Long orderId = createOrder(buyerToken, productId);
-        doThrow(new IllegalStateException("gateway rejected"))
+        doThrow(new PaymentGatewayException("gateway rejected"))
                 .when(paymentGateway).approve(orderId, 10_000L);
 
         mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)

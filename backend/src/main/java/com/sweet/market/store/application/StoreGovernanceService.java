@@ -73,7 +73,7 @@ public class StoreGovernanceService {
             try {
                 store.changeLegalBusinessInformation(request.legalBusinessName(), request.businessRegistrationId());
             } catch (DomainException exception) {
-                throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED);
+                throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED, exception);
             }
         }
         return StorePrivateResponse.from(store);
@@ -85,7 +85,7 @@ public class StoreGovernanceService {
         try {
             store.approve();
         } catch (DomainException exception) {
-            throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED);
+            throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED, exception);
         }
         return StorePrivateResponse.from(store);
     }
@@ -99,7 +99,7 @@ public class StoreGovernanceService {
             if (exception.error() == StoreDomainError.REJECTION_REASON_REQUIRED) {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, exception);
             }
-            throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED);
+            throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED, exception);
         }
         return StorePrivateResponse.from(store);
     }
@@ -110,7 +110,7 @@ public class StoreGovernanceService {
         try {
             store.suspend();
         } catch (DomainException exception) {
-            throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED);
+            throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED, exception);
         }
         return StorePrivateResponse.from(store);
     }
@@ -121,7 +121,7 @@ public class StoreGovernanceService {
         try {
             store.reactivate();
         } catch (DomainException exception) {
-            throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED);
+            throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED, exception);
         }
         return StorePrivateResponse.from(store);
     }

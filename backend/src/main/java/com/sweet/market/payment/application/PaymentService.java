@@ -43,7 +43,7 @@ public class PaymentService {
         } catch (DomainException exception) {
             inventoryService.releaseAfterFailedPaymentApproval(orderId);
             throw new BusinessException(ErrorCode.PAYMENT_APPROVE_NOT_ALLOWED, exception);
-        } catch (IllegalStateException exception) {
+        } catch (PaymentGatewayException exception) {
             inventoryService.releaseAfterFailedPaymentApproval(orderId);
             throw new BusinessException(ErrorCode.PAYMENT_APPROVE_NOT_ALLOWED, exception);
         }

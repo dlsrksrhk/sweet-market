@@ -41,7 +41,7 @@ public class SettlementService {
         try {
             settlement = Settlement.create(order);
         } catch (DomainException exception) {
-            throw new BusinessException(ErrorCode.SETTLEMENT_CREATE_NOT_ALLOWED);
+            throw new BusinessException(ErrorCode.SETTLEMENT_CREATE_NOT_ALLOWED, exception);
         }
 
         Settlement savedSettlement = settlementRepository.save(settlement);

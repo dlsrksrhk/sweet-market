@@ -60,7 +60,7 @@ public class RefundRequestService {
         } catch (DataIntegrityViolationException exception) {
             throw new BusinessException(ErrorCode.DUPLICATE_REFUND_REQUEST);
         } catch (DomainException exception) {
-            throw new BusinessException(ErrorCode.REFUND_REQUEST_NOT_ALLOWED);
+            throw new BusinessException(ErrorCode.REFUND_REQUEST_NOT_ALLOWED, exception);
         }
     }
 
@@ -128,7 +128,7 @@ public class RefundRequestService {
             payment.refund();
             return RefundRequestResponse.from(refundRequest);
         } catch (DomainException exception) {
-            throw new BusinessException(ErrorCode.REFUND_REQUEST_HANDLE_NOT_ALLOWED);
+            throw new BusinessException(ErrorCode.REFUND_REQUEST_HANDLE_NOT_ALLOWED, exception);
         }
     }
 
@@ -140,7 +140,7 @@ public class RefundRequestService {
             refundRequest.reject(handler, rejectReason);
             return RefundRequestResponse.from(refundRequest);
         } catch (DomainException exception) {
-            throw new BusinessException(ErrorCode.REFUND_REQUEST_HANDLE_NOT_ALLOWED);
+            throw new BusinessException(ErrorCode.REFUND_REQUEST_HANDLE_NOT_ALLOWED, exception);
         }
     }
 
