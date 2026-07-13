@@ -10,12 +10,15 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.hibernate.resource.jdbc.spi.StatementInspector;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DelegatingDataSource;
 import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sweet.market.cart.domain.CartItem;
@@ -29,6 +32,7 @@ import com.sweet.market.jpalab.QueryOptimizationTestSupport;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.repository.StoreRepository;
@@ -37,6 +41,10 @@ import com.sweet.market.wishlist.repository.WishlistItemRepository;
 
 import javax.sql.DataSource;
 
+@TestPropertySource(properties = {
+        "spring.jpa.properties.hibernate.session_factory.statement_inspector="
+                + "com.sweet.market.catalog.CatalogQueryOptimizationTest$SqlStatementInspector"
+})
 class CatalogQueryOptimizationTest extends QueryOptimizationTestSupport {
 
     @Autowired
@@ -69,7 +77,7 @@ class CatalogQueryOptimizationTest extends QueryOptimizationTestSupport {
         entityManager.persist(CartItem.create(entityManager.getReference(Member.class, fixture.viewerId()),
                 entityManager.getReference(Product.class, fixture.productIds().get(fixture.productIds().size() - 2))));
         flushAndClear();
-        resetStatistics();
+        쿼리_측정을_초기화한다();
         SqlRecordingDataSource recordingDataSource = new SqlRecordingDataSource(
                 new TransactionAwareDataSourceProxy(dataSource)
         );
@@ -78,11 +86,12 @@ class CatalogQueryOptimizationTest extends QueryOptimizationTestSupport {
                 fixture.viewerId(), 기본_요청(), null);
 
         assertThat(page.content()).hasSize(12);
+        assertThat(page.content()).allSatisfy(product -> assertThat(product.representativeImageUrl()).isNotBlank());
         assertThat(page.content()).anySatisfy(product -> assertThat(product.wishlisted()).isTrue());
         assertThat(page.content()).anySatisfy(product -> assertThat(product.carted()).isTrue());
-        assertThat(queryCount()).isLessThanOrEqualTo(3L);
+        assertThat(queryCount()).isLessThanOrEqualTo(2L);
         assertThat(collectionFetchCount()).isZero();
-        조정이력과_카운트없는_단일_카탈로그_쿼리를_검증한다(recordingDataSource);
+        모든_쿼리_예산과_금지_SQL을_검증한다(recordingDataSource, 3);
     }
 
     @Test
@@ -90,7 +99,7 @@ class CatalogQueryOptimizationTest extends QueryOptimizationTestSupport {
     void 익명_카탈로그_페이지는_단일_카탈로그_쿼리와_컬렉션_조회없이_조회한다() {
         카탈로그_픽스처를_저장한다(20);
         flushAndClear();
-        resetStatistics();
+        쿼리_측정을_초기화한다();
         SqlRecordingDataSource recordingDataSource = new SqlRecordingDataSource(
                 new TransactionAwareDataSourceProxy(dataSource)
         );
@@ -98,9 +107,10 @@ class CatalogQueryOptimizationTest extends QueryOptimizationTestSupport {
         CatalogSearchResponse page = 기록_서비스(recordingDataSource).search(null, 기본_요청(), null);
 
         assertThat(page.content()).hasSize(12);
+        assertThat(page.content()).allSatisfy(product -> assertThat(product.representativeImageUrl()).isNotBlank());
         assertThat(queryCount()).isZero();
         assertThat(collectionFetchCount()).isZero();
-        조정이력과_카운트없는_단일_카탈로그_쿼리를_검증한다(recordingDataSource);
+        모든_쿼리_예산과_금지_SQL을_검증한다(recordingDataSource, 1);
     }
 
     private CatalogSearchQueryService 기록_서비스(SqlRecordingDataSource recordingDataSource) {
@@ -129,19 +139,42 @@ class CatalogQueryOptimizationTest extends QueryOptimizationTestSupport {
         storeRepository.save(store);
         List<Long> productIds = new ArrayList<>();
         for (int index = 1; index <= productCount; index++) {
-            Product product = productRepository.save(Product.create(
-                    store, "카탈로그 상품 " + index, "카탈로그 설명 " + index, 10_000L + index
+            Product product = Product.create(store, "카탈로그 상품 " + index, "카탈로그 설명 " + index, 10_000L + index);
+            product.replaceImages(List.of(
+                    이미지("fallback-" + index + ".jpg", 0, false),
+                    이미지("representative-" + index + ".jpg", 1, true)
             ));
+            product = productRepository.save(product);
             productIds.add(product.getId());
         }
         return new Fixture(viewer.getId(), productIds);
     }
 
-    private void 조정이력과_카운트없는_단일_카탈로그_쿼리를_검증한다(SqlRecordingDataSource recordingDataSource) {
+    private ProductImage 이미지(String fileName, int sortOrder, boolean representative) {
+        return ProductImage.local(
+                "https://example.com/" + fileName,
+                fileName,
+                fileName,
+                "image/jpeg",
+                100L,
+                sortOrder,
+                representative
+        );
+    }
+
+    private void 쿼리_측정을_초기화한다() {
+        resetStatistics();
+        SqlStatementInspector.clear();
+    }
+
+    private void 모든_쿼리_예산과_금지_SQL을_검증한다(SqlRecordingDataSource recordingDataSource, int maxTotalStatements) {
         assertThat(recordingDataSource.executedSql()).hasSize(1);
-        String sql = recordingDataSource.executedSql().getFirst().toUpperCase(Locale.ROOT);
-        assertThat(sql).doesNotContain("COUNT(")
-                .doesNotContain("INVENTORY_ADJUSTMENTS");
+        List<String> executedSql = new ArrayList<>(recordingDataSource.executedSql());
+        executedSql.addAll(SqlStatementInspector.executedSql());
+        assertThat(executedSql).hasSizeLessThanOrEqualTo(maxTotalStatements);
+        assertThat(executedSql).allSatisfy(sql -> assertThat(sql.toUpperCase(Locale.ROOT))
+                .doesNotContain("COUNT(")
+                .doesNotContain("INVENTORY_ADJUSTMENTS"));
     }
 
     private record Fixture(Long viewerId, List<Long> productIds) {
@@ -197,6 +230,25 @@ class CatalogQueryOptimizationTest extends QueryOptimizationTestSupport {
 
         private List<String> executedSql() {
             return executedSql;
+        }
+    }
+
+    public static class SqlStatementInspector implements StatementInspector {
+
+        private static final List<String> EXECUTED_SQL = new CopyOnWriteArrayList<>();
+
+        @Override
+        public String inspect(String sql) {
+            EXECUTED_SQL.add(sql);
+            return sql;
+        }
+
+        private static void clear() {
+            EXECUTED_SQL.clear();
+        }
+
+        private static List<String> executedSql() {
+            return List.copyOf(EXECUTED_SQL);
         }
     }
 }

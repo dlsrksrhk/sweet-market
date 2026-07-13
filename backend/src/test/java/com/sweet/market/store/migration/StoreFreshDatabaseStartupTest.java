@@ -44,7 +44,7 @@ class StoreFreshDatabaseStartupTest {
 
     @Test
     void 빈_PostgreSQL에서도_Flyway와_JPA_업데이트로_애플리케이션이_시작된다() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("7");
         assertThat(tableExists("stores")).isTrue();
         assertThat(tableExists("members")).isTrue();
         assertThat(tableExists("products")).isTrue();
@@ -58,6 +58,7 @@ class StoreFreshDatabaseStartupTest {
         assertThat(indexExists("idx_products_store_status_price_id")).isTrue();
         assertThat(indexExists("idx_products_title_trgm")).isTrue();
         assertThat(indexExists("idx_products_description_trgm")).isTrue();
+        assertThat(indexExists("idx_product_images_product_representative_sort_order_id")).isTrue();
         assertThat(indexExists("idx_orders_seller_id")).isTrue();
         assertThat(foreignKeyExists("products", "store_id", "stores", "id")).isTrue();
         assertThat(foreignKeyExists("orders", "seller_id", "members", "id")).isTrue();
