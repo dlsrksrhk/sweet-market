@@ -25,7 +25,7 @@ Result: `BUILD SUCCESSFUL` (two tests).
 
 ## EXPLAIN (ANALYZE, BUFFERS) evidence
 
-Measurements used PostgreSQL 17 with 100,000 eligible `ON_SALE` single-item products across two active business stores (51,500 in store 1 and 48,500 in store 2), one representative image per product, and fresh `ANALYZE` statistics. The harness reproduced the repository's product/store/inventory/image relations and the V3/V4/V6 catalog indexes. The integration-test schema intentionally disables Flyway, so this isolated migrated-schema harness was used for index-plan evidence.
+Measurements used PostgreSQL 17 with 100,000 eligible `ON_SALE` single-item products across two active business stores (51,500 in store 1 and 48,500 in store 2), one representative image per product, and fresh `ANALYZE` statistics. The harness reproduced the repository's product/store/inventory/image relations and the V3/V4/V6/V7 catalog indexes. The integration-test schema intentionally disables Flyway, so this isolated migrated-schema harness was used for index-plan evidence.
 
 ### Reproducible isolated harness
 
@@ -67,7 +67,10 @@ To reproduce the V7 before/after evidence, first run the page query below withou
 ```powershell
 $globalFirst = @'
 EXPLAIN (ANALYZE, BUFFERS)
-SELECT p.id, representative_image.image_url
+SELECT p.id AS product_id, p.title, p.price, p.category,
+       representative_image.image_url AS representative_image_url,
+       p.sales_policy, i.total_quantity - i.reserved_quantity AS available_quantity,
+       p.low_stock_threshold, s.id AS store_id, s.public_name AS store_name, s.type AS store_type
 FROM products p
 JOIN stores s ON s.id = p.store_id AND s.status = 'ACTIVE'
 LEFT JOIN inventories i ON i.product_id = p.id
@@ -91,11 +94,25 @@ $fixedFirst | docker exec -i $name psql -U postgres -d market -P pager=off
 $fixedDeep | docker exec -i $name psql -U postgres -d market -P pager=off
 ```
 
-The exact keyword checks are:
+The exact keyword checks use the repository's dedicated materialized candidate CTE. The `UNION` deduplicates IDs while allowing PostgreSQL to select title and description trigram indexes independently:
 
 ```powershell
-$titlePlan = "EXPLAIN (ANALYZE, BUFFERS) SELECT p.id FROM products p JOIN stores s ON s.id = p.store_id AND s.status = 'ACTIVE' LEFT JOIN inventories i ON i.product_id = p.id WHERE p.status = 'ON_SALE' AND (p.sales_policy = 'SINGLE_ITEM' OR i.total_quantity - i.reserved_quantity > 0) AND (p.title ILIKE '%ultrarare-title-token%' OR p.description ILIKE '%ultrarare-title-token%') ORDER BY p.id DESC LIMIT 13;"
-$descriptionPlan = "EXPLAIN (ANALYZE, BUFFERS) SELECT p.id FROM products p JOIN stores s ON s.id = p.store_id AND s.status = 'ACTIVE' LEFT JOIN inventories i ON i.product_id = p.id WHERE p.status = 'ON_SALE' AND (p.sales_policy = 'SINGLE_ITEM' OR i.total_quantity - i.reserved_quantity > 0) AND (p.title ILIKE '%ultrarare-description-token%' OR p.description ILIKE '%ultrarare-description-token%') ORDER BY p.id DESC LIMIT 13;"
+$titlePlan = @'
+EXPLAIN (ANALYZE, BUFFERS)
+WITH keyword_matches AS MATERIALIZED (
+    SELECT id FROM products WHERE title ILIKE '%ultrarare-title-token%'
+    UNION
+    SELECT id FROM products WHERE description ILIKE '%ultrarare-title-token%'
+)
+SELECT p.id AS product_id, p.title, p.price, p.category, representative_image.image_url AS representative_image_url, p.sales_policy, i.total_quantity - i.reserved_quantity AS available_quantity, p.low_stock_threshold, s.id AS store_id, s.public_name AS store_name, s.type AS store_type
+FROM keyword_matches km JOIN products p ON p.id = km.id
+JOIN stores s ON s.id = p.store_id AND s.status = 'ACTIVE'
+LEFT JOIN inventories i ON i.product_id = p.id
+LEFT JOIN LATERAL (SELECT image_url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.representative DESC, pi.sort_order ASC, pi.id ASC LIMIT 1) representative_image ON TRUE
+WHERE p.status = 'ON_SALE' AND (p.sales_policy = 'SINGLE_ITEM' OR i.total_quantity - i.reserved_quantity > 0)
+ORDER BY p.id DESC LIMIT 13;
+'@
+$descriptionPlan = $titlePlan.Replace('ultrarare-title-token', 'ultrarare-description-token')
 $titlePlan | docker exec -i $name psql -U postgres -d market -P pager=off
 $descriptionPlan | docker exec -i $name psql -U postgres -d market -P pager=off
 docker rm -f $name
@@ -105,23 +122,23 @@ The measured SQL was the `CatalogSearchRepository` global/fixed-store NEWEST pro
 
 | Path | Cursor | Key plan evidence | Planning / execution |
 | --- | --- | --- | --- |
-| Global | first | backward `products_pkey`; V7 representative-image index | 1.152 ms / 0.119 ms |
-| Global | near-end (`p.id < 10000`) | `products_pkey` `Index Cond: (id < 10000)`; 13 rows returned | 1.253 ms / 0.165 ms |
-| Fixed store 1 | first | backward `products_pkey`; 47,000 other-store rows filtered before the page | 1.082 ms / 3.753 ms |
-| Fixed store 1 | near-end (`p.id < 10000`) | `products_pkey` `Index Cond: (id < 10000)`; 13 rows returned | 1.128 ms / 0.140 ms |
+| Global | first | backward `products_pkey`; V7 representative-image index | 1.258 ms / 0.134 ms |
+| Global | near-end (`p.id < 10000`) | `products_pkey` `Index Cond: (id < 10000)`; 13 rows returned | 1.363 ms / 0.247 ms |
+| Fixed store 1 | first | backward `products_pkey`; 47,000 other-store rows filtered before the page | 1.330 ms / 4.351 ms |
+| Fixed store 1 | near-end (`p.id < 10000`) | `products_pkey` `Index Cond: (id < 10000)`; 13 rows returned | 1.680 ms / 0.172 ms |
 
 The deep plans prove the keyset predicate starts at the cursor's ID rather than discarding rows with an offset. The fixed-store first-page plan's cross-store filtering is an existing query-shape concern: the existing V3 `(store_id, status, id)` index is present, but PostgreSQL selected `products_pkey` because the route constraint arrives through the `stores` join. No additional products index was added because it would duplicate that existing index without fixing the join predicate; a future query-shape change should add an explicit `p.store_id` condition and remeasure.
 
-Keyword plans used both V6 trigram indexes through `BitmapOr`:
+Keyword plans use the materialized CTE's two independent branches, each with a `Bitmap Index Scan` on its matching V6 trigram index; `UNION` performs ID deduplication before the unchanged card projection:
 
 | Search | Selected index evidence | Planning / execution |
 | --- | --- | --- |
-| title token | `idx_products_title_trgm` plus `idx_products_description_trgm` | 1.532 ms / 1.268 ms |
-| description token | `idx_products_title_trgm` plus `idx_products_description_trgm` | 1.355 ms / 0.952 ms |
+| title token | `idx_products_title_trgm` (and the empty description branch considers `idx_products_description_trgm`) | 1.899 ms / 9.142 ms |
+| description token | `idx_products_description_trgm` (and the empty title branch considers `idx_products_title_trgm`) | 1.813 ms / 11.678 ms |
 
 ## Added migration from plan evidence
 
-Before the new index, the repository's lateral representative-image selection performed a full `product_images` scan and sort for each of 13 cards: `Rows Removed by Filter: 99999`, 13,416 shared-buffer hits, and 48.269 ms execution time. `V7__add_catalog_representative_image_index.sql` adds `idx_product_images_product_representative_sort_order_id` on `(product_id, representative DESC, sort_order ASC, id ASC)`, which matches the lateral predicate and order. With the index in the same 100,000-product fixture, PostgreSQL used an index scan for each lateral lookup; the global first page used 56 buffers and completed in 0.119 ms. V7 wraps creation in `to_regclass('public.product_images')` because Flyway precedes JPA schema creation on fresh/legacy databases. When V7 records version 7 before that table exists, the matching `ProductImage` JPA `@Index` creates the same index once Hibernate creates the fresh table; the fresh-startup migration test verifies it. This is a new migration, not an edit to any applied migration.
+Before the new index, the full repository projection's lateral representative-image selection performed a full `product_images` scan and sort for each of 13 cards: `Rows Removed by Filter: 99999`, 13,416 shared-buffer hits, and 63.542 ms execution time. `V7__add_catalog_representative_image_index.sql` adds `idx_product_images_product_representative_sort_order_id` on `(product_id, representative DESC, sort_order ASC, id ASC)`, which matches the lateral predicate and order. With the index in the same 100,000-product fixture, PostgreSQL used an index scan for each lateral lookup; the exact global first projection used 56 buffers and completed in 0.134 ms. V7 wraps creation in `to_regclass('public.product_images')` because Flyway precedes JPA schema creation on fresh/legacy databases. When V7 records version 7 before that table exists, the matching `ProductImage` JPA `@Index` creates the same index once Hibernate creates the fresh table; the fresh-startup migration test verifies it. This is a new migration, not an edit to any applied migration.
 
 ## Remaining follow-up
 

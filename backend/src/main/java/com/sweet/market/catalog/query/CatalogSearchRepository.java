@@ -46,6 +46,23 @@ public class CatalogSearchRepository {
               AND (p.sales_policy = 'SINGLE_ITEM' OR i.total_quantity - i.reserved_quantity > 0)
             """;
 
+    private static final String KEYWORD_MATCH_CTE = """
+            WITH keyword_matches AS MATERIALIZED (
+                SELECT id
+                FROM products
+                WHERE title ILIKE :keywordPattern
+                UNION
+                SELECT id
+                FROM products
+                WHERE description ILIKE :keywordPattern
+            )
+            """;
+
+    private static final String KEYWORD_BASE_SQL = BASE_SQL.replace(
+            "FROM products p",
+            "FROM keyword_matches km JOIN products p ON p.id = km.id"
+    );
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     public CatalogSearchRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -53,7 +70,8 @@ public class CatalogSearchRepository {
     }
 
     public List<CatalogProductRow> findPage(CatalogSearchCriteria criteria, CatalogCursor cursor) {
-        StringBuilder sql = new StringBuilder(BASE_SQL);
+        boolean hasKeyword = criteria.keyword() != null && !criteria.keyword().isBlank();
+        StringBuilder sql = new StringBuilder(hasKeyword ? KEYWORD_MATCH_CTE + KEYWORD_BASE_SQL : BASE_SQL);
         MapSqlParameterSource parameters = new MapSqlParameterSource();
         appendFilters(sql, parameters, criteria);
         appendSeek(sql, parameters, criteria.sort(), cursor);
@@ -66,7 +84,6 @@ public class CatalogSearchRepository {
 
     private void appendFilters(StringBuilder sql, MapSqlParameterSource parameters, CatalogSearchCriteria criteria) {
         if (criteria.keyword() != null && !criteria.keyword().isBlank()) {
-            sql.append(" AND (p.title ILIKE :keywordPattern OR p.description ILIKE :keywordPattern)");
             parameters.addValue("keywordPattern", "%" + criteria.keyword() + "%");
         }
         if (criteria.category() != null) {

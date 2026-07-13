@@ -202,6 +202,30 @@ class CatalogSearchRepositoryTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 키워드_카탈로그_검색은_trgm_후보_CTE를_먼저_조회한다() {
+        Store store = 활성_사업자_상점("keyword-cte-catalog@example.com");
+        Product matching = 단품_상품을_저장한다(store, "희귀 키워드 상품", "설명", 10_000L, ProductCategory.OTHER);
+        단품_상품을_저장한다(store, "일반 상품", "설명", 20_000L, ProductCategory.OTHER);
+        SqlRecordingDataSource recordingDataSource = new SqlRecordingDataSource(dataSource);
+        CatalogSearchRepository recordingRepository = new CatalogSearchRepository(
+                new NamedParameterJdbcTemplate(recordingDataSource)
+        );
+
+        List<CatalogProductRow> page = recordingRepository.findPage(
+                조건("희귀 키워드", null, null, null, null, null, null, null, CatalogSort.NEWEST, 12),
+                null
+        );
+
+        assertThat(page).extracting(CatalogProductRow::productId).containsExactly(matching.getId());
+        String sql = recordingDataSource.executedSql().getFirst().toUpperCase(Locale.ROOT);
+        assertThat(sql).contains("WITH KEYWORD_MATCHES AS MATERIALIZED")
+                .contains("WHERE TITLE ILIKE ?")
+                .contains("UNION")
+                .contains("WHERE DESCRIPTION ILIKE ?")
+                .contains("FROM KEYWORD_MATCHES KM JOIN PRODUCTS P ON P.ID = KM.ID");
+    }
+
+    @Test
     void 관심상품과_장바구니_표시는_현재_페이지의_상품_ID로만_일괄_조회한다() {
         Store store = 활성_사업자_상점("batch-catalog@example.com");
         Member buyer = 회원("catalog-buyer@example.com");
