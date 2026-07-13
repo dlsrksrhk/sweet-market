@@ -143,3 +143,20 @@ Before the new index, the full repository projection's lateral representative-im
 ## Remaining follow-up
 
 The fixed-store first-page `products_pkey` scan is bounded by `LIMIT 13` but can discard other-store rows when IDs are interleaved or clustered. Addressing it requires a repository query-shape change, not another duplicate index; it is outside this task's query-budget and migration scope.
+
+## Final delivery verification (2026-07-13)
+
+All final backend verification used JDK 21, `JWT_SECRET=sweet-market-local-test-secret-key-32bytes-minimum`, and `SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=4`.
+
+| Check | Result |
+| --- | --- |
+| Focused catalog/product/store/cart/wishlist command | `BUILD SUCCESSFUL` in 1m 05s. The matching XML suites contain 109 tests with 0 failures, 0 errors, and 0 skipped. |
+| Full backend `./gradlew.bat test --rerun-tasks` | `BUILD SUCCESSFUL` in 3m 23s. Fresh XML aggregation: 75 suites, 532 tests, 0 failures, 0 errors, and 0 skipped. |
+| Web `npm run build` | Exit 0 in 7.4s: both TypeScript checks and Vite production build completed. |
+| `git diff --check` | Exit 0 with no diagnostics. |
+
+The final backend run covered the new catalog flow alongside the existing product, storefront, cart, wishlist, order, store, and admin regressions. The pre-existing offset storefront endpoint remains unchanged; catalog discovery is additive through `GET /api/catalog/products` and `GET /api/stores/{storeId}/catalog/products`. Existing product API and storefront API tests are also included in the focused verification above.
+
+The query-budget and PostgreSQL 17 `EXPLAIN (ANALYZE, BUFFERS)` evidence recorded above is the delivery evidence for the catalog path: no page count query, no `inventory_adjustments` load, at most three authenticated statements / exactly one anonymous projection statement, zero collection fetches, keyset pagination without `OFFSET`, dedicated V6 trigram candidate-index probes, and the V7 representative-image index improvement.
+
+No interactive browser session was run as part of this final verification. Task 7 did confirm that Vite served the compiled application at `http://localhost:5173/` (HTTP 200); responsive interaction, URL transitions, and authenticated buyer actions remain covered by component/CSS review and backend/API regression tests rather than a browser-driven end-to-end test.
