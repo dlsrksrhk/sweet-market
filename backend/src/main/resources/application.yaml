@@ -44,7 +44,7 @@ jwt:
 
 catalog:
   cursor:
-    secret: ${CATALOG_CURSOR_SECRET}
+    secret: ${CATALOG_CURSOR_SECRET:sweet-market-local-catalog-cursor-secret-key-32bytes-minimum}
     max-age: ${CATALOG_CURSOR_MAX_AGE:30m}
 
 product:
