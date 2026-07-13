@@ -18,6 +18,7 @@ export type CatalogProductCard = {
   availability: BuyerAvailability;
   salesPolicy: ProductSalesPolicy;
   storeId: number;
+  sellerId: number;
   storeName: string;
   storeType: StoreType;
   wishlisted: boolean;

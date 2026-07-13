@@ -76,7 +76,7 @@ public class CatalogSearchQueryService {
     private CatalogProductCardResponse response(CatalogProductRow row, boolean wishlisted, boolean carted) {
         return new CatalogProductCardResponse(
                 row.productId(), row.title(), row.price(), row.category(), row.representativeImageUrl(), row.availability(),
-                row.salesPolicy(), row.storeId(), row.storeName(), row.storeType(), wishlisted, carted
+                row.salesPolicy(), row.storeId(), row.sellerId(), row.storeName(), row.storeType(), wishlisted, carted
         );
     }
 

@@ -30,6 +30,7 @@ public class CatalogSearchRepository {
                    i.total_quantity - i.reserved_quantity AS available_quantity,
                    p.low_stock_threshold,
                    s.id AS store_id,
+                   s.owner_member_id AS seller_id,
                    s.public_name AS store_name,
                    s.type AS store_type
             FROM products p
@@ -168,6 +169,7 @@ public class CatalogSearchRepository {
                 buyerAvailability(resultSet),
                 ProductSalesPolicy.valueOf(resultSet.getString("sales_policy")),
                 resultSet.getLong("store_id"),
+                resultSet.getLong("seller_id"),
                 resultSet.getString("store_name"),
                 StoreType.valueOf(resultSet.getString("store_type"))
         );

@@ -14,6 +14,7 @@ public record CatalogProductCardResponse(
         BuyerAvailabilityResponse availability,
         ProductSalesPolicy salesPolicy,
         Long storeId,
+        Long sellerId,
         String storeName,
         StoreType storeType,
         boolean wishlisted,

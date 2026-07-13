@@ -74,6 +74,7 @@ class CatalogApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content.length()").value(1))
                 .andExpect(jsonPath("$.data.content[0].id").value(matching.getId()))
                 .andExpect(jsonPath("$.data.content[0].category").value("COMPUTERS"))
+                .andExpect(jsonPath("$.data.content[0].sellerId").value(store.getOwnerMember().getId()))
                 .andExpect(jsonPath("$.data.content[0].availability.status").value("LOW_STOCK"))
                 .andExpect(jsonPath("$.data.content[0].totalQuantity").doesNotExist())
                 .andExpect(jsonPath("$.data.content[0].reservedQuantity").doesNotExist())
