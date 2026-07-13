@@ -11,6 +11,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
+import com.sweet.market.order.domain.OrderDomainError;
 import com.sweet.market.refund.domain.RefundRequest;
 import com.sweet.market.settlement.domain.Settlement;
 import com.sweet.market.store.domain.Store;
@@ -401,7 +402,8 @@ class ProductTest {
         Product product = Product.create(store, "상품", "설명", 10_000L);
 
         assertThatThrownBy(() -> Order.create(Member.create("buyer@example.com", "encoded-password", "buyer"), product))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOfSatisfying(DomainException.class,
+                        exception -> assertThat(exception.error()).isEqualTo(OrderDomainError.PRODUCT_NOT_PURCHASABLE));
     }
 
     @Test
