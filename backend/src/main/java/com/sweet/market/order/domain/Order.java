@@ -2,6 +2,7 @@ package com.sweet.market.order.domain;
 
 import java.time.LocalDateTime;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.product.domain.Product;
 
@@ -64,7 +65,7 @@ public class Order {
 
     public static Order create(Member buyer, Product product) {
         if (!product.isPurchasable()) {
-            throw new IllegalStateException("Product is not purchasable");
+            throw new DomainException(OrderDomainError.PRODUCT_NOT_PURCHASABLE);
         }
         if (product.isSingleItem()) {
             product.reserve();
@@ -77,7 +78,7 @@ public class Order {
             return;
         }
         if (status != OrderStatus.CREATED) {
-            throw new IllegalStateException("Order cannot be canceled: " + status);
+            throw new DomainException(OrderDomainError.CANCELLATION_NOT_ALLOWED);
         }
         if (product.isSingleItem()) {
             product.restoreOnSaleFromReservation();
@@ -88,7 +89,7 @@ public class Order {
 
     public void markPaid() {
         if (status != OrderStatus.CREATED) {
-            throw new IllegalStateException("Order cannot be paid: " + status);
+            throw new DomainException(OrderDomainError.PAYMENT_NOT_ALLOWED);
         }
         this.status = OrderStatus.PAID;
     }
@@ -98,7 +99,7 @@ public class Order {
             return;
         }
         if (status != OrderStatus.PAID) {
-            throw new IllegalStateException("Paid order cannot be canceled: " + status);
+            throw new DomainException(OrderDomainError.PAID_ORDER_CANCELLATION_NOT_ALLOWED);
         }
         if (product.isSingleItem()) {
             product.restoreOnSaleFromReservation();
@@ -109,42 +110,42 @@ public class Order {
 
     public void startShipping() {
         if (status != OrderStatus.PAID) {
-            throw new IllegalStateException("Order cannot start shipping: " + status);
+            throw new DomainException(OrderDomainError.SHIPPING_NOT_ALLOWED);
         }
         this.status = OrderStatus.SHIPPING;
     }
 
     public void completeDelivery() {
         if (status != OrderStatus.SHIPPING) {
-            throw new IllegalStateException("Order cannot complete delivery: " + status);
+            throw new DomainException(OrderDomainError.DELIVERY_COMPLETION_NOT_ALLOWED);
         }
         this.status = OrderStatus.DELIVERED;
     }
 
     public void requestRefund() {
         if (status != OrderStatus.DELIVERED) {
-            throw new IllegalStateException("Order cannot request refund: " + status);
+            throw new DomainException(OrderDomainError.REFUND_REQUEST_NOT_ALLOWED);
         }
         this.status = OrderStatus.REFUND_REQUESTED;
     }
 
     public void markRefunded() {
         if (status != OrderStatus.REFUND_REQUESTED) {
-            throw new IllegalStateException("Order cannot be refunded: " + status);
+            throw new DomainException(OrderDomainError.REFUND_NOT_ALLOWED);
         }
         this.status = OrderStatus.REFUNDED;
     }
 
     public void rejectRefund() {
         if (status != OrderStatus.REFUND_REQUESTED) {
-            throw new IllegalStateException("Order refund cannot be rejected: " + status);
+            throw new DomainException(OrderDomainError.REFUND_REJECTION_NOT_ALLOWED);
         }
         this.status = OrderStatus.DELIVERED;
     }
 
     public void confirm() {
         if (status != OrderStatus.DELIVERED) {
-            throw new IllegalStateException("Order cannot be confirmed: " + status);
+            throw new DomainException(OrderDomainError.CONFIRMATION_NOT_ALLOWED);
         }
         if (product.isSingleItem()) {
             product.markSoldOutFromReservation();

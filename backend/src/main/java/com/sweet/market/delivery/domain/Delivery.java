@@ -2,6 +2,7 @@ package com.sweet.market.delivery.domain;
 
 import java.time.LocalDateTime;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.order.domain.Order;
 
 import jakarta.persistence.Column;
@@ -59,7 +60,7 @@ public class Delivery {
 
     public void complete() {
         if (status != DeliveryStatus.SHIPPING) {
-            throw new IllegalStateException("Delivery cannot be completed: " + status);
+            throw new DomainException(DeliveryDomainError.COMPLETION_NOT_ALLOWED);
         }
         order.completeDelivery();
         this.status = DeliveryStatus.DELIVERED;

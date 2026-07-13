@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.delivery.domain.Delivery;
 import com.sweet.market.delivery.domain.DeliveryStatus;
 import com.sweet.market.delivery.repository.DeliveryRepository;
@@ -62,7 +63,7 @@ public class OrderAutoConfirmService {
                 try {
                     delivery.getOrder().confirm();
                     confirmedCount++;
-                } catch (IllegalStateException exception) {
+                } catch (DomainException exception) {
                     // Another process may have changed the order between selection and confirmation.
                 }
             }

@@ -1,9 +1,11 @@
 package com.sweet.market.payment.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderStatus;
@@ -69,6 +71,30 @@ class PaymentTest {
         payment.refund();
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
+    }
+
+    @Test
+    void 취소된_결제는_환불할_수_없다() {
+        Order order = createOrder();
+        Payment payment = Payment.approve(order, "pay_123");
+        payment.cancel();
+
+        assertThatThrownBy(payment::refund)
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(PaymentDomainError.REFUND_NOT_ALLOWED);
+    }
+
+    @Test
+    void 환불된_결제는_취소할_수_없다() {
+        Order order = createOrder();
+        Payment payment = Payment.approve(order, "pay_123");
+        payment.refund();
+
+        assertThatThrownBy(payment::cancel)
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(PaymentDomainError.CANCELLATION_NOT_ALLOWED);
     }
 
     private Order createOrder() {

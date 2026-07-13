@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderStatus;
@@ -46,8 +47,9 @@ class DeliveryTest {
         delivery.complete();
 
         assertThatThrownBy(delivery::complete)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Delivery cannot be completed: DELIVERED");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(DeliveryDomainError.COMPLETION_NOT_ALLOWED);
     }
 
     private Order createPaidOrder() {

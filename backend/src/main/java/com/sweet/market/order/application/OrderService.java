@@ -11,6 +11,7 @@ import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.order.api.OrderResponse;
 import com.sweet.market.order.domain.Order;
+import com.sweet.market.order.domain.OrderDomainError;
 import com.sweet.market.order.domain.OrderStatus;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.payment.application.PaymentGateway;
@@ -58,12 +59,11 @@ public class OrderService {
         try {
             order = Order.create(buyer, product);
         } catch (DomainException exception) {
-            if (exception.error() == ProductDomainError.NOT_ON_SALE) {
+            if (exception.error() == ProductDomainError.NOT_ON_SALE
+                    || exception.error() == OrderDomainError.PRODUCT_NOT_PURCHASABLE) {
                 throw new BusinessException(ErrorCode.PRODUCT_NOT_ON_SALE, exception);
             }
             throw exception;
-        } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.PRODUCT_NOT_ON_SALE, exception);
         }
 
         Order savedOrder = orderRepository.save(order);
@@ -105,8 +105,8 @@ public class OrderService {
             inventoryService.releaseForPreShippingExit(order);
         } catch (BusinessException exception) {
             throw exception;
-        } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.ORDER_CANCEL_NOT_ALLOWED);
+        } catch (DomainException exception) {
+            throw new BusinessException(ErrorCode.ORDER_CANCEL_NOT_ALLOWED, exception);
         }
 
         return OrderResponse.from(order);
@@ -122,8 +122,8 @@ public class OrderService {
 
         try {
             order.confirm();
-        } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.ORDER_CONFIRM_NOT_ALLOWED);
+        } catch (DomainException exception) {
+            throw new BusinessException(ErrorCode.ORDER_CONFIRM_NOT_ALLOWED, exception);
         }
 
         return OrderResponse.from(order);

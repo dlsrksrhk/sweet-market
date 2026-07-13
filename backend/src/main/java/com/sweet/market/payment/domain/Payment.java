@@ -2,6 +2,7 @@ package com.sweet.market.payment.domain;
 
 import java.time.LocalDateTime;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderStatus;
 
@@ -67,7 +68,7 @@ public class Payment {
             return;
         }
         if (status != PaymentStatus.APPROVED) {
-            throw new IllegalStateException("Payment cannot be canceled: " + status);
+            throw new DomainException(PaymentDomainError.CANCELLATION_NOT_ALLOWED);
         }
         order.cancelPaidOrder();
         this.status = PaymentStatus.CANCELED;
@@ -76,7 +77,7 @@ public class Payment {
 
     public void refund() {
         if (status != PaymentStatus.APPROVED) {
-            throw new IllegalStateException("Payment cannot be refunded: " + status);
+            throw new DomainException(PaymentDomainError.REFUND_NOT_ALLOWED);
         }
         this.status = PaymentStatus.REFUNDED;
         this.canceledAt = LocalDateTime.now();

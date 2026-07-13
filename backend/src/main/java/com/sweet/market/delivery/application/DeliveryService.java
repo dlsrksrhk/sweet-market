@@ -3,6 +3,7 @@ package com.sweet.market.delivery.application;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.delivery.api.DeliveryResponse;
@@ -45,8 +46,8 @@ public class DeliveryService {
             String trackingNumber = deliveryClient.start(order.getId());
             delivery = Delivery.start(order, trackingNumber);
             inventoryService.commitForShipment(order);
-        } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.DELIVERY_START_NOT_ALLOWED);
+        } catch (DomainException exception) {
+            throw new BusinessException(ErrorCode.DELIVERY_START_NOT_ALLOWED, exception);
         }
 
         Delivery savedDelivery = deliveryRepository.save(delivery);
@@ -64,8 +65,8 @@ public class DeliveryService {
         try {
             deliveryClient.complete(delivery.getTrackingNumber());
             delivery.complete();
-        } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.DELIVERY_COMPLETE_NOT_ALLOWED);
+        } catch (DomainException exception) {
+            throw new BusinessException(ErrorCode.DELIVERY_COMPLETE_NOT_ALLOWED, exception);
         }
 
         return DeliveryResponse.from(delivery);

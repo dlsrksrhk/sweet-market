@@ -3,6 +3,7 @@ package com.sweet.market.payment.application;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.inventory.application.InventoryService;
@@ -39,9 +40,12 @@ public class PaymentService {
     public PaymentResponse approve(Long memberId, Long orderId) {
         try {
             return paymentApprovalTransactionService.approve(memberId, orderId);
+        } catch (DomainException exception) {
+            inventoryService.releaseAfterFailedPaymentApproval(orderId);
+            throw new BusinessException(ErrorCode.PAYMENT_APPROVE_NOT_ALLOWED, exception);
         } catch (IllegalStateException exception) {
             inventoryService.releaseAfterFailedPaymentApproval(orderId);
-            throw new BusinessException(ErrorCode.PAYMENT_APPROVE_NOT_ALLOWED);
+            throw new BusinessException(ErrorCode.PAYMENT_APPROVE_NOT_ALLOWED, exception);
         }
     }
 
@@ -69,8 +73,8 @@ public class PaymentService {
             }
         } catch (BusinessException exception) {
             throw exception;
-        } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.PAYMENT_CANCEL_NOT_ALLOWED);
+        } catch (DomainException exception) {
+            throw new BusinessException(ErrorCode.PAYMENT_CANCEL_NOT_ALLOWED, exception);
         }
 
         return PaymentResponse.from(payment);

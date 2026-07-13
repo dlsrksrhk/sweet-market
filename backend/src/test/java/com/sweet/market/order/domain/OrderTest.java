@@ -3,8 +3,10 @@ package com.sweet.market.order.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductSalesPolicy;
@@ -196,8 +198,9 @@ class OrderTest {
         order.markPaid();
 
         assertThatThrownBy(order::confirm)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Order cannot be confirmed: PAID");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(OrderDomainError.CONFIRMATION_NOT_ALLOWED);
     }
 
     @Test
@@ -205,8 +208,77 @@ class OrderTest {
         Order order = deliveredOrder();
         order.requestRefund();
 
-        assertThatThrownBy(order::confirm)
-                .isInstanceOf(IllegalStateException.class);
+        assertDomainError(order::confirm, OrderDomainError.CONFIRMATION_NOT_ALLOWED);
+    }
+
+    @Test
+    void 판매_불가능한_상품은_주문할_수_없다() {
+        Member seller = Member.create("seller-hidden@example.com", "encoded-password", "seller");
+        Member buyer = Member.create("buyer-hidden@example.com", "encoded-password", "buyer");
+        Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
+        product.hide();
+
+        assertDomainError(() -> Order.create(buyer, product), OrderDomainError.PRODUCT_NOT_PURCHASABLE);
+    }
+
+    @Test
+    void 결제완료_주문은_일반_취소할_수_없다() {
+        Order order = createOrder();
+        order.markPaid();
+
+        assertDomainError(order::cancel, OrderDomainError.CANCELLATION_NOT_ALLOWED);
+    }
+
+    @Test
+    void 취소된_주문은_결제완료로_바꿀_수_없다() {
+        Order order = createOrder();
+        order.cancel();
+
+        assertDomainError(order::markPaid, OrderDomainError.PAYMENT_NOT_ALLOWED);
+    }
+
+    @Test
+    void 결제완료가_아닌_주문은_결제완료_취소할_수_없다() {
+        Order order = createOrder();
+
+        assertDomainError(order::cancelPaidOrder, OrderDomainError.PAID_ORDER_CANCELLATION_NOT_ALLOWED);
+    }
+
+    @Test
+    void 결제완료가_아닌_주문은_배송을_시작할_수_없다() {
+        Order order = createOrder();
+
+        assertDomainError(order::startShipping, OrderDomainError.SHIPPING_NOT_ALLOWED);
+    }
+
+    @Test
+    void 배송중이_아닌_주문은_배송을_완료할_수_없다() {
+        Order order = createOrder();
+        order.markPaid();
+
+        assertDomainError(order::completeDelivery, OrderDomainError.DELIVERY_COMPLETION_NOT_ALLOWED);
+    }
+
+    @Test
+    void 배송완료가_아닌_주문은_환불을_요청할_수_없다() {
+        Order order = createOrder();
+        order.markPaid();
+
+        assertDomainError(order::requestRefund, OrderDomainError.REFUND_REQUEST_NOT_ALLOWED);
+    }
+
+    @Test
+    void 환불_요청중이_아닌_주문은_환불할_수_없다() {
+        Order order = deliveredOrder();
+
+        assertDomainError(order::markRefunded, OrderDomainError.REFUND_NOT_ALLOWED);
+    }
+
+    @Test
+    void 환불_요청중이_아닌_주문은_환불을_거절할_수_없다() {
+        Order order = deliveredOrder();
+
+        assertDomainError(order::rejectRefund, OrderDomainError.REFUND_REJECTION_NOT_ALLOWED);
     }
 
     private Order createOrder() {
@@ -222,5 +294,12 @@ class OrderTest {
         order.startShipping();
         order.completeDelivery();
         return order;
+    }
+
+    private void assertDomainError(ThrowingCallable callable, OrderDomainError expectedError) {
+        assertThatThrownBy(callable)
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(expectedError);
     }
 }
