@@ -42,6 +42,11 @@ jwt:
   secret: ${JWT_SECRET}
   access-token-validity-seconds: ${JWT_ACCESS_TOKEN_VALIDITY_SECONDS:3600}
 
+catalog:
+  cursor:
+    secret: ${CATALOG_CURSOR_SECRET:sweet-market-local-catalog-cursor-secret-key-32bytes-minimum}
+    max-age: ${CATALOG_CURSOR_MAX_AGE:30m}
+
 product:
   images:
     upload-root: ${PRODUCT_IMAGE_UPLOAD_ROOT:./.local/product-images}

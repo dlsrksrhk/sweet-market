@@ -18,6 +18,8 @@ export type ProductStatus = 'ON_SALE' | 'RESERVED' | 'SOLD_OUT' | 'HIDDEN';
 
 export type ProductSalesPolicy = 'SINGLE_ITEM' | 'STOCK_MANAGED';
 
+export type ProductCategory = 'COMPUTERS' | 'MOBILE' | 'HOME_APPLIANCES' | 'VEHICLES' | 'LIVING_HOBBY' | 'OTHER';
+
 export type BuyerAvailability = {
   status: 'IN_STOCK' | 'LOW_STOCK' | 'SOLD_OUT';
   quantity?: number;
@@ -78,6 +80,7 @@ export type ProductUpdateImageInput =
 
 export type Product = Omit<ProductSummary, 'thumbnailUrl'> & {
   description: string;
+  category: ProductCategory;
   images: ProductImage[];
   purchasable: boolean;
   reviewCount: number;
@@ -92,6 +95,7 @@ export type ProductCreateInput = {
   title: string;
   description: string;
   price: number;
+  category: ProductCategory;
   salesPolicy: ProductSalesPolicy;
   initialTotalQuantity?: number;
   lowStockThreshold?: number;
@@ -102,6 +106,7 @@ export type ProductUpdateInput = {
   title: string;
   description: string;
   price: number;
+  category: ProductCategory;
   lowStockThreshold?: number;
   images: ProductUpdateImageInput[];
 };

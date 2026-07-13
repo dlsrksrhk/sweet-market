@@ -11,6 +11,7 @@ import {
   uploadProductImage,
   type ProductCreateImageInput,
   type ProductCreateInput,
+  type ProductCategory,
   type ProductImage,
   type ProductSalesPolicy,
   type ProductUpdateImageInput,
@@ -35,6 +36,7 @@ type ProductFormValues = {
   title: string;
   description: string;
   price: number;
+  category: ProductCategory;
   salesPolicy: ProductSalesPolicy;
   initialTotalQuantity?: number;
   lowStockThreshold?: number;
@@ -91,6 +93,7 @@ export function ProductFormPage() {
       title: '',
       description: '',
       price: 0,
+      category: 'OTHER',
       salesPolicy: 'SINGLE_ITEM',
       initialTotalQuantity: undefined,
       lowStockThreshold: undefined,
@@ -151,6 +154,7 @@ export function ProductFormPage() {
         title: product.title,
         description: product.description,
         price: product.price,
+        category: product.category,
         salesPolicy: product.availability.policy,
         initialTotalQuantity: undefined,
         lowStockThreshold: undefined,
@@ -541,6 +545,18 @@ export function ProductFormPage() {
           />
           {errors.price ? <span className="error-text">{errors.price.message}</span> : null}
         </label>
+        <label>
+          카테고리
+          <select {...register('category', { required: '카테고리를 선택해주세요.' })}>
+            <option value="COMPUTERS">컴퓨터</option>
+            <option value="MOBILE">모바일</option>
+            <option value="HOME_APPLIANCES">생활가전</option>
+            <option value="VEHICLES">차량</option>
+            <option value="LIVING_HOBBY">리빙·취미</option>
+            <option value="OTHER">기타</option>
+          </select>
+          {errors.category ? <span className="error-text">{errors.category.message}</span> : null}
+        </label>
         <div className="product-image-manager">
           <div className="product-image-manager-header">
             <strong>상품 이미지</strong>
@@ -640,6 +656,7 @@ function toPayload(values: ProductFormValues) {
     title: values.title.trim(),
     description: values.description.trim(),
     price: values.price,
+    category: values.category,
   };
 }
 

@@ -49,6 +49,26 @@ class ProductTest {
     }
 
     @Test
+    void 상품을_카테고리와_함께_생성하고_수정한다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+        Store store = Store.createPersonal(seller, "상점", "");
+        Product product = Product.create(store, "노트북", "설명", 100_000L,
+                ProductSalesPolicy.SINGLE_ITEM, null, null, ProductCategory.COMPUTERS);
+
+        product.update("태블릿", "수정 설명", 120_000L, ProductCategory.MOBILE);
+
+        assertThat(product.getCategory()).isEqualTo(ProductCategory.MOBILE);
+    }
+
+    @Test
+    void 카테고리를_생략한_기존_생성_경로는_기타로_보존된다() {
+        Member seller = Member.create("seller@example.com", "encoded-password", "seller");
+
+        assertThat(Product.create(seller, "기존 상품", "설명", 10_000L).getCategory())
+                .isEqualTo(ProductCategory.OTHER);
+    }
+
+    @Test
     void 상품을_숨김_처리한다() {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);

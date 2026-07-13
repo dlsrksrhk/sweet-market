@@ -7,7 +7,7 @@ type WishlistToggleProps = {
   productId: number;
   sellerId: number;
   wishlisted: boolean;
-  wishlistCount: number;
+  wishlistCount?: number;
   purchasable?: boolean;
   onChanged?: (response: WishlistResponse) => void;
 };
@@ -34,6 +34,7 @@ export function WishlistToggle({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['products', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['catalog'] }),
         queryClient.invalidateQueries({ queryKey: ['my-wishlist'] }),
       ]);
     },
@@ -44,7 +45,7 @@ export function WishlistToggle({
   const displayedWishlistCount = latestResponse?.wishlistCount ?? wishlistCount;
 
   if (isOwnProduct) {
-    return <span className="wishlist-own-product">내 상품 · 관심 {displayedWishlistCount}</span>;
+    return <span className="wishlist-own-product">내 상품{displayedWishlistCount === undefined ? '' : ` · 관심 ${displayedWishlistCount}`}</span>;
   }
 
   return (
@@ -69,7 +70,7 @@ export function WishlistToggle({
         mutation.mutate(displayedWishlisted);
       }}
     >
-      관심 {displayedWishlistCount}
+      관심{displayedWishlistCount === undefined ? '' : ` ${displayedWishlistCount}`}
     </button>
   );
 }

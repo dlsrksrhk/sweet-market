@@ -220,8 +220,8 @@ class ProductApiTest extends IntegrationTestSupport {
         signupAndLogin(email, "password123", "seller");
         Long storeId = createInactiveBusinessStore(email);
         return jdbcTemplate.queryForObject("""
-                insert into products (version, store_id, title, description, price, status, sales_policy)
-                values (0, ?, '비활성 상품', '설명', 10000, 'ON_SALE', 'SINGLE_ITEM') returning id
+                insert into products (version, store_id, title, description, price, status, sales_policy, category)
+                values (0, ?, '비활성 상품', '설명', 10000, 'ON_SALE', 'SINGLE_ITEM', 'OTHER') returning id
                 """, Long.class, storeId);
     }
 
@@ -622,6 +622,63 @@ class ProductApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.price").value(1200000))
                 .andExpect(jsonPath("$.data.wishlistCount").value(1))
                 .andExpect(jsonPath("$.data.wishlisted").value(false));
+    }
+
+    @Test
+    void 상품_API에서_카테고리를_등록하고_수정한다() throws Exception {
+        String accessToken = signupAndLogin("seller-category@example.com", "password123", "seller");
+        Long storeId = activePersonalStoreId(accessToken);
+        Long uploadId = uploadImage(accessToken, "category-product.jpg");
+
+        String createResponse = mockMvc.perform(post("/api/products")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "storeId": %d,
+                                  "title": "노트북",
+                                  "description": "설명",
+                                  "price": 100000,
+                                  "salesPolicy": "SINGLE_ITEM",
+                                  "category": "COMPUTERS",
+                                  "images": [
+                                    {
+                                      "uploadId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(storeId, uploadId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.category").value("COMPUTERS"))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Long productId = objectMapper.readTree(createResponse).path("data").path("id").asLong();
+        Long imageId = getFirstImageId(productId);
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "태블릿",
+                                  "description": "수정 설명",
+                                  "price": 120000,
+                                  "category": "MOBILE",
+                                  "images": [
+                                    {
+                                      "imageId": %d,
+                                      "sortOrder": 0,
+                                      "representative": true
+                                    }
+                                  ]
+                                }
+                                """.formatted(imageId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.category").value("MOBILE"));
     }
 
     @Test

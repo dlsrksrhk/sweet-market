@@ -9,20 +9,32 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sweet.market.auth.security.AuthenticatedMember;
+import com.sweet.market.catalog.api.CatalogSearchRequest;
+import com.sweet.market.catalog.api.CatalogSearchResponse;
+import com.sweet.market.catalog.query.CatalogSearchQueryService;
 import com.sweet.market.common.api.ApiResponse;
+import com.sweet.market.common.error.BusinessException;
+import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.product.domain.ProductStatus;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/stores")
 public class StorefrontController {
 
     private final StorefrontQueryService storefrontQueryService;
+    private final CatalogSearchQueryService catalogSearchQueryService;
 
-    public StorefrontController(StorefrontQueryService storefrontQueryService) {
+    public StorefrontController(
+            StorefrontQueryService storefrontQueryService,
+            CatalogSearchQueryService catalogSearchQueryService
+    ) {
         this.storefrontQueryService = storefrontQueryService;
+        this.catalogSearchQueryService = catalogSearchQueryService;
     }
 
     @GetMapping("/{storeId}")
@@ -47,6 +59,30 @@ public class StorefrontController {
                 size,
                 authenticatedMemberId(authentication)
         ));
+    }
+
+    @GetMapping("/{storeId}/catalog/products")
+    public ApiResponse<CatalogSearchResponse> catalogProducts(
+            Authentication authentication,
+            @PathVariable long storeId,
+            HttpServletRequest httpServletRequest,
+            @Valid @org.springframework.web.bind.annotation.ModelAttribute CatalogSearchRequest request
+    ) {
+        if (httpServletRequest.getParameterMap().containsKey("storeId")) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        }
+        return ApiResponse.ok(catalogSearchQueryService.search(
+                authenticatedMemberId(authentication),
+                withoutStoreId(request),
+                storeId
+        ));
+    }
+
+    private CatalogSearchRequest withoutStoreId(CatalogSearchRequest request) {
+        return new CatalogSearchRequest(
+                request.keyword(), request.category(), request.minPrice(), request.maxPrice(), request.availability(),
+                request.salesPolicy(), request.storeType(), null, request.sort(), request.cursor(), request.size()
+        );
     }
 
     private Long authenticatedMemberId(Authentication authentication) {

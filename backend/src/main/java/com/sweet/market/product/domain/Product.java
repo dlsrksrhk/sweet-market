@@ -62,6 +62,10 @@ public class Product {
     private long price;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private ProductCategory category;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ProductStatus status;
 
@@ -82,7 +86,8 @@ public class Product {
             long price,
             ProductStatus status,
             ProductSalesPolicy salesPolicy,
-            Integer lowStockThreshold
+            Integer lowStockThreshold,
+            ProductCategory category
     ) {
         this.store = store;
         this.title = title;
@@ -91,6 +96,7 @@ public class Product {
         this.status = status;
         this.salesPolicy = salesPolicy;
         this.lowStockThreshold = lowStockThreshold;
+        this.category = category;
     }
 
     public static Product create(Store store, String title, String description, long price) {
@@ -106,8 +112,30 @@ public class Product {
             Integer lowStockThreshold,
             Integer initialTotalQuantity
     ) {
+        return create(store, title, description, price, salesPolicy, lowStockThreshold, initialTotalQuantity, ProductCategory.OTHER);
+    }
+
+    public static Product create(
+            Store store,
+            String title,
+            String description,
+            long price,
+            ProductSalesPolicy salesPolicy,
+            Integer lowStockThreshold,
+            Integer initialTotalQuantity,
+            ProductCategory category
+    ) {
         validateSalesPolicy(salesPolicy, lowStockThreshold, initialTotalQuantity);
-        return new Product(store, title, description, price, ProductStatus.ON_SALE, salesPolicy, lowStockThreshold);
+        return new Product(
+                store,
+                title,
+                description,
+                price,
+                ProductStatus.ON_SALE,
+                salesPolicy,
+                lowStockThreshold,
+                category == null ? ProductCategory.OTHER : category
+        );
     }
 
     /**
@@ -118,10 +146,17 @@ public class Product {
     }
 
     public void update(String title, String description, long price) {
+        update(title, description, price, null);
+    }
+
+    public void update(String title, String description, long price, ProductCategory category) {
         validateNotReserved();
         this.title = title;
         this.description = description;
         this.price = price;
+        if (category != null) {
+            this.category = category;
+        }
     }
 
     public void changeLowStockThreshold(int lowStockThreshold) {

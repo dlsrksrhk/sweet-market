@@ -26,6 +26,7 @@ export function CartToggle({ productId, sellerId, carted, purchasable = true, on
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['products', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['catalog'] }),
         queryClient.invalidateQueries({ queryKey: ['my-cart'] }),
       ]);
     },
