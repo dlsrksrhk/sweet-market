@@ -3,6 +3,7 @@ package com.sweet.market.product.admin;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.product.domain.Product;
@@ -23,8 +24,8 @@ public class AdminProductService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
         try {
             product.hide();
-        } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED);
+        } catch (DomainException exception) {
+            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED, exception);
         }
         return AdminProductDetailResponse.from(product);
     }

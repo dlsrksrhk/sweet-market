@@ -15,6 +15,7 @@ import com.sweet.market.cart.api.CartCheckoutResponse;
 import com.sweet.market.cart.api.CartResponse;
 import com.sweet.market.cart.domain.CartItem;
 import com.sweet.market.cart.repository.CartItemRepository;
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
@@ -114,8 +115,7 @@ public class CartService {
         }
 
         List<Order> orders = cartItems.stream()
-                .map(cartItem -> Order.create(cartItem.getBuyer(), cartItem.getProduct()))
-                .map(this::saveAndReserve)
+                .map(this::createAndSave)
                 .toList();
         cartItemRepository.deleteAll(cartItems);
 
@@ -146,10 +146,18 @@ public class CartService {
             inventoryService.reserveForOrder(savedOrder);
         } catch (BusinessException exception) {
             if (exception.errorCode() == ErrorCode.PRODUCT_NOT_ON_SALE) {
-                throw new BusinessException(ErrorCode.CART_CHECKOUT_NOT_ALLOWED);
+                throw new BusinessException(ErrorCode.CART_CHECKOUT_NOT_ALLOWED, exception);
             }
             throw exception;
         }
         return savedOrder;
+    }
+
+    private Order createAndSave(CartItem cartItem) {
+        try {
+            return saveAndReserve(Order.create(cartItem.getBuyer(), cartItem.getProduct()));
+        } catch (DomainException exception) {
+            throw new BusinessException(ErrorCode.CART_CHECKOUT_NOT_ALLOWED, exception);
+        }
     }
 }

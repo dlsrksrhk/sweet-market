@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.inventory.application.InventoryService;
@@ -78,8 +79,8 @@ public class ProductService {
                 .toList();
         try {
             product.replaceImages(images);
-        } catch (IllegalArgumentException exception) {
-            throw mapProductImageException(exception);
+        } catch (DomainException exception) {
+            throw mapProductDomainException(exception);
         }
 
         Product savedProduct = productRepository.save(product);
@@ -97,14 +98,14 @@ public class ProductService {
         }
         try {
             product.update(request.title(), request.description(), request.price());
-        } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED);
+        } catch (DomainException exception) {
+            throw mapProductDomainException(exception);
         }
         if (request.lowStockThreshold() != null) {
             try {
                 product.changeLowStockThreshold(request.lowStockThreshold());
-            } catch (IllegalArgumentException | IllegalStateException exception) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+            } catch (DomainException exception) {
+                throw mapProductDomainException(exception);
             }
         }
         validateUpdateImages(product, request.images());
@@ -121,8 +122,8 @@ public class ProductService {
         try {
             product.replaceImages(nextImages);
             deletePublicFilesAfterCommit(omittedLocalFileNames);
-        } catch (IllegalArgumentException exception) {
-            throw mapProductImageException(exception);
+        } catch (DomainException exception) {
+            throw mapProductDomainException(exception);
         }
         return sellerResponse(product);
     }
@@ -132,8 +133,8 @@ public class ProductService {
         Product product = findProductForOwner(memberId, productId);
         try {
             product.hide();
-        } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED);
+        } catch (DomainException exception) {
+            throw mapProductDomainException(exception);
         }
         return sellerResponse(product);
     }
@@ -165,8 +166,8 @@ public class ProductService {
                     request.lowStockThreshold(),
                     request.initialTotalQuantity()
             );
-        } catch (IllegalArgumentException exception) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
+        } catch (DomainException exception) {
+            throw mapProductDomainException(exception);
         }
     }
 
@@ -295,11 +296,15 @@ public class ProductService {
         }
     }
 
-    private BusinessException mapProductImageException(IllegalArgumentException exception) {
-        return switch (exception.getMessage()) {
-            case "Product image is required" -> new BusinessException(ErrorCode.PRODUCT_IMAGE_REQUIRED);
-            case "Product image limit exceeded" -> new BusinessException(ErrorCode.PRODUCT_IMAGE_LIMIT_EXCEEDED);
-            default -> new BusinessException(ErrorCode.VALIDATION_ERROR);
+    private BusinessException mapProductDomainException(DomainException exception) {
+        ErrorCode errorCode = switch (exception.error().toString()) {
+            case "IMAGE_NOT_FOUND" -> ErrorCode.PRODUCT_IMAGE_NOT_FOUND;
+            case "IMAGE_REQUIRED" -> ErrorCode.PRODUCT_IMAGE_REQUIRED;
+            case "IMAGE_LIMIT_EXCEEDED" -> ErrorCode.PRODUCT_IMAGE_LIMIT_EXCEEDED;
+            case "CHANGE_NOT_ALLOWED", "NOT_HIDDEN", "NOT_ON_SALE", "NOT_RESERVED" ->
+                    ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED;
+            default -> ErrorCode.VALIDATION_ERROR;
         };
+        return new BusinessException(errorCode, exception);
     }
 }

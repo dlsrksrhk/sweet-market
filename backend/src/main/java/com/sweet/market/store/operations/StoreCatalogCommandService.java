@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.product.domain.Product;
@@ -31,14 +32,22 @@ public class StoreCatalogCommandService {
     public void hide(Long memberId, Long storeId, List<Long> productIds) {
         List<Product> products = loadProducts(memberId, storeId, productIds);
         validateStatus(products, ProductStatus.ON_SALE);
-        products.forEach(Product::hide);
+        try {
+            products.forEach(Product::hide);
+        } catch (DomainException exception) {
+            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED, exception);
+        }
     }
 
     @Transactional
     public void show(Long memberId, Long storeId, List<Long> productIds) {
         List<Product> products = loadProducts(memberId, storeId, productIds);
         validateStatus(products, ProductStatus.HIDDEN);
-        products.forEach(Product::show);
+        try {
+            products.forEach(Product::show);
+        } catch (DomainException exception) {
+            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED, exception);
+        }
     }
 
     private List<Product> loadProducts(Long memberId, Long storeId, List<Long> productIds) {

@@ -3,6 +3,7 @@ package com.sweet.market.inventory.application;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.inventory.domain.Inventory;
@@ -43,16 +44,21 @@ public class InventoryAdjustmentTransactionService {
         storeAccessService.requireCatalogOperator(memberId, storeId);
         Inventory inventory = inventoryRepository.findForAdjustment(storeId, productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
-        if (request.totalQuantity() < inventory.getReservedQuantity()) {
-            throw new BusinessException(ErrorCode.INVENTORY_ADJUSTMENT_CONFLICT);
-        }
         Member actor = memberRepository.getReferenceById(memberId);
-        InventoryAdjustment adjustment = inventory.adjust(
-                request.totalQuantity(),
-                request.reason(),
-                request.referenceNote(),
-                actor
-        );
+        InventoryAdjustment adjustment;
+        try {
+            adjustment = inventory.adjust(
+                    request.totalQuantity(),
+                    request.reason(),
+                    request.referenceNote(),
+                    actor
+            );
+        } catch (DomainException exception) {
+            ErrorCode errorCode = "TOTAL_BELOW_RESERVED_QUANTITY".equals(exception.error().toString())
+                    ? ErrorCode.INVENTORY_ADJUSTMENT_CONFLICT
+                    : ErrorCode.VALIDATION_ERROR;
+            throw new BusinessException(errorCode, exception);
+        }
         inventoryRepository.saveAndFlush(inventory);
         return InventoryAdjustmentResponse.from(inventoryAdjustmentRepository.save(adjustment));
     }

@@ -3,6 +3,7 @@ package com.sweet.market.order.application;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
@@ -55,8 +56,10 @@ public class OrderService {
         Order order;
         try {
             order = Order.create(buyer, product);
+        } catch (DomainException exception) {
+            throw new BusinessException(ErrorCode.PRODUCT_NOT_ON_SALE, exception);
         } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.PRODUCT_NOT_ON_SALE);
+            throw new BusinessException(ErrorCode.PRODUCT_NOT_ON_SALE, exception);
         }
 
         Order savedOrder = orderRepository.save(order);

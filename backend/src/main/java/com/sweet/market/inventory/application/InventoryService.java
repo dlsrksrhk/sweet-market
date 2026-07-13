@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.inventory.domain.Inventory;
@@ -69,8 +70,11 @@ public class InventoryService {
         InventoryAdjustment adjustment;
         try {
             adjustment = findInventory(order.getProduct()).reserve(order);
-        } catch (IllegalStateException exception) {
-            throw new BusinessException(ErrorCode.PRODUCT_NOT_ON_SALE);
+        } catch (DomainException exception) {
+            ErrorCode errorCode = "STOCK_UNAVAILABLE".equals(exception.error().toString())
+                    ? ErrorCode.PRODUCT_NOT_ON_SALE
+                    : ErrorCode.VALIDATION_ERROR;
+            throw new BusinessException(errorCode, exception);
         }
         inventoryAdjustmentRepository.save(adjustment);
     }
@@ -113,7 +117,7 @@ public class InventoryService {
         try {
             return inventoryAdjustmentTransactionService.adjust(memberId, storeId, productId, request);
         } catch (ObjectOptimisticLockingFailureException | StaleObjectStateException exception) {
-            throw new BusinessException(ErrorCode.INVENTORY_ADJUSTMENT_CONFLICT);
+            throw new BusinessException(ErrorCode.INVENTORY_ADJUSTMENT_CONFLICT, exception);
         }
     }
 
