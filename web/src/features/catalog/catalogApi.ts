@@ -30,10 +30,14 @@ export type CatalogSearchResponse = {
   nextCursor: string | null;
 };
 
+export type StoreCatalogSearchInput = Omit<CatalogSearchInput, 'storeId'>;
+
 export function getCatalogProducts(input: CatalogSearchInput) {
   return api<CatalogSearchResponse>(`/api/catalog/products?${toSearchParams(input)}`);
 }
 
-export function getStoreCatalogProducts(storeId: number, input: CatalogSearchInput) {
-  return api<CatalogSearchResponse>(`/api/stores/${storeId}/catalog/products?${toSearchParams(input)}`);
+export function getStoreCatalogProducts(storeId: number, input: StoreCatalogSearchInput) {
+  const searchParams = toSearchParams({ ...input, storeId: undefined });
+
+  return api<CatalogSearchResponse>(`/api/stores/${storeId}/catalog/products?${searchParams}`);
 }
