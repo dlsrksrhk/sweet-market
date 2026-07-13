@@ -9,7 +9,7 @@ import com.sweet.market.support.IntegrationTestSupport;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 
-abstract class QueryOptimizationTestSupport extends IntegrationTestSupport {
+public abstract class QueryOptimizationTestSupport extends IntegrationTestSupport {
 
     @Autowired
     protected EntityManager entityManager;
