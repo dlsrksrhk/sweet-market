@@ -8,6 +8,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.refund.domain.RefundRequest;
@@ -73,7 +74,9 @@ class ProductTest {
         Product product = Product.create(seller, "상품", "설명", 10_000L);
 
         assertThatThrownBy(product::show)
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.NOT_HIDDEN);
     }
 
     @Test
@@ -83,8 +86,9 @@ class ProductTest {
         product.addImage("https://example.com/macbook-1.jpg");
 
         assertThatThrownBy(() -> product.removeImage(999L))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Product image not found: 999");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.IMAGE_NOT_FOUND);
     }
 
     @Test
@@ -109,8 +113,9 @@ class ProductTest {
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
 
         assertThatThrownBy(() -> product.replaceImages(List.of()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Product image is required");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.IMAGE_REQUIRED);
     }
 
     @Test
@@ -121,8 +126,9 @@ class ProductTest {
         assertThatThrownBy(() -> product.replaceImages(List.of(
                 ProductImage.local("/uploads/products/public/a.jpg", "a.jpg", "a.jpg", "image/jpeg", 100L, 0, false)
         )))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Product representative image must be exactly one");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.REPRESENTATIVE_IMAGE_COUNT_INVALID);
     }
 
     @Test
@@ -143,8 +149,9 @@ class ProductTest {
                 ProductImage.local("/uploads/products/public/9.jpg", "9.jpg", "9.jpg", "image/jpeg", 100L, 9, false),
                 ProductImage.local("/uploads/products/public/10.jpg", "10.jpg", "10.jpg", "image/jpeg", 100L, 10, false)
         )))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Product image limit exceeded");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.IMAGE_LIMIT_EXCEEDED);
     }
 
     @Test
@@ -156,8 +163,9 @@ class ProductTest {
                 ProductImage.local("/uploads/products/public/a.jpg", "a.jpg", "a.jpg", "image/jpeg", 100L, 0, true),
                 ProductImage.local("/uploads/products/public/b.jpg", "b.jpg", "b.jpg", "image/jpeg", 100L, 0, false)
         )))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Product image sort order must be unique");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.IMAGE_SORT_ORDER_DUPLICATE);
     }
 
     @Test
@@ -198,8 +206,9 @@ class ProductTest {
         }
 
         assertThatThrownBy(() -> product.addLegacyImage("https://example.com/macbook-10.jpg"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Product image limit exceeded");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.IMAGE_LIMIT_EXCEEDED);
     }
 
     @Test
@@ -243,8 +252,9 @@ class ProductTest {
         assignImageId(image, 1L);
 
         assertThatThrownBy(() -> product.removeImage(1L))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Product image is required");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.IMAGE_REQUIRED);
     }
 
     @Test
@@ -275,8 +285,9 @@ class ProductTest {
         product.hide();
 
         assertThatThrownBy(product::reserve)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Product is not on sale: HIDDEN");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.NOT_ON_SALE);
     }
 
     @Test
@@ -285,8 +296,9 @@ class ProductTest {
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
 
         assertThatThrownBy(product::restoreOnSaleFromReservation)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Product is not reserved: ON_SALE");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.NOT_RESERVED);
     }
 
     @Test
@@ -306,8 +318,9 @@ class ProductTest {
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
 
         assertThatThrownBy(product::markSoldOutFromReservation)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Product is not reserved: ON_SALE");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.NOT_RESERVED);
     }
 
     @Test
@@ -317,8 +330,9 @@ class ProductTest {
         product.reserve();
 
         assertThatThrownBy(product::hide)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Reserved product cannot be changed");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.CHANGE_NOT_ALLOWED);
     }
 
     @Test
@@ -328,8 +342,9 @@ class ProductTest {
         product.reserve();
 
         assertThatThrownBy(() -> product.update("iPhone", "15 Pro", 1_200_000L))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Reserved product cannot be changed");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(ProductDomainError.CHANGE_NOT_ALLOWED);
     }
 
     private void assignImageId(ProductImage image, Long id) {

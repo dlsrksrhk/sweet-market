@@ -1,5 +1,6 @@
 package com.sweet.market.inventory.domain;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.product.domain.Product;
@@ -55,7 +56,7 @@ public class Inventory {
 
     public static Inventory initialize(Product product, int totalQuantity) {
         if (product.isSingleItem()) {
-            throw new IllegalArgumentException("Single-item product cannot have inventory");
+            throw new DomainException(InventoryDomainError.SINGLE_ITEM_PRODUCT_NOT_SUPPORTED);
         }
         return new Inventory(product, totalQuantity);
     }
@@ -67,7 +68,7 @@ public class Inventory {
     public InventoryAdjustment reserve(Order order) {
         validateOrderProduct(order);
         if (getAvailableQuantity() == 0) {
-            throw new IllegalStateException("Inventory is unavailable");
+            throw new DomainException(InventoryDomainError.STOCK_UNAVAILABLE);
         }
         int beforeReservedQuantity = reservedQuantity;
         reservedQuantity++;
@@ -77,7 +78,7 @@ public class Inventory {
     public InventoryAdjustment release(Order order) {
         validateOrderProduct(order);
         if (reservedQuantity == 0) {
-            throw new IllegalStateException("Inventory has no reservation to release");
+            throw new DomainException(InventoryDomainError.RESERVATION_NOT_FOUND);
         }
         int beforeReservedQuantity = reservedQuantity;
         reservedQuantity--;
@@ -87,7 +88,7 @@ public class Inventory {
     public InventoryAdjustment commitShipment(Order order) {
         validateOrderProduct(order);
         if (reservedQuantity == 0) {
-            throw new IllegalStateException("Inventory has no reservation to commit");
+            throw new DomainException(InventoryDomainError.RESERVATION_NOT_FOUND);
         }
         int beforeTotalQuantity = totalQuantity;
         int beforeReservedQuantity = reservedQuantity;
@@ -104,13 +105,13 @@ public class Inventory {
     ) {
         validateTotalQuantity(totalQuantity);
         if (totalQuantity < reservedQuantity) {
-            throw new IllegalStateException("Inventory total cannot be lower than reservations");
+            throw new DomainException(InventoryDomainError.TOTAL_BELOW_RESERVED_QUANTITY);
         }
         if (reason == null) {
-            throw new IllegalArgumentException("Inventory adjustment reason is required");
+            throw new DomainException(InventoryDomainError.ADJUSTMENT_REASON_REQUIRED);
         }
         if (actor == null) {
-            throw new IllegalArgumentException("Inventory adjustment actor is required");
+            throw new DomainException(InventoryDomainError.ADJUSTMENT_ACTOR_REQUIRED);
         }
         int beforeTotalQuantity = this.totalQuantity;
         this.totalQuantity = totalQuantity;
@@ -119,13 +120,13 @@ public class Inventory {
 
     private static void validateTotalQuantity(int totalQuantity) {
         if (totalQuantity < 0) {
-            throw new IllegalArgumentException("Inventory total quantity cannot be negative");
+            throw new DomainException(InventoryDomainError.TOTAL_QUANTITY_NEGATIVE);
         }
     }
 
     private void validateOrderProduct(Order order) {
         if (order == null || order.getProduct() != product) {
-            throw new IllegalArgumentException("Order does not belong to inventory product");
+            throw new DomainException(InventoryDomainError.ORDER_PRODUCT_MISMATCH);
         }
     }
 }

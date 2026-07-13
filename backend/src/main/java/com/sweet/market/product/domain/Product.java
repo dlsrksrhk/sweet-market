@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreStatus;
@@ -125,10 +126,10 @@ public class Product {
 
     public void changeLowStockThreshold(int lowStockThreshold) {
         if (salesPolicy != ProductSalesPolicy.STOCK_MANAGED) {
-            throw new IllegalStateException("Single-item product does not have stock settings");
+            throw new DomainException(ProductDomainError.STOCK_SETTINGS_UNAVAILABLE);
         }
         if (lowStockThreshold <= 0) {
-            throw new IllegalArgumentException("Low-stock threshold must be positive");
+            throw new DomainException(ProductDomainError.LOW_STOCK_THRESHOLD_INVALID);
         }
         this.lowStockThreshold = lowStockThreshold;
     }
@@ -140,28 +141,28 @@ public class Product {
 
     public void show() {
         if (status != ProductStatus.HIDDEN) {
-            throw new IllegalStateException("Product is not hidden: " + status);
+            throw new DomainException(ProductDomainError.NOT_HIDDEN);
         }
         status = ProductStatus.ON_SALE;
     }
 
     public void reserve() {
         if (status != ProductStatus.ON_SALE) {
-            throw new IllegalStateException("Product is not on sale: " + status);
+            throw new DomainException(ProductDomainError.NOT_ON_SALE);
         }
         this.status = ProductStatus.RESERVED;
     }
 
     public void restoreOnSaleFromReservation() {
         if (status != ProductStatus.RESERVED) {
-            throw new IllegalStateException("Product is not reserved: " + status);
+            throw new DomainException(ProductDomainError.NOT_RESERVED);
         }
         this.status = ProductStatus.ON_SALE;
     }
 
     public void markSoldOutFromReservation() {
         if (status != ProductStatus.RESERVED) {
-            throw new IllegalStateException("Product is not reserved: " + status);
+            throw new DomainException(ProductDomainError.NOT_RESERVED);
         }
         this.status = ProductStatus.SOLD_OUT;
     }
@@ -194,7 +195,7 @@ public class Product {
     public ProductImage addLegacyImage(String imageUrl) {
         validateNotReserved();
         if (images.size() >= 10) {
-            throw new IllegalArgumentException("Product image limit exceeded");
+            throw new DomainException(ProductDomainError.IMAGE_LIMIT_EXCEEDED);
         }
         ProductImage image = ProductImage.legacyUrl(imageUrl, nextSortOrder(), images.isEmpty());
         image.assignProduct(this);
@@ -219,9 +220,9 @@ public class Product {
         ProductImage target = images.stream()
                 .filter(image -> imageId.equals(image.getId()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Product image not found: " + imageId));
+                .orElseThrow(() -> new DomainException(ProductDomainError.IMAGE_NOT_FOUND));
         if (images.size() == 1) {
-            throw new IllegalStateException("Product image is required");
+            throw new DomainException(ProductDomainError.IMAGE_REQUIRED);
         }
         images.remove(target);
         if (target.isRepresentative()) {
@@ -249,23 +250,23 @@ public class Product {
 
     private void validateImages(List<ProductImage> nextImages) {
         if (nextImages.isEmpty()) {
-            throw new IllegalArgumentException("Product image is required");
+            throw new DomainException(ProductDomainError.IMAGE_REQUIRED);
         }
         if (nextImages.size() > 10) {
-            throw new IllegalArgumentException("Product image limit exceeded");
+            throw new DomainException(ProductDomainError.IMAGE_LIMIT_EXCEEDED);
         }
         long representativeCount = nextImages.stream()
                 .filter(ProductImage::isRepresentative)
                 .count();
         if (representativeCount != 1) {
-            throw new IllegalArgumentException("Product representative image must be exactly one");
+            throw new DomainException(ProductDomainError.REPRESENTATIVE_IMAGE_COUNT_INVALID);
         }
         Set<Integer> sortOrders = new HashSet<>();
         boolean hasDuplicateSortOrder = nextImages.stream()
                 .map(ProductImage::getSortOrder)
                 .anyMatch(sortOrder -> !sortOrders.add(sortOrder));
         if (hasDuplicateSortOrder) {
-            throw new IllegalArgumentException("Product image sort order must be unique");
+            throw new DomainException(ProductDomainError.IMAGE_SORT_ORDER_DUPLICATE);
         }
     }
 
@@ -275,7 +276,7 @@ public class Product {
 
     private void validateNotReserved() {
         if (status == ProductStatus.RESERVED) {
-            throw new IllegalStateException("Reserved product cannot be changed");
+            throw new DomainException(ProductDomainError.CHANGE_NOT_ALLOWED);
         }
     }
 
@@ -285,19 +286,19 @@ public class Product {
             Integer initialTotalQuantity
     ) {
         if (salesPolicy == null) {
-            throw new IllegalArgumentException("Product sales policy is required");
+            throw new DomainException(ProductDomainError.SALES_POLICY_REQUIRED);
         }
         if (salesPolicy == ProductSalesPolicy.SINGLE_ITEM) {
             if (lowStockThreshold != null || initialTotalQuantity != null) {
-                throw new IllegalArgumentException("Single-item product cannot have stock settings");
+                throw new DomainException(ProductDomainError.SINGLE_ITEM_STOCK_SETTINGS_INVALID);
             }
             return;
         }
         if (lowStockThreshold == null || lowStockThreshold <= 0) {
-            throw new IllegalArgumentException("Stock-managed product requires a positive low-stock threshold");
+            throw new DomainException(ProductDomainError.LOW_STOCK_THRESHOLD_INVALID);
         }
         if (initialTotalQuantity == null || initialTotalQuantity < 0) {
-            throw new IllegalArgumentException("Stock-managed product requires a non-negative initial quantity");
+            throw new DomainException(ProductDomainError.INITIAL_STOCK_QUANTITY_INVALID);
         }
     }
 }

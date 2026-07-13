@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.product.domain.Product;
@@ -83,7 +84,9 @@ class InventoryTest {
         inventory.reserve(주문(product));
 
         assertThatThrownBy(() -> inventory.adjust(0, InventoryAdjustmentReason.STOCKTAKE, null, 운영자()))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(InventoryDomainError.TOTAL_BELOW_RESERVED_QUANTITY);
     }
 
     @Test
