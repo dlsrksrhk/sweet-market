@@ -217,6 +217,10 @@ class CatalogSearchRepositoryTest extends IntegrationTestSupport {
         );
 
         assertThat(page).extracting(CatalogProductRow::productId).containsExactly(matching.getId());
+        assertThat(recordingDataSource.executedSql()).hasSize(1);
+        assertThat(recordingDataSource.executedSql()).allSatisfy(executedSql -> assertThat(executedSql.toUpperCase(Locale.ROOT))
+                .doesNotContain("COUNT(")
+                .doesNotContain("INVENTORY_ADJUSTMENTS"));
         String sql = recordingDataSource.executedSql().getFirst().toUpperCase(Locale.ROOT);
         assertThat(sql).contains("WITH KEYWORD_MATCHES AS MATERIALIZED")
                 .contains("WHERE TITLE ILIKE ?")
