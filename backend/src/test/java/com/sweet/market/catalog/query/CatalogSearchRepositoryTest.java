@@ -2,11 +2,20 @@ package com.sweet.market.catalog.query;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.DelegatingDataSource;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.sweet.market.catalog.domain.CatalogAvailabilityFilter;
@@ -28,6 +37,7 @@ import com.sweet.market.wishlist.domain.WishlistItem;
 import com.sweet.market.wishlist.repository.WishlistItemRepository;
 
 import jakarta.persistence.EntityManager;
+import javax.sql.DataSource;
 
 class CatalogSearchRepositoryTest extends IntegrationTestSupport {
 
@@ -51,6 +61,9 @@ class CatalogSearchRepositoryTest extends IntegrationTestSupport {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private DataSource dataSource;
 
     @Test
     void 활성_상점의_구매가능_상품만_가격_오름차순_키셋으로_조회한다() {
@@ -127,6 +140,8 @@ class CatalogSearchRepositoryTest extends IntegrationTestSupport {
         Product inStock = 재고_상품을_저장한다(businessStore, "재고충분", "설명", 15_000L, 3, 4, ProductCategory.COMPUTERS);
         Product singleItem = 단품_상품을_저장한다(businessStore, "단품", "설명", 15_000L, ProductCategory.COMPUTERS);
         Product personal = 단품_상품을_저장한다(personalStore, "개인", "설명", 15_000L, ProductCategory.COMPUTERS);
+        Product belowMinimum = 단품_상품을_저장한다(businessStore, "최저가미만", "설명", 14_000L, ProductCategory.COMPUTERS);
+        Product aboveMaximum = 단품_상품을_저장한다(businessStore, "최고가초과", "설명", 16_000L, ProductCategory.COMPUTERS);
 
         assertThat(repository.findPage(조건(null, ProductCategory.COMPUTERS, null, null, null, null, null, null, CatalogSort.NEWEST, 10), null))
                 .extracting(CatalogProductRow::productId)
@@ -135,6 +150,14 @@ class CatalogSearchRepositoryTest extends IntegrationTestSupport {
                 .extracting(CatalogProductRow::productId)
                 .contains(matching.getId())
                 .doesNotContain(inStock.getId(), singleItem.getId());
+        assertThat(repository.findPage(조건(null, null, null, null, CatalogAvailabilityFilter.IN_STOCK, null, null, null, CatalogSort.NEWEST, 10), null))
+                .extracting(CatalogProductRow::productId)
+                .contains(inStock.getId(), singleItem.getId())
+                .doesNotContain(matching.getId());
+        assertThat(repository.findPage(조건(null, null, 15_000L, 15_000L, null, null, null, null, CatalogSort.NEWEST, 10), null))
+                .extracting(CatalogProductRow::productId)
+                .contains(matching.getId())
+                .doesNotContain(belowMinimum.getId(), aboveMaximum.getId());
         assertThat(repository.findPage(조건(null, null, null, null, null, ProductSalesPolicy.SINGLE_ITEM, null, null, CatalogSort.NEWEST, 10), null))
                 .extracting(CatalogProductRow::productId)
                 .contains(singleItem.getId())
@@ -154,6 +177,28 @@ class CatalogSearchRepositoryTest extends IntegrationTestSupport {
         assertThat(row.representativeImageUrl()).isEqualTo("https://example.com/representative.jpg");
         assertThat(row.availability().status()).isEqualTo(BuyerAvailabilityResponse.AvailabilityStatus.LOW_STOCK);
         assertThat(row.availability().quantity()).isEqualTo(2);
+    }
+
+    @Test
+    void 카탈로그_페이지는_카운트와_재고이력없이_단일_size_plus_one_쿼리로_조회한다() {
+        Store store = 활성_사업자_상점("single-query-catalog@example.com");
+        단품_상품을_저장한다(store, "첫번째", "설명", 10_000L, ProductCategory.OTHER);
+        단품_상품을_저장한다(store, "두번째", "설명", 20_000L, ProductCategory.OTHER);
+        단품_상품을_저장한다(store, "세번째", "설명", 30_000L, ProductCategory.OTHER);
+        단품_상품을_저장한다(store, "네번째", "설명", 40_000L, ProductCategory.OTHER);
+        SqlRecordingDataSource recordingDataSource = new SqlRecordingDataSource(dataSource);
+        CatalogSearchRepository recordingRepository = new CatalogSearchRepository(
+                new NamedParameterJdbcTemplate(recordingDataSource)
+        );
+
+        List<CatalogProductRow> page = recordingRepository.findPage(조건(CatalogSort.NEWEST, 2), null);
+
+        assertThat(page).hasSize(3);
+        assertThat(recordingDataSource.executedSql()).hasSize(1);
+        String sql = recordingDataSource.executedSql().getFirst().toUpperCase(Locale.ROOT);
+        assertThat(sql).contains("LIMIT ?")
+                .doesNotContain("COUNT(")
+                .doesNotContain("INVENTORY_ADJUSTMENTS");
     }
 
     @Test
@@ -257,5 +302,58 @@ class CatalogSearchRepositoryTest extends IntegrationTestSupport {
             managedProduct.getImages().get(0).changeArrangement(0, false);
             entityManager.flush();
         });
+    }
+
+    private static class SqlRecordingDataSource extends DelegatingDataSource {
+
+        private final List<String> executedSql = new ArrayList<>();
+
+        private SqlRecordingDataSource(DataSource targetDataSource) {
+            super(targetDataSource);
+        }
+
+        @Override
+        public Connection getConnection() throws SQLException {
+            return recordingConnection(super.getConnection());
+        }
+
+        private Connection recordingConnection(Connection connection) {
+            return (Connection) Proxy.newProxyInstance(
+                    Connection.class.getClassLoader(),
+                    new Class<?>[]{Connection.class},
+                    (proxy, method, arguments) -> {
+                        Object result = invoke(method, connection, arguments);
+                        if ("prepareStatement".equals(method.getName()) && arguments[0] instanceof String sql) {
+                            return recordingPreparedStatement((PreparedStatement) result, sql);
+                        }
+                        return result;
+                    }
+            );
+        }
+
+        private PreparedStatement recordingPreparedStatement(PreparedStatement statement, String sql) {
+            return (PreparedStatement) Proxy.newProxyInstance(
+                    PreparedStatement.class.getClassLoader(),
+                    new Class<?>[]{PreparedStatement.class},
+                    (proxy, method, arguments) -> {
+                        if ("executeQuery".equals(method.getName())) {
+                            executedSql.add(sql);
+                        }
+                        return invoke(method, statement, arguments);
+                    }
+            );
+        }
+
+        private Object invoke(java.lang.reflect.Method method, Object target, Object[] arguments) throws Throwable {
+            try {
+                return method.invoke(target, arguments);
+            } catch (InvocationTargetException exception) {
+                throw exception.getCause();
+            }
+        }
+
+        private List<String> executedSql() {
+            return executedSql;
+        }
     }
 }
