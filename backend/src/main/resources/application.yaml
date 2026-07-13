@@ -45,7 +45,7 @@ jwt:
 catalog:
   cursor:
     secret: ${CATALOG_CURSOR_SECRET}
-    max-age: ${CATALOG_CURSOR_MAX_AGE:15m}
+    max-age: ${CATALOG_CURSOR_MAX_AGE:30m}
 
 product:
   images:

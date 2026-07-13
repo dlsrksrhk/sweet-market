@@ -27,7 +27,7 @@ class CatalogCursorCodecTest {
         codec = new CatalogCursorCodec(
                 new ObjectMapper().findAndRegisterModules(),
                 "catalog-cursor-test-secret-key-32bytes",
-                Duration.ofMinutes(15),
+                Duration.ofMinutes(30),
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
     }
@@ -74,13 +74,18 @@ class CatalogCursorCodecTest {
                 .isEqualTo(ErrorCode.CATALOG_CURSOR_STALE);
     }
 
+    @Test
+    void 커서_만료_시각은_구성된_최대_수명을_사용한다() {
+        assertThat(codec.expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(30)));
+    }
+
     private CatalogCursor validCursor() {
         return new CatalogCursor(
                 CatalogSort.PRICE_ASC,
                 10_000L,
                 42L,
                 "fingerprint",
-                NOW.plus(Duration.ofMinutes(15))
+                NOW.plus(Duration.ofMinutes(30))
         );
     }
 }

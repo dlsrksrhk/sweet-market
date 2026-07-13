@@ -39,7 +39,7 @@ jwt:
 catalog:
   cursor:
     secret: sweet-market-test-cursor-secret-key-32bytes-minimum
-    max-age: 15m
+    max-age: 30m
 
 product:
   images:
