@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductCategory;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.product.domain.ProductStatus;
 
@@ -17,6 +18,7 @@ public record ProductResponse(
         String title,
         String description,
         long price,
+        ProductCategory category,
         String status,
         boolean purchasable,
         List<ProductImageResponse> images,
@@ -72,6 +74,7 @@ public record ProductResponse(
                 product.getTitle(),
                 product.getDescription(),
                 product.getPrice(),
+                product.getCategory(),
                 catalogStatus(product, availability).name(),
                 product.isPurchasable()
                         && availability.status() != BuyerAvailabilityResponse.AvailabilityStatus.SOLD_OUT,

@@ -2,6 +2,7 @@ package com.sweet.market.product.api;
 
 import java.util.List;
 
+import com.sweet.market.product.domain.ProductCategory;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 
 import jakarta.validation.Valid;
@@ -28,6 +29,19 @@ public record ProductUpdateRequest(
 
         @NotNull
         @Size(max = 10)
-        List<@Valid ProductUpdateImageRequest> images
+        List<@Valid ProductUpdateImageRequest> images,
+
+        ProductCategory category
 ) {
+
+    public ProductUpdateRequest(
+            String title,
+            String description,
+            long price,
+            ProductSalesPolicy salesPolicy,
+            Integer lowStockThreshold,
+            List<ProductUpdateImageRequest> images
+    ) {
+        this(title, description, price, salesPolicy, lowStockThreshold, images, null);
+    }
 }

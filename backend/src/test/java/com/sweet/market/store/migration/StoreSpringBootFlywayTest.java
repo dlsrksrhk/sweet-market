@@ -48,7 +48,7 @@ class StoreSpringBootFlywayTest {
 
     @Test
     void 스프링_부트_Flyway_설정으로_상점_마이그레이션을_실행한다() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("5");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM stores WHERE owner_member_id = 1 AND type = 'PERSONAL'",
                 Long.class

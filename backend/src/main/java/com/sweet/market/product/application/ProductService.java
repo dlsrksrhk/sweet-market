@@ -98,7 +98,7 @@ public class ProductService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR);
         }
         try {
-            product.update(request.title(), request.description(), request.price());
+            product.update(request.title(), request.description(), request.price(), request.category());
         } catch (DomainException exception) {
             throw mapProductDomainException(exception);
         }
@@ -165,7 +165,8 @@ public class ProductService {
                     request.price(),
                     request.salesPolicy(),
                     request.lowStockThreshold(),
-                    request.initialTotalQuantity()
+                    request.initialTotalQuantity(),
+                    request.category()
             );
         } catch (DomainException exception) {
             throw mapProductDomainException(exception);
