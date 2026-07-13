@@ -50,9 +50,14 @@ class StoreFreshDatabaseStartupTest {
         assertThat(tableExists("products")).isTrue();
         assertThat(tableExists("orders")).isTrue();
         assertThat(columnExists("products", "store_id")).isTrue();
+        assertThat(columnIsNotNull("products", "category")).isTrue();
+        assertThat(checkConstraintDefinition("chk_products_category"))
+                .contains("COMPUTERS", "MOBILE", "HOME_APPLIANCES", "VEHICLES", "LIVING_HOBBY", "OTHER");
         assertThat(columnExists("orders", "seller_id")).isTrue();
         assertThat(indexExists("idx_products_store_status_id")).isTrue();
         assertThat(indexExists("idx_products_store_status_price_id")).isTrue();
+        assertThat(indexExists("idx_products_title_trgm")).isTrue();
+        assertThat(indexExists("idx_products_description_trgm")).isTrue();
         assertThat(indexExists("idx_orders_seller_id")).isTrue();
         assertThat(foreignKeyExists("products", "store_id", "stores", "id")).isTrue();
         assertThat(foreignKeyExists("orders", "seller_id", "members", "id")).isTrue();
@@ -80,6 +85,31 @@ class StoreFreshDatabaseStartupTest {
                 columnName
         );
         return count != null && count == 1;
+    }
+
+    private boolean columnIsNotNull(String tableName, String columnName) {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                          AND table_name = ?
+                          AND column_name = ?
+                          AND is_nullable = 'NO'
+                        """,
+                Integer.class,
+                tableName,
+                columnName
+        );
+        return count != null && count == 1;
+    }
+
+    private String checkConstraintDefinition(String constraintName) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COALESCE((SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = ?), '')",
+                String.class,
+                constraintName
+        );
     }
 
     private boolean indexExists(String indexName) {

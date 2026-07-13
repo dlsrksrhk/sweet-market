@@ -1,11 +1,13 @@
+CREATE TABLE IF NOT EXISTS products (
+    id BIGSERIAL PRIMARY KEY,
+    title VARCHAR(100) NOT NULL,
+    description VARCHAR(2000) NOT NULL
+);
+
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 DO $$
 BEGIN
-    IF to_regclass('products') IS NULL THEN
-        RETURN;
-    END IF;
-
     ALTER TABLE products ADD COLUMN IF NOT EXISTS category VARCHAR(30);
     UPDATE products SET category = 'OTHER' WHERE category IS NULL;
     ALTER TABLE products ALTER COLUMN category SET NOT NULL;
