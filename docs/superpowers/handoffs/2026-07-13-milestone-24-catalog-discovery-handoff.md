@@ -9,6 +9,17 @@
 - A Hibernate `StatementInspector` records every JPA statement after fixture setup. Together with the JDBC recorder it asserts the complete per-page SQL set contains neither `COUNT(` nor `inventory_adjustments`, so either cannot hide in the personalization path.
 - Every fixture product has a fallback and representative `ProductImage`; returned cards assert a nonblank representative URL, exercising the lateral image lookup while retaining zero to-many collection fetches.
 
+### Per-page statement counts
+
+The following counts include the catalog projection and the bounded request-path statements after fixture setup. The global anonymous/authenticated counts are captured by `CatalogQueryOptimizationTest`; the fixed-store counts add the route's single active-store `existsByIdAndStatus` validation before the same shared service path.
+
+| Endpoint scope | Anonymous buyer | Authenticated buyer |
+| --- | --- | --- |
+| Global catalog | **1 statement**: one JDBC card projection. | **3 statements**: one JDBC card projection plus one bounded wishlist-ID batch lookup and one bounded cart-ID batch lookup. |
+| Fixed-store catalog | **2 statements**: one active-store existence check plus one JDBC card projection. | **4 statements**: the active-store existence check, the JDBC card projection, and the two bounded wishlist/cart ID batch lookups. |
+
+All four paths issue no count query and do not read `inventory_adjustments`. The page projection remains a single query; fixed-store scope is a predicate on that projection, not a second catalog query.
+
 The shared `QueryOptimizationTestSupport` is public so the catalog package can reuse the established Hibernate Statistics helpers rather than duplicate their measurement logic.
 
 Focused verification:
@@ -154,6 +165,30 @@ All final backend verification used JDK 21, `JWT_SECRET=sweet-market-local-test-
 | Full backend `./gradlew.bat test --rerun-tasks` | `BUILD SUCCESSFUL` in 3m 23s. Fresh XML aggregation: 75 suites, 532 tests, 0 failures, 0 errors, and 0 skipped. |
 | Web `npm run build` | Exit 0 in 7.4s: both TypeScript checks and Vite production build completed. |
 | `git diff --check` | Exit 0 with no diagnostics. |
+
+The exact focused compatibility command was:
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+$env:SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE='4'
+.\gradlew.bat test --tests 'com.sweet.market.catalog.*' --tests 'com.sweet.market.product.ProductApiTest' --tests 'com.sweet.market.store.StorefrontApiTest' --tests 'com.sweet.market.cart.CartApiTest' --tests 'com.sweet.market.wishlist.WishlistApiTest' --rerun-tasks
+```
+
+The focused budget command was rerun with the same environment and `--rerun-tasks` after this documentation correction:
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+$env:SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE='4'
+.\gradlew.bat test --tests 'com.sweet.market.catalog.CatalogQueryOptimizationTest' --rerun-tasks
+```
+
+It completed `BUILD SUCCESSFUL` in 35 seconds; its two tests had 0 failures, 0 errors, and 0 skipped.
 
 The final backend run covered the new catalog flow alongside the existing product, storefront, cart, wishlist, order, store, and admin regressions. The pre-existing offset storefront endpoint remains unchanged; catalog discovery is additive through `GET /api/catalog/products` and `GET /api/stores/{storeId}/catalog/products`. Existing product API and storefront API tests are also included in the focused verification above.
 
