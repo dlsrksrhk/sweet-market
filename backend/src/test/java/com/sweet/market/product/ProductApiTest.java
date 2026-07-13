@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,13 +31,23 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.common.error.BusinessException;
+import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.product.api.ProductCreateImageRequest;
+import com.sweet.market.product.api.ProductCreateRequest;
 import com.sweet.market.product.application.ProductImageUploadService;
+import com.sweet.market.product.application.ProductService;
+import com.sweet.market.product.domain.ProductDomainError;
+import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.support.IntegrationTestSupport;
 
 class ProductApiTest extends IntegrationTestSupport {
 
     @Autowired
     private FailingImageConfirmService failingImageConfirmService;
+
+    @Autowired
+    private ProductService productService;
 
     @Test
     void 활성_사업자_상점만_재고형_상품을_등록할_수_있다() throws Exception {
@@ -318,6 +329,34 @@ class ProductApiTest extends IntegrationTestSupport {
                                 """.formatted(storeId)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("PRODUCT_IMAGE_REQUIRED"));
+    }
+
+    @Test
+    void 상품_등록_서비스는_이미지_개수_제한을_반환한다() throws Exception {
+        String email = "seller-image-limit@example.com";
+        String accessToken = signupAndLogin(email, "password123", "seller");
+        Long storeId = activePersonalStoreId(accessToken);
+        Long memberId = jdbcTemplate.queryForObject("select id from members where email = ?", Long.class, email);
+
+        assertThatThrownBy(() -> productService.create(memberId, new ProductCreateRequest(
+                storeId,
+                "MacBook Pro",
+                "M3 laptop",
+                2_000_000,
+                ProductSalesPolicy.SINGLE_ITEM,
+                null,
+                null,
+                IntStream.range(0, 11)
+                        .mapToObj(index -> new ProductCreateImageRequest((long) index + 1, index, index == 0))
+                        .toList()
+        )))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.errorCode()).isEqualTo(ErrorCode.PRODUCT_IMAGE_LIMIT_EXCEEDED));
+    }
+
+    @Test
+    void 상품_도메인_오류_계약은_애플리케이션_계층에서_접근할_수_있다() {
+        assertThat(ProductDomainError.IMAGE_REQUIRED.name()).isEqualTo("IMAGE_REQUIRED");
     }
 
     @Test

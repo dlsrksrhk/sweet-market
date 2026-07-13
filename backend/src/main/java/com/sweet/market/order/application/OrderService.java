@@ -18,6 +18,7 @@ import com.sweet.market.payment.domain.Payment;
 import com.sweet.market.payment.domain.PaymentStatus;
 import com.sweet.market.payment.repository.PaymentRepository;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductDomainError;
 import com.sweet.market.product.repository.ProductRepository;
 
 @Service
@@ -57,7 +58,10 @@ public class OrderService {
         try {
             order = Order.create(buyer, product);
         } catch (DomainException exception) {
-            throw new BusinessException(ErrorCode.PRODUCT_NOT_ON_SALE, exception);
+            if (exception.error() == ProductDomainError.NOT_ON_SALE) {
+                throw new BusinessException(ErrorCode.PRODUCT_NOT_ON_SALE, exception);
+            }
+            throw exception;
         } catch (IllegalStateException exception) {
             throw new BusinessException(ErrorCode.PRODUCT_NOT_ON_SALE, exception);
         }

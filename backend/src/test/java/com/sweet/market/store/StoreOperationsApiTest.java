@@ -611,7 +611,8 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
 
         adjust(store, owner, product.getId(), 1, "STOCKTAKE", "실사")
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("INVENTORY_ADJUSTMENT_CONFLICT"));
+                .andExpect(jsonPath("$.code").value("INVENTORY_ADJUSTMENT_CONFLICT"))
+                .andExpect(jsonPath("$.message").value("재고 조정 요청이 현재 재고 상태와 충돌합니다."));
         getHistory(store, owner, product.getId())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content", hasSize(1)))

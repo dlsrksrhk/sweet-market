@@ -7,6 +7,7 @@ import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductDomainError;
 import com.sweet.market.product.repository.ProductRepository;
 
 @Service
@@ -25,7 +26,10 @@ public class AdminProductService {
         try {
             product.hide();
         } catch (DomainException exception) {
-            throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED, exception);
+            if (exception.error() == ProductDomainError.CHANGE_NOT_ALLOWED) {
+                throw new BusinessException(ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED, exception);
+            }
+            throw exception;
         }
         return AdminProductDetailResponse.from(product);
     }

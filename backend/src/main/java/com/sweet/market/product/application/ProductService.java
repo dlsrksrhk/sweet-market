@@ -20,6 +20,7 @@ import com.sweet.market.product.api.ProductResponse;
 import com.sweet.market.product.api.ProductUpdateImageRequest;
 import com.sweet.market.product.api.ProductUpdateRequest;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductDomainError;
 import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.product.repository.ProductRepository;
@@ -297,11 +298,11 @@ public class ProductService {
     }
 
     private BusinessException mapProductDomainException(DomainException exception) {
-        ErrorCode errorCode = switch (exception.error().toString()) {
-            case "IMAGE_NOT_FOUND" -> ErrorCode.PRODUCT_IMAGE_NOT_FOUND;
-            case "IMAGE_REQUIRED" -> ErrorCode.PRODUCT_IMAGE_REQUIRED;
-            case "IMAGE_LIMIT_EXCEEDED" -> ErrorCode.PRODUCT_IMAGE_LIMIT_EXCEEDED;
-            case "CHANGE_NOT_ALLOWED", "NOT_HIDDEN", "NOT_ON_SALE", "NOT_RESERVED" ->
+        ErrorCode errorCode = switch ((ProductDomainError) exception.error()) {
+            case IMAGE_NOT_FOUND -> ErrorCode.PRODUCT_IMAGE_NOT_FOUND;
+            case IMAGE_REQUIRED -> ErrorCode.PRODUCT_IMAGE_REQUIRED;
+            case IMAGE_LIMIT_EXCEEDED -> ErrorCode.PRODUCT_IMAGE_LIMIT_EXCEEDED;
+            case CHANGE_NOT_ALLOWED, NOT_HIDDEN, NOT_ON_SALE, NOT_RESERVED ->
                     ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED;
             default -> ErrorCode.VALIDATION_ERROR;
         };

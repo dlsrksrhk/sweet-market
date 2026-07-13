@@ -19,10 +19,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.inventory.domain.Inventory;
 import com.sweet.market.inventory.domain.InventoryAdjustment;
 import com.sweet.market.inventory.domain.InventoryAdjustmentReason;
 import com.sweet.market.inventory.domain.InventoryChangeType;
+import com.sweet.market.inventory.domain.InventoryDomainError;
 import com.sweet.market.inventory.repository.InventoryAdjustmentRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
@@ -99,6 +101,24 @@ class InventoryServiceTransactionTest extends IntegrationTestSupport {
 
         assertThat(auditFlushed).isTrue();
         재고와_감사가_롤백된다(fixture.productId());
+    }
+
+    @Test
+    void 예약량보다_낮은_재고_조정은_도메인_원인을_보존해_충돌로_변환한다() {
+        StockFixture fixture = 재고_준비("inventory-domain-conflict@example.com", "779-77-77777");
+        jdbcTemplate.update("update inventories set reserved_quantity = 2 where product_id = ?", fixture.productId());
+
+        assertThatThrownBy(() -> inventoryService.adjust(
+                fixture.ownerId(),
+                fixture.storeId(),
+                fixture.productId(),
+                new InventoryAdjustmentRequest(1, InventoryAdjustmentReason.STOCKTAKE, "실사")
+        )).isInstanceOfSatisfying(BusinessException.class, exception -> {
+            assertThat(exception.errorCode()).isEqualTo(ErrorCode.INVENTORY_ADJUSTMENT_CONFLICT);
+            assertThat(exception.getCause()).isInstanceOf(DomainException.class);
+            assertThat(((DomainException) exception.getCause()).error())
+                    .isEqualTo(InventoryDomainError.TOTAL_BELOW_RESERVED_QUANTITY);
+        });
     }
 
     private StockFixture 재고_준비(String email, String businessNumber) {

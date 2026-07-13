@@ -104,9 +104,10 @@ class OrderApiTest extends IntegrationTestSupport {
                                 {
                                   "productId": %d
                                 }
-                                """.formatted(productId)))
+                """.formatted(productId)))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("PRODUCT_NOT_ON_SALE"));
+                .andExpect(jsonPath("$.code").value("PRODUCT_NOT_ON_SALE"))
+                .andExpect(jsonPath("$.message").value("판매 중인 상품만 주문할 수 있습니다."));
     }
 
     @Test

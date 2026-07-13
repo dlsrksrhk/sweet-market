@@ -25,6 +25,7 @@ import com.sweet.market.order.api.OrderSummaryResponse;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductDomainError;
 import com.sweet.market.product.repository.ProductRepository;
 
 @Service
@@ -157,7 +158,10 @@ public class CartService {
         try {
             return saveAndReserve(Order.create(cartItem.getBuyer(), cartItem.getProduct()));
         } catch (DomainException exception) {
-            throw new BusinessException(ErrorCode.CART_CHECKOUT_NOT_ALLOWED, exception);
+            if (exception.error() == ProductDomainError.NOT_ON_SALE) {
+                throw new BusinessException(ErrorCode.CART_CHECKOUT_NOT_ALLOWED, exception);
+            }
+            throw exception;
         }
     }
 }

@@ -8,6 +8,7 @@ import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.inventory.domain.Inventory;
 import com.sweet.market.inventory.domain.InventoryAdjustment;
+import com.sweet.market.inventory.domain.InventoryDomainError;
 import com.sweet.market.inventory.repository.InventoryAdjustmentRepository;
 import com.sweet.market.inventory.repository.InventoryRepository;
 import com.sweet.market.member.domain.Member;
@@ -54,9 +55,10 @@ public class InventoryAdjustmentTransactionService {
                     actor
             );
         } catch (DomainException exception) {
-            ErrorCode errorCode = "TOTAL_BELOW_RESERVED_QUANTITY".equals(exception.error().toString())
-                    ? ErrorCode.INVENTORY_ADJUSTMENT_CONFLICT
-                    : ErrorCode.VALIDATION_ERROR;
+            ErrorCode errorCode = switch ((InventoryDomainError) exception.error()) {
+                case TOTAL_BELOW_RESERVED_QUANTITY -> ErrorCode.INVENTORY_ADJUSTMENT_CONFLICT;
+                default -> ErrorCode.VALIDATION_ERROR;
+            };
             throw new BusinessException(errorCode, exception);
         }
         inventoryRepository.saveAndFlush(inventory);

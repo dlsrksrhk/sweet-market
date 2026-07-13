@@ -14,6 +14,7 @@ import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.inventory.domain.Inventory;
 import com.sweet.market.inventory.domain.InventoryAdjustment;
 import com.sweet.market.inventory.domain.InventoryChangeType;
+import com.sweet.market.inventory.domain.InventoryDomainError;
 import com.sweet.market.inventory.repository.InventoryAdjustmentRepository;
 import com.sweet.market.inventory.repository.InventoryRepository;
 import com.sweet.market.order.domain.Order;
@@ -71,9 +72,10 @@ public class InventoryService {
         try {
             adjustment = findInventory(order.getProduct()).reserve(order);
         } catch (DomainException exception) {
-            ErrorCode errorCode = "STOCK_UNAVAILABLE".equals(exception.error().toString())
-                    ? ErrorCode.PRODUCT_NOT_ON_SALE
-                    : ErrorCode.VALIDATION_ERROR;
+            ErrorCode errorCode = switch ((InventoryDomainError) exception.error()) {
+                case STOCK_UNAVAILABLE -> ErrorCode.PRODUCT_NOT_ON_SALE;
+                default -> ErrorCode.VALIDATION_ERROR;
+            };
             throw new BusinessException(errorCode, exception);
         }
         inventoryAdjustmentRepository.save(adjustment);

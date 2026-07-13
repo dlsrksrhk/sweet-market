@@ -2,7 +2,7 @@ package com.sweet.market.product.domain;
 
 import com.sweet.market.common.domain.error.DomainError;
 
-enum ProductDomainError implements DomainError {
+public enum ProductDomainError implements DomainError {
     IMAGE_NOT_FOUND, IMAGE_REQUIRED, IMAGE_LIMIT_EXCEEDED,
     REPRESENTATIVE_IMAGE_COUNT_INVALID, IMAGE_SORT_ORDER_DUPLICATE,
     CHANGE_NOT_ALLOWED, NOT_HIDDEN, NOT_ON_SALE, NOT_RESERVED,
