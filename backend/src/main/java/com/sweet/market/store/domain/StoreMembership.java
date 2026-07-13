@@ -2,6 +2,7 @@ package com.sweet.market.store.domain;
 
 import java.time.LocalDateTime;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 
 import jakarta.persistence.Column;
@@ -57,7 +58,7 @@ public class StoreMembership {
 
     public static StoreMembership createOwner(Store store, Member member) {
         if (!store.getOwnerMember().equals(member)) {
-            throw new IllegalArgumentException("Store owner membership must match the store owner");
+            throw new DomainException(StoreMembershipDomainError.OWNER_MEMBERSHIP_MISMATCH);
         }
         return new StoreMembership(store, member, StoreMemberRole.OWNER);
     }

@@ -2,6 +2,7 @@ package com.sweet.market.refund.domain;
 
 import java.time.LocalDateTime;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
 
@@ -74,7 +75,8 @@ public class RefundRequest {
 
     public static RefundRequest request(Order order, Member buyer, String reason) {
         validateOrderBuyer(order, buyer);
-        validateText(reason, 10, 500, "Refund request reason");
+        validateText(reason, 10, 500, RefundRequestDomainError.REQUEST_REASON_REQUIRED,
+                RefundRequestDomainError.REQUEST_REASON_LENGTH_INVALID);
         order.requestRefund();
         return new RefundRequest(order, buyer, reason);
     }
@@ -89,7 +91,8 @@ public class RefundRequest {
 
     public void reject(Member handler, String rejectReason) {
         validateRequested();
-        validateText(rejectReason, 5, 500, "Refund reject reason");
+        validateText(rejectReason, 5, 500, RefundRequestDomainError.REJECT_REASON_REQUIRED,
+                RefundRequestDomainError.REJECT_REASON_LENGTH_INVALID);
         this.status = RefundRequestStatus.REJECTED;
         this.handledBy = handler;
         this.handledAt = LocalDateTime.now();
@@ -103,16 +106,16 @@ public class RefundRequest {
 
     private void validateRequested() {
         if (status != RefundRequestStatus.REQUESTED) {
-            throw new IllegalStateException("Refund request cannot be handled: " + status);
+            throw new DomainException(RefundRequestDomainError.HANDLING_NOT_ALLOWED);
         }
     }
 
     private static void validateOrderBuyer(Order order, Member buyer) {
         if (order == null) {
-            throw new IllegalArgumentException("Order is required");
+            throw new DomainException(RefundRequestDomainError.ORDER_REQUIRED);
         }
         if (buyer == null) {
-            throw new IllegalArgumentException("Refund request buyer is required");
+            throw new DomainException(RefundRequestDomainError.BUYER_REQUIRED);
         }
         Member orderBuyer = order.getBuyer();
         if (orderBuyer == buyer) {
@@ -121,16 +124,22 @@ public class RefundRequest {
         if (orderBuyer.getId() != null && orderBuyer.getId().equals(buyer.getId())) {
             return;
         }
-        throw new IllegalArgumentException("Refund request buyer must match order buyer");
+        throw new DomainException(RefundRequestDomainError.BUYER_ORDER_MISMATCH);
     }
 
-    private static void validateText(String text, int minLength, int maxLength, String fieldName) {
+    private static void validateText(
+            String text,
+            int minLength,
+            int maxLength,
+            RefundRequestDomainError requiredError,
+            RefundRequestDomainError lengthInvalidError
+    ) {
         if (text == null || text.isBlank()) {
-            throw new IllegalArgumentException(fieldName + " is required");
+            throw new DomainException(requiredError);
         }
         int length = text.trim().length();
         if (length < minLength || length > maxLength) {
-            throw new IllegalArgumentException(fieldName + " length must be between " + minLength + " and " + maxLength);
+            throw new DomainException(lengthInvalidError);
         }
     }
 }

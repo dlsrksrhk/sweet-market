@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
@@ -58,7 +59,7 @@ public class RefundRequestService {
             return RefundRequestResponse.from(savedRefundRequest);
         } catch (DataIntegrityViolationException exception) {
             throw new BusinessException(ErrorCode.DUPLICATE_REFUND_REQUEST);
-        } catch (IllegalArgumentException | IllegalStateException exception) {
+        } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.REFUND_REQUEST_NOT_ALLOWED);
         }
     }
@@ -126,7 +127,7 @@ public class RefundRequestService {
             refundRequest.approve(handler);
             payment.refund();
             return RefundRequestResponse.from(refundRequest);
-        } catch (IllegalStateException exception) {
+        } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.REFUND_REQUEST_HANDLE_NOT_ALLOWED);
         }
     }
@@ -138,7 +139,7 @@ public class RefundRequestService {
         try {
             refundRequest.reject(handler, rejectReason);
             return RefundRequestResponse.from(refundRequest);
-        } catch (IllegalArgumentException | IllegalStateException exception) {
+        } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.REFUND_REQUEST_HANDLE_NOT_ALLOWED);
         }
     }

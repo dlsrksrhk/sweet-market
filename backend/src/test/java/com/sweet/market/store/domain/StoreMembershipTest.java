@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 
 class StoreMembershipTest {
@@ -29,8 +30,9 @@ class StoreMembershipTest {
         Member anotherMember = Member.create("another@example.com", "encoded-password", "another");
 
         assertThatThrownBy(() -> StoreMembership.createOwner(store, anotherMember))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Store owner membership must match the store owner");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(StoreMembershipDomainError.OWNER_MEMBERSHIP_MISMATCH);
     }
 
     @Test

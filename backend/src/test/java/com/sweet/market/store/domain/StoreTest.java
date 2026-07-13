@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 
 class StoreTest {
@@ -57,8 +58,9 @@ class StoreTest {
         Store store = businessStore();
 
         assertThatThrownBy(() -> store.reject("  "))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Store rejection reason must be provided");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(StoreDomainError.REJECTION_REASON_REQUIRED);
     }
 
     @Test
@@ -66,8 +68,9 @@ class StoreTest {
         Store store = businessStore();
 
         assertThatThrownBy(() -> store.reject(null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Store rejection reason must be provided");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(StoreDomainError.REJECTION_REASON_REQUIRED);
     }
 
     @Test
@@ -108,8 +111,43 @@ class StoreTest {
         Store store = Store.createPersonal(Member.create("owner@example.com", "encoded-password", "owner"), "상점", "소개");
 
         assertThatThrownBy(store::approve)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Store cannot be approved: ACTIVE");
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(StoreDomainError.STATUS_TRANSITION_NOT_ALLOWED);
+    }
+
+    @Test
+    void 반려된_사업자_상점만_재신청할_수_있다() {
+        Store store = businessStore();
+
+        assertThatThrownBy(store::resubmit)
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(StoreDomainError.BUSINESS_RESUBMISSION_NOT_ALLOWED);
+
+        assertThatThrownBy(() -> store.changeLegalBusinessInformationForResubmission("새 상호", "987-65-43210"))
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(StoreDomainError.BUSINESS_RESUBMISSION_NOT_ALLOWED);
+    }
+
+    @Test
+    void 사업자_정보는_사업자_상점에서_허용된_상태에만_변경할_수_있다() {
+        Store personalStore = Store.createPersonal(
+                Member.create("owner@example.com", "encoded-password", "owner"), "상점", "소개"
+        );
+        Store rejectedBusinessStore = businessStore();
+        rejectedBusinessStore.reject("반려 사유");
+
+        assertThatThrownBy(() -> personalStore.changeLegalBusinessInformation("새 상호", "987-65-43210"))
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(StoreDomainError.BUSINESS_INFORMATION_UNAVAILABLE);
+
+        assertThatThrownBy(() -> rejectedBusinessStore.changeLegalBusinessInformation("새 상호", "987-65-43210"))
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(StoreDomainError.LEGAL_INFORMATION_CHANGE_NOT_ALLOWED);
     }
 
     private Store businessStore() {

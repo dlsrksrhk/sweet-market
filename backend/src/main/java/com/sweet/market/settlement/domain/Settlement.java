@@ -2,6 +2,7 @@ package com.sweet.market.settlement.domain;
 
 import java.time.LocalDateTime;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderStatus;
@@ -60,7 +61,7 @@ public class Settlement {
 
     public static Settlement create(Order order) {
         if (order.getStatus() != OrderStatus.CONFIRMED) {
-            throw new IllegalStateException("Order cannot be settled: " + order.getStatus());
+            throw new DomainException(SettlementDomainError.ORDER_NOT_CONFIRMED);
         }
         return new Settlement(
                 order,

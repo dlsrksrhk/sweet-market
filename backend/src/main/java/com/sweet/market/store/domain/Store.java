@@ -2,6 +2,7 @@ package com.sweet.market.store.domain;
 
 import java.time.LocalDateTime;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 
 import jakarta.persistence.Column;
@@ -110,41 +111,43 @@ public class Store {
     }
 
     public void approve() {
-        validateStatus(StoreStatus.PENDING, "approved");
+        validateStatus(StoreStatus.PENDING);
         status = StoreStatus.ACTIVE;
         rejectionReason = null;
     }
 
     public void reject(String rejectionReason) {
-        validateStatus(StoreStatus.PENDING, "rejected");
+        validateStatus(StoreStatus.PENDING);
         if (rejectionReason == null || rejectionReason.isBlank()) {
-            throw new IllegalArgumentException("Store rejection reason must be provided");
+            throw new DomainException(StoreDomainError.REJECTION_REASON_REQUIRED);
         }
         this.status = StoreStatus.REJECTED;
         this.rejectionReason = rejectionReason;
     }
 
     public void resubmit() {
-        validateStatus(StoreStatus.REJECTED, "resubmitted");
+        if (status != StoreStatus.REJECTED) {
+            throw new DomainException(StoreDomainError.BUSINESS_RESUBMISSION_NOT_ALLOWED);
+        }
         status = StoreStatus.PENDING;
         rejectionReason = null;
     }
 
     public void changeLegalBusinessInformationForResubmission(String legalBusinessName, String businessRegistrationId) {
         if (type != StoreType.BUSINESS || status != StoreStatus.REJECTED) {
-            throw new IllegalStateException("Only rejected business stores can update an application");
+            throw new DomainException(StoreDomainError.BUSINESS_RESUBMISSION_NOT_ALLOWED);
         }
         this.legalBusinessName = legalBusinessName;
         this.businessRegistrationId = businessRegistrationId;
     }
 
     public void suspend() {
-        validateStatus(StoreStatus.ACTIVE, "suspended");
+        validateStatus(StoreStatus.ACTIVE);
         status = StoreStatus.SUSPENDED;
     }
 
     public void reactivate() {
-        validateStatus(StoreStatus.SUSPENDED, "reactivated");
+        validateStatus(StoreStatus.SUSPENDED);
         status = StoreStatus.ACTIVE;
     }
 
@@ -155,10 +158,10 @@ public class Store {
 
     public void changeLegalBusinessInformation(String legalBusinessName, String businessRegistrationId) {
         if (type != StoreType.BUSINESS) {
-            throw new IllegalStateException("Personal store does not have business information");
+            throw new DomainException(StoreDomainError.BUSINESS_INFORMATION_UNAVAILABLE);
         }
         if (status != StoreStatus.ACTIVE && status != StoreStatus.PENDING) {
-            throw new IllegalStateException("Store cannot change legal business information for: " + status);
+            throw new DomainException(StoreDomainError.LEGAL_INFORMATION_CHANGE_NOT_ALLOWED);
         }
         this.legalBusinessName = legalBusinessName;
         this.businessRegistrationId = businessRegistrationId;
@@ -180,9 +183,9 @@ public class Store {
         updatedAt = LocalDateTime.now();
     }
 
-    private void validateStatus(StoreStatus expectedStatus, String action) {
+    private void validateStatus(StoreStatus expectedStatus) {
         if (status != expectedStatus) {
-            throw new IllegalStateException("Store cannot be " + action + ": " + status);
+            throw new DomainException(StoreDomainError.STATUS_TRANSITION_NOT_ALLOWED);
         }
     }
 }

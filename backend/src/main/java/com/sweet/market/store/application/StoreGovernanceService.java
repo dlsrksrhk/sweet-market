@@ -4,12 +4,14 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.store.api.BusinessStoreApplicationRequest;
 import com.sweet.market.store.api.StorePrivateResponse;
 import com.sweet.market.store.api.StoreProfileUpdateRequest;
 import com.sweet.market.store.domain.Store;
+import com.sweet.market.store.domain.StoreDomainError;
 import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.domain.StoreType;
 import com.sweet.market.store.repository.StoreRepository;
@@ -49,9 +51,13 @@ public class StoreGovernanceService {
         if (store.getStatus() != StoreStatus.REJECTED) {
             throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED);
         }
-        store.changePublicInformation(request.publicName(), request.introduction());
-        store.changeLegalBusinessInformationForResubmission(request.legalBusinessName(), request.businessRegistrationId());
-        store.resubmit();
+        try {
+            store.changePublicInformation(request.publicName(), request.introduction());
+            store.changeLegalBusinessInformationForResubmission(request.legalBusinessName(), request.businessRegistrationId());
+            store.resubmit();
+        } catch (DomainException exception) {
+            throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED, exception);
+        }
         return StorePrivateResponse.from(store);
     }
 
@@ -66,7 +72,7 @@ public class StoreGovernanceService {
             }
             try {
                 store.changeLegalBusinessInformation(request.legalBusinessName(), request.businessRegistrationId());
-            } catch (IllegalStateException exception) {
+            } catch (DomainException exception) {
                 throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED);
             }
         }
@@ -78,7 +84,7 @@ public class StoreGovernanceService {
         Store store = requireBusiness(storeId);
         try {
             store.approve();
-        } catch (IllegalStateException exception) {
+        } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED);
         }
         return StorePrivateResponse.from(store);
@@ -89,9 +95,10 @@ public class StoreGovernanceService {
         Store store = requireBusiness(storeId);
         try {
             store.reject(reason);
-        } catch (IllegalArgumentException exception) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR);
-        } catch (IllegalStateException exception) {
+        } catch (DomainException exception) {
+            if (exception.error() == StoreDomainError.REJECTION_REASON_REQUIRED) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, exception);
+            }
             throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED);
         }
         return StorePrivateResponse.from(store);
@@ -102,7 +109,7 @@ public class StoreGovernanceService {
         Store store = requireBusiness(storeId);
         try {
             store.suspend();
-        } catch (IllegalStateException exception) {
+        } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED);
         }
         return StorePrivateResponse.from(store);
@@ -113,7 +120,7 @@ public class StoreGovernanceService {
         Store store = requireBusiness(storeId);
         try {
             store.reactivate();
-        } catch (IllegalStateException exception) {
+        } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED);
         }
         return StorePrivateResponse.from(store);

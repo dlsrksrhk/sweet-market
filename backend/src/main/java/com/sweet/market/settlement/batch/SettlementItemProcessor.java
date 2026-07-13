@@ -3,6 +3,7 @@ package com.sweet.market.settlement.batch;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.stereotype.Component;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderStatus;
 import com.sweet.market.order.repository.OrderRepository;
@@ -38,7 +39,7 @@ public class SettlementItemProcessor implements ItemProcessor<Long, Settlement> 
 
         try {
             return Settlement.create(order);
-        } catch (IllegalStateException exception) {
+        } catch (DomainException exception) {
             throw new SettlementBatchSkippableException("Order cannot be settled: " + orderId, exception);
         }
     }

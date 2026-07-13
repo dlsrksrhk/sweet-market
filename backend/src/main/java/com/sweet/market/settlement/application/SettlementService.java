@@ -3,6 +3,7 @@ package com.sweet.market.settlement.application;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.order.domain.Order;
@@ -39,7 +40,7 @@ public class SettlementService {
         Settlement settlement;
         try {
             settlement = Settlement.create(order);
-        } catch (IllegalStateException exception) {
+        } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.SETTLEMENT_CREATE_NOT_ALLOWED);
         }
 

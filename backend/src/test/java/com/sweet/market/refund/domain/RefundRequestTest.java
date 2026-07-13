@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderStatus;
@@ -64,7 +65,9 @@ class RefundRequestTest {
         refundRequest.approve(handler);
 
         assertThatThrownBy(() -> refundRequest.reject(handler, "거절 사유입니다."))
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(RefundRequestDomainError.HANDLING_NOT_ALLOWED);
     }
 
     @Test
@@ -83,24 +86,41 @@ class RefundRequestTest {
         Member otherBuyer = member("other@example.com", "other");
 
         assertThatThrownBy(() -> RefundRequest.request(order, otherBuyer, "상품 상태가 설명과 달라 환불을 요청합니다."))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(RefundRequestDomainError.BUYER_ORDER_MISMATCH);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.DELIVERED);
     }
 
     @Test
+    void 주문과_구매자는_환불_요청에_필수다() {
+        Member buyer = member("buyer@example.com", "buyer");
+
+        assertThatThrownBy(() -> RefundRequest.request(null, buyer, "상품 상태가 설명과 달라 환불을 요청합니다."))
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(RefundRequestDomainError.ORDER_REQUIRED);
+
+        assertThatThrownBy(() -> RefundRequest.request(deliveredOrder(), null, "상품 상태가 설명과 달라 환불을 요청합니다."))
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(RefundRequestDomainError.BUYER_REQUIRED);
+    }
+
+    @Test
     void 환불_사유가_유효하지_않으면_요청할_수_없고_주문_상태가_유지된다() {
-        assertInvalidReason(null);
-        assertInvalidReason("");
-        assertInvalidReason("   ");
-        assertInvalidReason("짧은사유");
+        assertInvalidReason(null, RefundRequestDomainError.REQUEST_REASON_REQUIRED);
+        assertInvalidReason("", RefundRequestDomainError.REQUEST_REASON_REQUIRED);
+        assertInvalidReason("   ", RefundRequestDomainError.REQUEST_REASON_REQUIRED);
+        assertInvalidReason("짧은사유", RefundRequestDomainError.REQUEST_REASON_LENGTH_INVALID);
     }
 
     @Test
     void 환불_거절_사유가_유효하지_않으면_거절할_수_없고_주문_상태가_유지된다() {
-        assertInvalidRejectReason(null);
-        assertInvalidRejectReason("");
-        assertInvalidRejectReason("   ");
-        assertInvalidRejectReason("짧음");
+        assertInvalidRejectReason(null, RefundRequestDomainError.REJECT_REASON_REQUIRED);
+        assertInvalidRejectReason("", RefundRequestDomainError.REJECT_REASON_REQUIRED);
+        assertInvalidRejectReason("   ", RefundRequestDomainError.REJECT_REASON_REQUIRED);
+        assertInvalidRejectReason("짧음", RefundRequestDomainError.REJECT_REASON_LENGTH_INVALID);
     }
 
     @Test
@@ -109,13 +129,17 @@ class RefundRequestTest {
         String longReason = "가".repeat(501);
 
         assertThatThrownBy(() -> RefundRequest.request(order, order.getBuyer(), longReason))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(RefundRequestDomainError.REQUEST_REASON_LENGTH_INVALID);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.DELIVERED);
 
         RefundRequest refundRequest = RefundRequest.request(order, order.getBuyer(), "상품 상태가 설명과 달라 환불을 요청합니다.");
 
         assertThatThrownBy(() -> refundRequest.reject(member("handler@example.com", "handler"), longReason))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(RefundRequestDomainError.REJECT_REASON_LENGTH_INVALID);
         assertThat(refundRequest.getStatus()).isEqualTo(RefundRequestStatus.REQUESTED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUND_REQUESTED);
     }
@@ -135,20 +159,24 @@ class RefundRequestTest {
         return Member.create(email, "encoded-password", nickname);
     }
 
-    private void assertInvalidReason(String reason) {
+    private void assertInvalidReason(String reason, RefundRequestDomainError expectedError) {
         Order order = deliveredOrder();
 
         assertThatThrownBy(() -> RefundRequest.request(order, order.getBuyer(), reason))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(expectedError);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.DELIVERED);
     }
 
-    private void assertInvalidRejectReason(String rejectReason) {
+    private void assertInvalidRejectReason(String rejectReason, RefundRequestDomainError expectedError) {
         Order order = deliveredOrder();
         RefundRequest refundRequest = RefundRequest.request(order, order.getBuyer(), "상품 상태가 설명과 달라 환불을 요청합니다.");
 
         assertThatThrownBy(() -> refundRequest.reject(member("handler@example.com", "handler"), rejectReason))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(expectedError);
         assertThat(refundRequest.getStatus()).isEqualTo(RefundRequestStatus.REQUESTED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUND_REQUESTED);
     }
