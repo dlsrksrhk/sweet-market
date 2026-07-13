@@ -36,6 +36,11 @@ jwt:
   secret: sweet-market-test-secret-key-32bytes-minimum
   access-token-validity-seconds: 3600
 
+catalog:
+  cursor:
+    secret: sweet-market-test-cursor-secret-key-32bytes-minimum
+    max-age: 15m
+
 product:
   images:
     upload-root: build/test-product-images

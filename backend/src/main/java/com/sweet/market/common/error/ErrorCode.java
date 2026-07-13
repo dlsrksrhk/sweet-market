@@ -61,7 +61,9 @@ public enum ErrorCode {
     STORE_OWNER_MEMBERSHIP_PROTECTED(HttpStatus.CONFLICT, "상점 소유자 멤버십은 제거할 수 없습니다."),
     DUPLICATE_BUSINESS_STORE(HttpStatus.CONFLICT, "사업자 상점은 하나만 신청할 수 있습니다."),
     STORE_CHANGE_NOT_ALLOWED(HttpStatus.CONFLICT, "현재 상점 상태에서는 변경할 수 없습니다."),
-    STORE_INVALID_TYPE(HttpStatus.BAD_REQUEST, "사업자 상점만 처리할 수 있습니다.");
+    STORE_INVALID_TYPE(HttpStatus.BAD_REQUEST, "사업자 상점만 처리할 수 있습니다."),
+    CATALOG_CURSOR_INVALID(HttpStatus.BAD_REQUEST, "상품 목록 커서가 올바르지 않습니다."),
+    CATALOG_CURSOR_STALE(HttpStatus.BAD_REQUEST, "상품 목록 커서가 만료되었습니다.");
 
     private final HttpStatus status;
     private final String message;
