@@ -1,5 +1,6 @@
 package com.sweet.market.coupon.repository;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -26,8 +27,58 @@ public interface MemberCouponRepository extends JpaRepository<MemberCoupon, Long
                 campaign.lifecycleStatus, campaign.issueStartsAt, campaign.issueEndsAt)
             from MemberCoupon coupon join coupon.campaign campaign
             where coupon.member.id = :memberId
+              and (
+                    :status is null
+                    or (:status = 'USED'
+                        and coupon.status = com.sweet.market.coupon.domain.MemberCouponStatus.USED)
+                    or (:status = 'EXPIRED'
+                        and coupon.status <> com.sweet.market.coupon.domain.MemberCouponStatus.USED
+                        and coupon.validUntil <= :now)
+                    or (:status = 'ISSUED'
+                        and coupon.status <> com.sweet.market.coupon.domain.MemberCouponStatus.USED
+                        and coupon.validUntil > :now
+                        and campaign.lifecycleStatus <> com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED
+                        and campaign.lifecycleStatus <> com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED
+                        and campaign.issueStartsAt <= :now
+                        and campaign.issueEndsAt > :now)
+                    or (:status = 'UNAVAILABLE'
+                        and coupon.status <> com.sweet.market.coupon.domain.MemberCouponStatus.USED
+                        and coupon.validUntil > :now
+                        and (campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED
+                            or campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED
+                            or campaign.issueStartsAt > :now
+                            or campaign.issueEndsAt <= :now))
+              )
             """, countQuery = """
-            select count(coupon) from MemberCoupon coupon where coupon.member.id = :memberId
+            select count(coupon) from MemberCoupon coupon join coupon.campaign campaign
+            where coupon.member.id = :memberId
+              and (
+                    :status is null
+                    or (:status = 'USED'
+                        and coupon.status = com.sweet.market.coupon.domain.MemberCouponStatus.USED)
+                    or (:status = 'EXPIRED'
+                        and coupon.status <> com.sweet.market.coupon.domain.MemberCouponStatus.USED
+                        and coupon.validUntil <= :now)
+                    or (:status = 'ISSUED'
+                        and coupon.status <> com.sweet.market.coupon.domain.MemberCouponStatus.USED
+                        and coupon.validUntil > :now
+                        and campaign.lifecycleStatus <> com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED
+                        and campaign.lifecycleStatus <> com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED
+                        and campaign.issueStartsAt <= :now
+                        and campaign.issueEndsAt > :now)
+                    or (:status = 'UNAVAILABLE'
+                        and coupon.status <> com.sweet.market.coupon.domain.MemberCouponStatus.USED
+                        and coupon.validUntil > :now
+                        and (campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED
+                            or campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED
+                            or campaign.issueStartsAt > :now
+                            or campaign.issueEndsAt <= :now))
+              )
             """)
-    Page<MemberCouponWalletRow> findWalletByMemberId(@Param("memberId") Long memberId, Pageable pageable);
+    Page<MemberCouponWalletRow> findWalletByMemberId(
+            @Param("memberId") Long memberId,
+            @Param("status") String status,
+            @Param("now") Instant now,
+            Pageable pageable
+    );
 }

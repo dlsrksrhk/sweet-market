@@ -34,7 +34,8 @@ public class CouponWalletQueryService {
         Instant now = clock.instant();
         PageRequest page = PageRequest.of(request.resolvedPage(), request.resolvedSize(),
                 Sort.by(Sort.Order.desc("issuedAt"), Sort.Order.desc("id")));
-        return memberCouponRepository.findWalletByMemberId(memberId, page)
+        String status = request.status() == null ? null : request.status().name();
+        return memberCouponRepository.findWalletByMemberId(memberId, status, now, page)
                 .map(row -> MemberCouponResponse.from(row, now));
     }
 }

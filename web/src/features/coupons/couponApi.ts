@@ -87,11 +87,11 @@ function campaignQuery(input: CouponCampaignSearchInput) {
   return query.toString();
 }
 
-function listQuery(input: CouponListInput) { return new URLSearchParams({ page: String(input.page), size: String(input.size) }).toString(); }
+function listQuery(input: CouponListInput & { status?: MemberCouponStatus }) { const query = new URLSearchParams({ page: String(input.page), size: String(input.size) }); if (input.status) query.set('status', input.status); return query.toString(); }
 
 export function getAvailableCouponCampaigns(input: CouponListInput) { return api<Page<AvailableCouponCampaign>>(`/api/coupon-campaigns/available?${listQuery(input)}`); }
 export function claimCouponCampaign(campaignId: number) { return api<MemberCoupon>(`/api/coupon-campaigns/${campaignId}/claim`, { method: 'POST' }); }
-export function getMyCoupons(input: CouponListInput) { return api<Page<MemberCoupon>>(`/api/me/coupons?${listQuery(input)}`); }
+export function getMyCoupons(input: CouponListInput & { status?: MemberCouponStatus }) { return api<Page<MemberCoupon>>(`/api/me/coupons?${listQuery(input)}`); }
 
 export function getStoreCouponCampaigns(storeId: number, input: CouponCampaignSearchInput) { return api<Page<CouponCampaign>>(`/api/stores/${storeId}/coupon-campaigns?${campaignQuery(input)}`); }
 export function getStoreCouponCampaign(storeId: number, campaignId: number) { return api<CouponCampaign>(`/api/stores/${storeId}/coupon-campaigns/${campaignId}`); }
