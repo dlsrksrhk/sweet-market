@@ -43,3 +43,9 @@ Checkout and order interfaces were not changed. The pre-existing untracked `web/
 
 - `npm run build` completed successfully on 2026-07-14.
 - `backend\gradlew.bat test --tests com.sweet.market.coupon.CouponWalletApiTest` completed successfully on 2026-07-14.
+
+## Re-review follow-up
+
+- The coupon form now resets only when its initial campaign data changes. Product-search query rerenders preserve every in-progress form field and selected target product ID; choosing a different administrator campaign remounts the form with that campaign's data.
+- The buyer wallet now keeps a set of pending campaign IDs. Each in-flight campaign card remains disabled until its own request settles, while different campaign claims can proceed concurrently.
+- `npm run build` completed successfully on 2026-07-14 after these changes. Vite retained the existing single-chunk size warning only.
