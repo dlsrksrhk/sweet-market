@@ -1,6 +1,8 @@
 package com.sweet.market.promotion.repository;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -13,6 +15,51 @@ import org.springframework.data.repository.query.Param;
 import com.sweet.market.promotion.domain.PromotionCampaign;
 
 public interface PromotionCampaignRepository extends JpaRepository<PromotionCampaign, Long> {
+
+    @EntityGraph(attributePaths = {"store", "targets", "targets.product"})
+    @Query("""
+            select distinct campaign
+            from PromotionCampaign campaign
+            left join campaign.targets target
+            where campaign.store.id = :storeId
+              and campaign.lifecycleStatus in (
+                    com.sweet.market.promotion.domain.PromotionLifecycleStatus.DRAFT,
+                    com.sweet.market.promotion.domain.PromotionLifecycleStatus.SCHEDULED
+              )
+              and campaign.startAt <= :now
+              and campaign.endAt > :now
+              and campaign.store.type = com.sweet.market.store.domain.StoreType.BUSINESS
+              and campaign.store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
+              and (campaign.scope = com.sweet.market.promotion.domain.PromotionScope.STORE_WIDE
+                   or target.product.id = :productId)
+            """)
+    List<PromotionCampaign> findActiveApplicableByProductId(
+            @Param("storeId") Long storeId,
+            @Param("productId") Long productId,
+            @Param("now") Instant now
+    );
+
+    @EntityGraph(attributePaths = {"store", "targets", "targets.product"})
+    @Query("""
+            select distinct campaign
+            from PromotionCampaign campaign
+            left join campaign.targets target
+            where campaign.store.id in (select product.store.id from Product product where product.id in :productIds)
+              and campaign.lifecycleStatus in (
+                    com.sweet.market.promotion.domain.PromotionLifecycleStatus.DRAFT,
+                    com.sweet.market.promotion.domain.PromotionLifecycleStatus.SCHEDULED
+              )
+              and campaign.startAt <= :now
+              and campaign.endAt > :now
+              and campaign.store.type = com.sweet.market.store.domain.StoreType.BUSINESS
+              and campaign.store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
+              and (campaign.scope = com.sweet.market.promotion.domain.PromotionScope.STORE_WIDE
+                   or target.product.id in :productIds)
+            """)
+    List<PromotionCampaign> findActiveApplicableByProductIds(
+            @Param("productIds") Collection<Long> productIds,
+            @Param("now") Instant now
+    );
 
     @EntityGraph(attributePaths = {"targets", "targets.product"})
     Optional<PromotionCampaign> findByIdAndStoreId(Long id, Long storeId);

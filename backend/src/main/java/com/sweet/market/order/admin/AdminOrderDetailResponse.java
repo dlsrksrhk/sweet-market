@@ -26,7 +26,7 @@ public record AdminOrderDetailResponse(
                 order.getId(),
                 order.getProduct().getId(),
                 order.getProduct().getTitle(),
-                order.getProduct().getPrice(),
+                order.getFinalPrice(),
                 order.getBuyer().getId(),
                 order.getBuyer().getNickname(),
                 order.getSeller().getId(),

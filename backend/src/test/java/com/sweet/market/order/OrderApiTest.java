@@ -111,6 +111,40 @@ class OrderApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 직접_주문은_현재_프로모션_가격을_스냅샷으로_저장한다() throws Exception {
+        String sellerToken = signupAndLogin("promotion-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("promotion-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+        Long promotionId = createStoreWidePromotion(productId, 500_000L);
+
+        String response = mockMvc.perform(post("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productId": %d
+                                }
+                                """.formatted(productId)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.productPrice").value(1_500_000L))
+                .andExpect(jsonPath("$.data.listPrice").value(2_000_000L))
+                .andExpect(jsonPath("$.data.promotionCampaignId").value(promotionId))
+                .andExpect(jsonPath("$.data.promotionDiscountAmount").value(500_000L))
+                .andExpect(jsonPath("$.data.finalPrice").value(1_500_000L))
+                .andReturn().getResponse().getContentAsString();
+        Long orderId = objectMapper.readTree(response).path("data").path("id").asLong();
+
+        assertThat(jdbcTemplate.queryForObject("select list_price from orders where id = ?", Long.class, orderId))
+                .isEqualTo(2_000_000L);
+        assertThat(jdbcTemplate.queryForObject("select promotion_campaign_id from orders where id = ?", Long.class, orderId))
+                .isEqualTo(promotionId);
+        assertThat(jdbcTemplate.queryForObject("select promotion_discount_amount from orders where id = ?", Long.class, orderId))
+                .isEqualTo(500_000L);
+        assertThat(jdbcTemplate.queryForObject("select final_price from orders where id = ?", Long.class, orderId))
+                .isEqualTo(1_500_000L);
+    }
+
+    @Test
     void 주문자는_주문_취소에_성공한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
@@ -302,6 +336,20 @@ class OrderApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("id").asLong();
+    }
+
+    private Long createStoreWidePromotion(Long productId, long discountAmount) {
+        Long storeId = jdbcTemplate.queryForObject("select store_id from products where id = ?", Long.class, productId);
+        jdbcTemplate.update("update stores set type = 'BUSINESS' where id = ?", storeId);
+        return jdbcTemplate.queryForObject("""
+                insert into promotion_campaigns (
+                    version, store_id, scope, discount_type, discount_value, priority, title,
+                    start_at, end_at, lifecycle_status, created_at, updated_at
+                ) values (0, ?, 'STORE_WIDE', 'FIXED_AMOUNT', ?, 10, '주문 할인',
+                    current_timestamp - interval '1 minute', current_timestamp + interval '1 minute', 'DRAFT',
+                    current_timestamp, current_timestamp)
+                returning id
+                """, Long.class, storeId, discountAmount);
     }
 
     private Long uploadImage(String accessToken, String fileName) throws Exception {

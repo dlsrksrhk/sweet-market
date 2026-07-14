@@ -1,5 +1,6 @@
 package com.sweet.market.product.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +30,9 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     @EntityGraph(attributePaths = {"store", "store.ownerMember"})
     Optional<Product> findWithStoreById(Long id);
+
+    @EntityGraph(attributePaths = {"store", "store.ownerMember"})
+    List<Product> findAllWithStoreByIdIn(Collection<Long> ids);
 
     @EntityGraph(attributePaths = {"store", "store.ownerMember", "images"})
     Optional<Product> findWithStoreAndImagesByIdAndStatus(Long id, ProductStatus status);

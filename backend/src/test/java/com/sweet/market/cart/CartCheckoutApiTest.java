@@ -177,6 +177,44 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 장바구니에_담은_뒤_만료된_프로모션은_체크아웃_스냅샷에_적용하지_않는다() throws Exception {
+        String sellerToken = signupAndLogin("promotion-cart-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("promotion-cart-buyer@example.com", "password123", "buyer");
+        Long buyerId = findMemberIdByEmail("promotion-cart-buyer@example.com");
+        Long productId = createProduct(sellerToken, "Promotion Product", "promotion.jpg");
+        Long promotionId = createStoreWidePromotion(productId, 500_000L);
+        addCart(buyerToken, productId);
+        Long cartItemId = findCartItemId(buyerId, productId);
+        jdbcTemplate.update("update promotion_campaigns set end_at = current_timestamp - interval '1 second' where id = ?", promotionId);
+
+        String response = mockMvc.perform(post("/api/me/cart/checkout")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "cartItemIds": [%d]
+                                }
+                                """.formatted(cartItemId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orders[0].productPrice").value(2_000_000L))
+                .andExpect(jsonPath("$.data.orders[0].listPrice").value(2_000_000L))
+                .andExpect(jsonPath("$.data.orders[0].promotionCampaignId").doesNotExist())
+                .andExpect(jsonPath("$.data.orders[0].promotionDiscountAmount").value(0L))
+                .andExpect(jsonPath("$.data.orders[0].finalPrice").value(2_000_000L))
+                .andReturn().getResponse().getContentAsString();
+        Long orderId = objectMapper.readTree(response).path("data").path("orders").get(0).path("id").asLong();
+
+        assertThat(jdbcTemplate.queryForObject("select list_price from orders where id = ?", Long.class, orderId))
+                .isEqualTo(2_000_000L);
+        assertThat(jdbcTemplate.queryForObject("select promotion_campaign_id from orders where id = ?", Long.class, orderId))
+                .isNull();
+        assertThat(jdbcTemplate.queryForObject("select promotion_discount_amount from orders where id = ?", Long.class, orderId))
+                .isZero();
+        assertThat(jdbcTemplate.queryForObject("select final_price from orders where id = ?", Long.class, orderId))
+                .isEqualTo(2_000_000L);
+    }
+
+    @Test
     void 빈_장바구니_체크아웃은_실패한다() throws Exception {
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
 
@@ -358,6 +396,20 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
             inventoryService.initialize(savedProduct, totalQuantity, seller.getId());
             return savedProduct.getId();
         });
+    }
+
+    private Long createStoreWidePromotion(Long productId, long discountAmount) {
+        Long storeId = jdbcTemplate.queryForObject("select store_id from products where id = ?", Long.class, productId);
+        jdbcTemplate.update("update stores set type = 'BUSINESS' where id = ?", storeId);
+        return jdbcTemplate.queryForObject("""
+                insert into promotion_campaigns (
+                    version, store_id, scope, discount_type, discount_value, priority, title,
+                    start_at, end_at, lifecycle_status, created_at, updated_at
+                ) values (0, ?, 'STORE_WIDE', 'FIXED_AMOUNT', ?, 10, '장바구니 할인',
+                    current_timestamp - interval '1 minute', current_timestamp + interval '1 minute', 'DRAFT',
+                    current_timestamp, current_timestamp)
+                returning id
+                """, Long.class, storeId, discountAmount);
     }
 
     private void cancelOrder(String accessToken, Long orderId) throws Exception {

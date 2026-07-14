@@ -57,7 +57,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                         o.id,
                         p.id,
                         p.title,
-                        p.price,
+                        o.finalPrice,
                         buyer.id,
                         buyer.nickname,
                         seller.id,
@@ -134,7 +134,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     );
 
     @Query("""
-            select coalesce(sum(p.price), 0)
+            select coalesce(sum(o.finalPrice), 0)
             from Order o
             join o.product p
             where o.seller.id = :sellerId
@@ -152,7 +152,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             select new com.sweet.market.seller.report.SellerDailySalesResponse(
                 cast(o.confirmedAt as localdate),
                 count(o),
-                coalesce(sum(p.price), 0)
+                coalesce(sum(o.finalPrice), 0)
             )
             from Order o
             join o.product p
@@ -198,7 +198,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                     )
                 ),
                 count(o),
-                coalesce(sum(p.price), 0),
+                coalesce(sum(o.finalPrice), 0),
                 max(o.confirmedAt)
             )
             from Order o
@@ -208,7 +208,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
               and o.confirmedAt >= :fromInclusive
               and o.confirmedAt < :toExclusive
             group by p.id, p.title
-            order by coalesce(sum(p.price), 0) desc, count(o) desc, max(o.confirmedAt) desc, p.id desc
+            order by coalesce(sum(o.finalPrice), 0) desc, count(o) desc, max(o.confirmedAt) desc, p.id desc
             """)
     List<com.sweet.market.seller.report.SellerProductRankingResponse> findTopProductRankingsBySellerIdAndConfirmedAtBetween(
             @Param("sellerId") Long sellerId,
@@ -223,7 +223,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                 p.id,
                 p.title,
                 buyer.nickname,
-                p.price,
+                o.finalPrice,
                 o.confirmedAt,
                 s.status
             )
@@ -253,7 +253,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<SellerOrderStatusCountProjection> countOrderStatusesBySellerId(@Param("sellerId") Long sellerId);
 
     @Query("""
-            select coalesce(sum(p.price), 0)
+            select coalesce(sum(o.finalPrice), 0)
             from Order o
             join o.product p
             where o.seller.id = :sellerId
@@ -263,7 +263,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Long sumUnsettledConfirmedAmountBySellerId(@Param("sellerId") Long sellerId);
 
     @Query("""
-            select coalesce(sum(p.price), 0)
+            select coalesce(sum(o.finalPrice), 0)
             from Order o
             join o.product p
             where o.seller.id = :sellerId

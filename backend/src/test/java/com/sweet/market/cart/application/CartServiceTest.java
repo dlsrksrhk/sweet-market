@@ -24,6 +24,7 @@ import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.promotion.application.PromotionPricingService;
 
 class CartServiceTest {
 
@@ -34,6 +35,7 @@ class CartServiceTest {
         MemberRepository memberRepository = mock(MemberRepository.class);
         OrderRepository orderRepository = mock(OrderRepository.class);
         InventoryService inventoryService = mock(InventoryService.class);
+        PromotionPricingService promotionPricingService = mock(PromotionPricingService.class);
         PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
         CartService cartService = new CartService(
                 cartItemRepository,
@@ -41,6 +43,7 @@ class CartServiceTest {
                 memberRepository,
                 orderRepository,
                 inventoryService,
+                promotionPricingService,
                 transactionManager
         );
         Member buyer = member(1L, "buyer@example.com", "buyer");

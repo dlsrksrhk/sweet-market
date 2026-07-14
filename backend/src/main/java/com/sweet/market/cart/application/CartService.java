@@ -27,6 +27,7 @@ import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductDomainError;
 import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.promotion.application.PromotionPricingService;
 
 @Service
 public class CartService {
@@ -36,6 +37,7 @@ public class CartService {
     private final MemberRepository memberRepository;
     private final OrderRepository orderRepository;
     private final InventoryService inventoryService;
+    private final PromotionPricingService promotionPricingService;
     private final TransactionTemplate insertTransaction;
 
     public CartService(
@@ -44,6 +46,7 @@ public class CartService {
             MemberRepository memberRepository,
             OrderRepository orderRepository,
             InventoryService inventoryService,
+            PromotionPricingService promotionPricingService,
             PlatformTransactionManager transactionManager
     ) {
         this.cartItemRepository = cartItemRepository;
@@ -51,6 +54,7 @@ public class CartService {
         this.memberRepository = memberRepository;
         this.orderRepository = orderRepository;
         this.inventoryService = inventoryService;
+        this.promotionPricingService = promotionPricingService;
         this.insertTransaction = new TransactionTemplate(transactionManager);
         this.insertTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -156,7 +160,9 @@ public class CartService {
 
     private Order createAndSave(CartItem cartItem) {
         try {
-            return saveAndReserve(Order.create(cartItem.getBuyer(), cartItem.getProduct()));
+            return saveAndReserve(Order.create(
+                    cartItem.getBuyer(), cartItem.getProduct(), promotionPricingService.quote(cartItem.getProduct())
+            ));
         } catch (DomainException exception) {
             if (exception.error() == ProductDomainError.NOT_ON_SALE) {
                 throw new BusinessException(ErrorCode.CART_CHECKOUT_NOT_ALLOWED, exception);

@@ -36,7 +36,7 @@ public class PaymentApprovalTransactionService {
             throw new BusinessException(ErrorCode.PAYMENT_ACCESS_DENIED);
         }
 
-        String externalPaymentId = paymentGateway.approve(order.getId(), order.getProduct().getPrice());
+        String externalPaymentId = paymentGateway.approve(order.getId(), order.getFinalPrice());
         return PaymentResponse.from(paymentRepository.save(Payment.approve(order, externalPaymentId)));
     }
 }

@@ -21,6 +21,7 @@ import com.sweet.market.payment.repository.PaymentRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductDomainError;
 import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.promotion.application.PromotionPricingService;
 
 @Service
 public class OrderService {
@@ -31,6 +32,7 @@ public class OrderService {
     private final PaymentRepository paymentRepository;
     private final PaymentGateway paymentGateway;
     private final InventoryService inventoryService;
+    private final PromotionPricingService promotionPricingService;
 
     public OrderService(
             OrderRepository orderRepository,
@@ -38,7 +40,8 @@ public class OrderService {
             MemberRepository memberRepository,
             PaymentRepository paymentRepository,
             PaymentGateway paymentGateway,
-            InventoryService inventoryService
+            InventoryService inventoryService,
+            PromotionPricingService promotionPricingService
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
@@ -46,6 +49,7 @@ public class OrderService {
         this.paymentRepository = paymentRepository;
         this.paymentGateway = paymentGateway;
         this.inventoryService = inventoryService;
+        this.promotionPricingService = promotionPricingService;
     }
 
     @Transactional
@@ -57,7 +61,10 @@ public class OrderService {
 
         Order order;
         try {
-            order = Order.create(buyer, product);
+            if (!product.isPurchasable()) {
+                throw new DomainException(OrderDomainError.PRODUCT_NOT_PURCHASABLE);
+            }
+            order = Order.create(buyer, product, promotionPricingService.quote(product));
         } catch (DomainException exception) {
             if (exception.error() == ProductDomainError.NOT_ON_SALE
                     || exception.error() == OrderDomainError.PRODUCT_NOT_PURCHASABLE) {

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.product.domain.Product;
+import com.sweet.market.promotion.application.PromotionPrice;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -44,6 +45,18 @@ public class Order {
     @JoinColumn(name = "seller_id", nullable = false)
     private Member seller;
 
+    @Column(name = "list_price", nullable = false)
+    private long listPrice;
+
+    @Column(name = "promotion_campaign_id")
+    private Long promotionCampaignId;
+
+    @Column(name = "promotion_discount_amount", nullable = false)
+    private long promotionDiscountAmount;
+
+    @Column(name = "final_price", nullable = false)
+    private long finalPrice;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private OrderStatus status;
@@ -55,22 +68,44 @@ public class Order {
 
     private LocalDateTime confirmedAt;
 
-    private Order(Member buyer, Product product, Member seller, OrderStatus status, LocalDateTime orderedAt) {
+    private Order(
+            Member buyer,
+            Product product,
+            Member seller,
+            long listPrice,
+            Long promotionCampaignId,
+            long promotionDiscountAmount,
+            long finalPrice,
+            OrderStatus status,
+            LocalDateTime orderedAt
+    ) {
         this.buyer = buyer;
         this.product = product;
         this.seller = seller;
+        this.listPrice = listPrice;
+        this.promotionCampaignId = promotionCampaignId;
+        this.promotionDiscountAmount = promotionDiscountAmount;
+        this.finalPrice = finalPrice;
         this.status = status;
         this.orderedAt = orderedAt;
     }
 
-    public static Order create(Member buyer, Product product) {
+    public static Order create(Member buyer, Product product, PromotionPrice price) {
         if (!product.isPurchasable()) {
             throw new DomainException(OrderDomainError.PRODUCT_NOT_PURCHASABLE);
         }
         if (product.isSingleItem()) {
             product.reserve();
         }
-        return new Order(buyer, product, product.getStore().getOwnerMember(), OrderStatus.CREATED, LocalDateTime.now());
+        return new Order(
+                buyer, product, product.getStore().getOwnerMember(),
+                price.listPrice(), price.promotionId(), price.promotionDiscountAmount(), price.effectivePrice(),
+                OrderStatus.CREATED, LocalDateTime.now()
+        );
+    }
+
+    public static Order create(Member buyer, Product product) {
+        return create(buyer, product, PromotionPrice.withoutPromotion(product.getPrice()));
     }
 
     public void cancel() {
