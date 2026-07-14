@@ -1,23 +1,44 @@
 package com.sweet.market.coupon;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.ResultActions;
 
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.coupon.api.MemberCouponResponse;
+import com.sweet.market.coupon.application.CouponIssueService;
+import com.sweet.market.coupon.application.CouponIssueTransactionService;
 import com.sweet.market.support.IntegrationTestSupport;
 
 class CouponIssueApiTest extends IntegrationTestSupport {
+
+    @Autowired
+    private CouponIssueService couponIssueService;
+
+    @MockitoSpyBean
+    private CouponIssueTransactionService issueTransactionService;
 
     @Test
     void 같은_캠페인을_두번_발급해도_한장만_생성하고_같은_쿠폰을_반환한다() throws Exception {
@@ -30,6 +51,32 @@ class CouponIssueApiTest extends IntegrationTestSupport {
         claim(token, campaignId).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(firstCouponId));
         assertThat(countMemberCoupons(campaignId, memberId("coupon-claim@example.com"))).isEqualTo(1);
+    }
+
+    @Test
+    void 동시에_발급하면_유니크_충돌후_기존_쿠폰을_재조회해_반환한다() throws Exception {
+        signupAndLogin("coupon-concurrent-claim@example.com");
+        Long memberId = memberId("coupon-concurrent-claim@example.com");
+        Long campaignId = activeCampaign();
+        CountDownLatch issueAttempts = new CountDownLatch(2);
+        doAnswer(invocation -> {
+            issueAttempts.countDown();
+            assertThat(issueAttempts.await(5, TimeUnit.SECONDS)).isTrue();
+            return invocation.callRealMethod();
+        }).when(issueTransactionService).issue(anyLong(), anyLong(), any());
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<MemberCouponResponse> first = executor.submit(() -> couponIssueService.claim(memberId, campaignId));
+            Future<MemberCouponResponse> second = executor.submit(() -> couponIssueService.claim(memberId, campaignId));
+
+            assertThat(first.get(10, TimeUnit.SECONDS).id()).isEqualTo(second.get(10, TimeUnit.SECONDS).id());
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(countMemberCoupons(campaignId, memberId)).isEqualTo(1);
+        verify(issueTransactionService, times(2)).issue(anyLong(), anyLong(), any());
     }
 
     @Test
