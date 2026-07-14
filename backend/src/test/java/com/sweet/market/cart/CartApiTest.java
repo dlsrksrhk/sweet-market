@@ -23,6 +23,45 @@ import com.sweet.market.support.IntegrationTestSupport;
 class CartApiTest extends IntegrationTestSupport {
 
     @Test
+    void 장바구니는_프로모션_일시정지와_만료_후_현재_가격으로_갱신된다() throws Exception {
+        String sellerToken = signupAndLogin("promotion-cart-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("promotion-cart-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+        Long promotionId = createStoreWidePromotion(productId, 1_000L);
+        addCart(buyerToken, productId);
+
+        mockMvc.perform(get("/api/me/cart").header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].productId").value(productId))
+                .andExpect(jsonPath("$.data.content[0].listPrice").value(2_000_000))
+                .andExpect(jsonPath("$.data.content[0].promotionId").value(promotionId))
+                .andExpect(jsonPath("$.data.content[0].promotionTitle").value("장바구니 할인"))
+                .andExpect(jsonPath("$.data.content[0].promotionDiscountAmount").value(1_000))
+                .andExpect(jsonPath("$.data.content[0].effectivePrice").value(1_999_000));
+
+        jdbcTemplate.update("update promotion_campaigns set lifecycle_status = 'PAUSED' where id = ?", promotionId);
+
+        mockMvc.perform(get("/api/me/cart").header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].promotionId").value((Object) null))
+                .andExpect(jsonPath("$.data.content[0].promotionTitle").value((Object) null))
+                .andExpect(jsonPath("$.data.content[0].promotionDiscountAmount").value(0))
+                .andExpect(jsonPath("$.data.content[0].effectivePrice").value(2_000_000));
+
+        jdbcTemplate.update("""
+                update promotion_campaigns
+                set lifecycle_status = 'DRAFT', end_at = current_timestamp - interval '1 second'
+                where id = ?
+                """, promotionId);
+
+        mockMvc.perform(get("/api/me/cart").header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].promotionId").value((Object) null))
+                .andExpect(jsonPath("$.data.content[0].promotionDiscountAmount").value(0))
+                .andExpect(jsonPath("$.data.content[0].effectivePrice").value(2_000_000));
+    }
+
+    @Test
     void 내_장바구니는_최근에_담은_순서로_조회된다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
@@ -383,6 +422,20 @@ class CartApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("id").asLong();
+    }
+
+    private Long createStoreWidePromotion(Long productId, long discountAmount) {
+        Long storeId = jdbcTemplate.queryForObject("select store_id from products where id = ?", Long.class, productId);
+        jdbcTemplate.update("update stores set type = 'BUSINESS' where id = ?", storeId);
+        return jdbcTemplate.queryForObject("""
+                insert into promotion_campaigns (
+                    version, store_id, scope, discount_type, discount_value, priority, title,
+                    start_at, end_at, lifecycle_status, created_at, updated_at
+                ) values (0, ?, 'STORE_WIDE', 'FIXED_AMOUNT', ?, 10, '장바구니 할인',
+                    current_timestamp - interval '1 minute', current_timestamp + interval '1 minute', 'DRAFT',
+                    current_timestamp, current_timestamp)
+                returning id
+                """, Long.class, storeId, discountAmount);
     }
 
     private void addCart(String accessToken, Long productId) throws Exception {

@@ -7,6 +7,7 @@ import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductCategory;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.product.domain.ProductStatus;
+import com.sweet.market.promotion.application.PromotionPrice;
 
 public record ProductResponse(
         Long id,
@@ -18,6 +19,11 @@ public record ProductResponse(
         String title,
         String description,
         long price,
+        long listPrice,
+        Long promotionId,
+        String promotionTitle,
+        long promotionDiscountAmount,
+        long effectivePrice,
         ProductCategory category,
         String status,
         boolean purchasable,
@@ -64,6 +70,32 @@ public record ProductResponse(
             long sellerReviewCount,
             Double sellerAverageRating
     ) {
+        return from(
+                product,
+                wishlistCount,
+                wishlisted,
+                carted,
+                availability,
+                reviewCount,
+                averageRating,
+                sellerReviewCount,
+                sellerAverageRating,
+                PromotionPrice.withoutPromotion(product.getPrice())
+        );
+    }
+
+    public static ProductResponse from(
+            Product product,
+            long wishlistCount,
+            boolean wishlisted,
+            boolean carted,
+            BuyerAvailabilityResponse availability,
+            long reviewCount,
+            Double averageRating,
+            long sellerReviewCount,
+            Double sellerAverageRating,
+            PromotionPrice promotionPrice
+    ) {
         return new ProductResponse(
                 product.getId(),
                 product.getStore().getId(),
@@ -74,6 +106,11 @@ public record ProductResponse(
                 product.getTitle(),
                 product.getDescription(),
                 product.getPrice(),
+                promotionPrice.listPrice(),
+                promotionPrice.promotionId(),
+                promotionPrice.promotionTitle(),
+                promotionPrice.promotionDiscountAmount(),
+                promotionPrice.effectivePrice(),
                 product.getCategory(),
                 catalogStatus(product, availability).name(),
                 product.isPurchasable()

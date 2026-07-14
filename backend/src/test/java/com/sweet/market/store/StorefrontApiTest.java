@@ -85,6 +85,22 @@ class StorefrontApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 활성_프로모션_상점_상품은_공통_가격_필드를_노출한다() throws Exception {
+        Store store = saveActiveBusinessStore("promotion-storefront@example.com");
+        Product product = saveProduct(store, "프로모션 상품", 10_000L);
+        Long promotionId = createStoreWidePromotion(product.getId(), 1_000L);
+
+        mockMvc.perform(get("/api/stores/{storeId}/products", store.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(product.getId()))
+                .andExpect(jsonPath("$.data.content[0].listPrice").value(10_000))
+                .andExpect(jsonPath("$.data.content[0].promotionId").value(promotionId))
+                .andExpect(jsonPath("$.data.content[0].promotionTitle").value("상점 할인"))
+                .andExpect(jsonPath("$.data.content[0].promotionDiscountAmount").value(1_000))
+                .andExpect(jsonPath("$.data.content[0].effectivePrice").value(9_000));
+    }
+
+    @Test
     void 중단된_상점은_공개_정체성과_0으로_초기화된_집계만_노출한다() throws Exception {
         Store store = saveActiveBusinessStore("suspended-storefront@example.com");
         Product product = saveProduct(store, "중단 전 상품");
@@ -354,6 +370,19 @@ class StorefrontApiTest extends IntegrationTestSupport {
                 entityManager.find(Member.class, buyer.getId()),
                 entityManager.find(Product.class, product.getId())
         )));
+    }
+
+    private Long createStoreWidePromotion(Long productId, long discountAmount) {
+        Long storeId = jdbcTemplate.queryForObject("select store_id from products where id = ?", Long.class, productId);
+        return jdbcTemplate.queryForObject("""
+                insert into promotion_campaigns (
+                    version, store_id, scope, discount_type, discount_value, priority, title,
+                    start_at, end_at, lifecycle_status, created_at, updated_at
+                ) values (0, ?, 'STORE_WIDE', 'FIXED_AMOUNT', ?, 10, '상점 할인',
+                    current_timestamp - interval '1 minute', current_timestamp + interval '1 minute', 'DRAFT',
+                    current_timestamp, current_timestamp)
+                returning id
+                """, Long.class, storeId, discountAmount);
     }
 
     private void saveCart(Member buyer, Product product) {

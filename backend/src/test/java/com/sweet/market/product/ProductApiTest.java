@@ -50,6 +50,30 @@ class ProductApiTest extends IntegrationTestSupport {
     private ProductService productService;
 
     @Test
+    void 활성_프로모션_상품_상세와_기존_목록은_동일한_가격을_노출한다() throws Exception {
+        String sellerToken = signupAndLogin("promotion-read-seller@example.com", "password123", "seller");
+        Long productId = createProduct(sellerToken);
+        Long promotionId = createStoreWidePromotion(productId, 1_000L);
+
+        mockMvc.perform(get("/api/products/{productId}", productId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.listPrice").value(2_000_000))
+                .andExpect(jsonPath("$.data.promotionId").value(promotionId))
+                .andExpect(jsonPath("$.data.promotionTitle").value("목록 할인"))
+                .andExpect(jsonPath("$.data.promotionDiscountAmount").value(1_000))
+                .andExpect(jsonPath("$.data.effectivePrice").value(1_999_000));
+
+        mockMvc.perform(get("/api/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(productId))
+                .andExpect(jsonPath("$.data.content[0].listPrice").value(2_000_000))
+                .andExpect(jsonPath("$.data.content[0].promotionId").value(promotionId))
+                .andExpect(jsonPath("$.data.content[0].promotionTitle").value("목록 할인"))
+                .andExpect(jsonPath("$.data.content[0].promotionDiscountAmount").value(1_000))
+                .andExpect(jsonPath("$.data.content[0].effectivePrice").value(1_999_000));
+    }
+
+    @Test
     void 활성_사업자_상점만_재고형_상품을_등록할_수_있다() throws Exception {
         String personalToken = signupAndLogin("stock-personal@example.com", "password123", "seller");
         Long personalStoreId = activePersonalStoreId(personalToken);
@@ -1185,6 +1209,20 @@ class ProductApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("id").asLong();
+    }
+
+    private Long createStoreWidePromotion(Long productId, long discountAmount) {
+        Long storeId = jdbcTemplate.queryForObject("select store_id from products where id = ?", Long.class, productId);
+        jdbcTemplate.update("update stores set type = 'BUSINESS' where id = ?", storeId);
+        return jdbcTemplate.queryForObject("""
+                insert into promotion_campaigns (
+                    version, store_id, scope, discount_type, discount_value, priority, title,
+                    start_at, end_at, lifecycle_status, created_at, updated_at
+                ) values (0, ?, 'STORE_WIDE', 'FIXED_AMOUNT', ?, 10, '목록 할인',
+                    current_timestamp - interval '1 minute', current_timestamp + interval '1 minute', 'DRAFT',
+                    current_timestamp, current_timestamp)
+                returning id
+                """, Long.class, storeId, discountAmount);
     }
 
     private ResultActions createStockProduct(

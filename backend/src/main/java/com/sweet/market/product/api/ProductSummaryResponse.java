@@ -5,6 +5,7 @@ import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.product.domain.ProductStatus;
+import com.sweet.market.promotion.application.PromotionPrice;
 import com.sweet.market.store.domain.StoreType;
 
 public record ProductSummaryResponse(
@@ -16,6 +17,11 @@ public record ProductSummaryResponse(
         String sellerNickname,
         String title,
         long price,
+        long listPrice,
+        Long promotionId,
+        String promotionTitle,
+        long promotionDiscountAmount,
+        long effectivePrice,
         String status,
         String thumbnailUrl,
         long wishlistCount,
@@ -36,7 +42,7 @@ public record ProductSummaryResponse(
             ProductStatus status,
             String thumbnailUrl
     ) {
-        this(id, storeId, storeName, storeType.name(), sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, 0, false, false,
+        this(id, storeId, storeName, storeType.name(), sellerId, sellerNickname, title, price, price, null, null, 0L, price, status.name(), thumbnailUrl, 0, false, false,
                 new BuyerAvailabilityResponse(ProductSalesPolicy.SINGLE_ITEM, status, null, null));
     }
 
@@ -55,7 +61,7 @@ public record ProductSummaryResponse(
             boolean wishlisted,
             boolean carted
     ) {
-        this(id, storeId, storeName, storeType.name(), sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, wishlistCount, wishlisted, carted,
+        this(id, storeId, storeName, storeType.name(), sellerId, sellerNickname, title, price, price, null, null, 0L, price, status.name(), thumbnailUrl, wishlistCount, wishlisted, carted,
                 new BuyerAvailabilityResponse(ProductSalesPolicy.SINGLE_ITEM, status, null, null));
     }
 
@@ -71,7 +77,7 @@ public record ProductSummaryResponse(
             ProductStatus status,
             String thumbnailUrl
     ) {
-        this(id, storeId, storeName, storeType, sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, 0, false, false,
+        this(id, storeId, storeName, storeType, sellerId, sellerNickname, title, price, price, null, null, 0L, price, status.name(), thumbnailUrl, 0, false, false,
                 new BuyerAvailabilityResponse(ProductSalesPolicy.SINGLE_ITEM, status, null, null));
     }
 
@@ -90,7 +96,7 @@ public record ProductSummaryResponse(
             boolean wishlisted,
             boolean carted
     ) {
-        this(id, storeId, storeName, storeType, sellerId, sellerNickname, title, price, status.name(), thumbnailUrl, wishlistCount, wishlisted, carted,
+        this(id, storeId, storeName, storeType, sellerId, sellerNickname, title, price, price, null, null, 0L, price, status.name(), thumbnailUrl, wishlistCount, wishlisted, carted,
                 new BuyerAvailabilityResponse(ProductSalesPolicy.SINGLE_ITEM, status, null, null));
     }
 
@@ -112,9 +118,18 @@ public record ProductSummaryResponse(
             Integer availableQuantity,
             Integer lowStockThreshold
     ) {
-        this(id, storeId, storeName, storeType.name(), sellerId, sellerNickname, title, price, status.name(), thumbnailUrl,
+        this(id, storeId, storeName, storeType.name(), sellerId, sellerNickname, title, price, price, null, null, 0L, price, status.name(), thumbnailUrl,
                 wishlistCount, wishlisted, carted,
                 new BuyerAvailabilityResponse(salesPolicy, status, availableQuantity, lowStockThreshold));
+    }
+
+    public ProductSummaryResponse withPromotionPrice(PromotionPrice promotionPrice) {
+        return new ProductSummaryResponse(
+                id, storeId, storeName, storeType, sellerId, sellerNickname, title, price,
+                promotionPrice.listPrice(), promotionPrice.promotionId(), promotionPrice.promotionTitle(),
+                promotionPrice.promotionDiscountAmount(), promotionPrice.effectivePrice(),
+                status, thumbnailUrl, wishlistCount, wishlisted, carted, availability
+        );
     }
 
     public static ProductSummaryResponse from(Product product) {
@@ -146,6 +161,11 @@ public record ProductSummaryResponse(
                 product.getStore().getOwnerMember().getId(),
                 product.getStore().getOwnerMember().getNickname(),
                 product.getTitle(),
+                product.getPrice(),
+                product.getPrice(),
+                null,
+                null,
+                0L,
                 product.getPrice(),
                 product.getStatus().name(),
                 thumbnailUrl,

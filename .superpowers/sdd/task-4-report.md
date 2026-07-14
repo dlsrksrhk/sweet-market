@@ -1,53 +1,31 @@
-# M24 Task 4 Report: Buyer Catalog APIs
+# Milestone 25 Task 4 Report: Buyer Price Read Models
 
-## Delivered
+## Scope
 
-- Added public `GET /api/catalog/products` and `GET /api/stores/{storeId}/catalog/products` endpoints returning `CatalogSearchResponse`.
-- Added `CatalogSearchQueryService` to share request-to-criteria conversion, full cursor fingerprint validation, `size + 1` page trimming, next-cursor construction, and bounded wishlist/cart ID-set personalization.
-- Store-scoped searches reject query-string `storeId` and require the route store to be `ACTIVE`; unknown, pending, rejected, and suspended stores return `STORE_NOT_FOUND`.
-- Kept the existing offset storefront endpoint unchanged. The new card response only exposes buyer availability and does not expose total/reserved inventory or audit data.
-- Added public security matchers for the two new optional-viewer GET endpoints.
+- Added `listPrice`, nullable `promotionId`/`promotionTitle`, `promotionDiscountAmount`, and `effectivePrice` to buyer product detail, legacy product summaries, cart rows, and storefront product cards.
+- Product detail uses `PromotionPricingService.quote(product)` after the existing availability read.
+- Product summaries, cart rows, and storefront pages collect current-page product IDs and make one bounded `quoteAll(productIds)` call before response mapping.
+- Cart JPQL now returns `CartItemReadRow`; `CartQueryService` applies the price map while converting that row to the public response, preserving the existing availability, image, ordering, and checkout-state projection.
 
-## API Test Coverage
+## TDD evidence
 
-- Combined keyword/category/price/availability/sales-policy/store-type filtering and buyer-safe response shape.
-- Anonymous and authenticated wishlist/cart flags.
-- Keyset cursor page continuation plus expired, tampered, and fingerprint-mismatched cursors.
-- Invalid ranges, enum values, and sizes.
-- Store-route query `storeId` rejection and inactive/unknown route-store policy.
-
-## TDD Evidence
-
-- `CatalogApiTest` was added before endpoint implementation. The focused test run failed with 404 responses for the missing endpoints.
-- After endpoint/service implementation, anonymous requests initially returned 401 because the public routes were not yet authorized. Adding the two minimal GET security matchers resolved that integration failure.
-- Store-route tests then exposed path-variable binding into the `@ModelAttribute` `storeId`; the controller removes that path-derived value only when no query `storeId` is supplied, leaving the service to reject actual query values.
+1. Added Korean-named API tests for active-promotion detail/legacy summary, cart refresh after pause/expiry, and storefront cards.
+2. Ran the three requested suites before production implementation. The three new tests failed with `PathNotFoundException` for the absent price response fields, as expected.
+3. Implemented the bounded mappings and reran the same command successfully.
 
 ## Verification
 
-```powershell
-cd backend
-$env:JAVA_HOME='C:\java\jdk-21'
-$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
-$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
-.\gradlew.bat test --tests 'com.sweet.market.catalog.CatalogApiTest' --tests 'com.sweet.market.product.ProductApiTest' --tests 'com.sweet.market.store.StorefrontApiTest' --rerun-tasks
-```
-
-Result: `BUILD SUCCESSFUL`.
-
-## P1 Follow-up: Blank Fixed-Route Store Filter Rejection
-
-- Added MockMvc assertions that both `?storeId=` and `?storeId=   ` on `GET /api/stores/{storeId}/catalog/products` return `VALIDATION_ERROR`.
-- RED: the focused `CatalogApiTest` run failed because an empty query value bound to a null `CatalogSearchRequest.storeId` and the endpoint returned 200.
-- GREEN: the storefront controller now rejects when the raw request parameter map contains `storeId`, before stripping the path-variable value from the model-bound request. A route with no query `storeId` still passes the fixed route-store context to the shared service.
-
-Verification:
+Executed with JDK 21 at `C:\Users\kdh\.jdks\corretto-21.0.7` and `JWT_SECRET=sweet-market-local-test-secret-key-32bytes-minimum`:
 
 ```powershell
 cd backend
-$env:JAVA_HOME='C:\java\jdk-21'
-$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
-$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
-.\gradlew.bat test --tests 'com.sweet.market.catalog.CatalogApiTest' --tests 'com.sweet.market.store.StorefrontApiTest' --rerun-tasks
+.\gradlew.bat test --tests 'com.sweet.market.product.ProductApiTest' --tests 'com.sweet.market.cart.CartApiTest' --tests 'com.sweet.market.store.StorefrontApiTest'
 ```
 
-Result: `BUILD SUCCESSFUL`.
+Result: `BUILD SUCCESSFUL` (71 tests, 0 failures).
+
+## Review
+
+- `price` remains the legacy list-price compatibility field; the new fields provide the current promotion quote explicitly.
+- Missing price-map entries safely fall back to `PromotionPrice.withoutPromotion(price)`.
+- No paged mapping calls `quote` per row.

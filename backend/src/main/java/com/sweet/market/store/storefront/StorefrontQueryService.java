@@ -1,6 +1,7 @@
 package com.sweet.market.store.storefront;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -12,6 +13,8 @@ import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.promotion.application.PromotionPrice;
+import com.sweet.market.promotion.application.PromotionPricingService;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.repository.StoreRepository;
@@ -31,10 +34,16 @@ public class StorefrontQueryService {
 
     private final StoreRepository storeRepository;
     private final ProductRepository productRepository;
+    private final PromotionPricingService promotionPricingService;
 
-    public StorefrontQueryService(StoreRepository storeRepository, ProductRepository productRepository) {
+    public StorefrontQueryService(
+            StoreRepository storeRepository,
+            ProductRepository productRepository,
+            PromotionPricingService promotionPricingService
+    ) {
         this.storeRepository = storeRepository;
         this.productRepository = productRepository;
+        this.promotionPricingService = promotionPricingService;
     }
 
     @Transactional(readOnly = true)
@@ -66,7 +75,7 @@ public class StorefrontQueryService {
                 pageRequest
         );
         if (products.hasContent()) {
-            return products;
+            return withPromotionPrices(products);
         }
         Store store = storeRepository.findById(storeId)
                 .filter(candidate -> PUBLIC_STORE_STATUSES.contains(candidate.getStatus()))
@@ -75,6 +84,15 @@ public class StorefrontQueryService {
             return Page.empty(pageRequest);
         }
         return products;
+    }
+
+    private Page<StorefrontProductResponse> withPromotionPrices(Page<StorefrontProductResponse> products) {
+        Map<Long, PromotionPrice> prices = promotionPricingService.quoteAll(products.getContent().stream()
+                .map(StorefrontProductResponse::id)
+                .toList());
+        return products.map(product -> product.withPromotionPrice(
+                prices.getOrDefault(product.id(), PromotionPrice.withoutPromotion(product.price()))
+        ));
     }
 
     private void validatePublicProductStatus(ProductStatus status) {

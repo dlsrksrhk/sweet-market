@@ -11,7 +11,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.sweet.market.cart.api.CartItemResponse;
 import com.sweet.market.cart.domain.CartItem;
 
 public interface CartItemRepository extends JpaRepository<CartItem, Long> {
@@ -34,7 +33,7 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
     );
 
     @Query(value = """
-            select new com.sweet.market.cart.api.CartItemResponse(
+            select new com.sweet.market.cart.repository.CartItemReadRow(
                 ci.id,
                 p.id,
                 seller.id,
@@ -112,7 +111,7 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
             from CartItem ci
             where ci.buyer.id = :buyerId
             """)
-    Page<CartItemResponse> findPageByBuyerId(@Param("buyerId") Long buyerId, Pageable pageable);
+    Page<CartItemReadRow> findPageByBuyerId(@Param("buyerId") Long buyerId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"buyer", "product", "product.store", "product.store.ownerMember", "product.images"})
     List<CartItem> findAllWithBuyerProductSellerImagesByIdIn(List<Long> ids);

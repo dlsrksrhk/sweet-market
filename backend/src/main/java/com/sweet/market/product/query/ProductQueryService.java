@@ -1,5 +1,7 @@
 package com.sweet.market.product.query;
 
+import java.util.Map;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,8 @@ import com.sweet.market.product.api.ProductSummaryResponse;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.promotion.application.PromotionPrice;
+import com.sweet.market.promotion.application.PromotionPricingService;
 import com.sweet.market.review.query.ReviewSummary;
 import com.sweet.market.review.repository.ReviewRepository;
 import com.sweet.market.wishlist.repository.WishlistItemRepository;
@@ -25,17 +29,20 @@ public class ProductQueryService {
     private final WishlistItemRepository wishlistItemRepository;
     private final CartItemRepository cartItemRepository;
     private final ReviewRepository reviewRepository;
+    private final PromotionPricingService promotionPricingService;
 
     public ProductQueryService(
             ProductRepository productRepository,
             WishlistItemRepository wishlistItemRepository,
             CartItemRepository cartItemRepository,
-            ReviewRepository reviewRepository
+            ReviewRepository reviewRepository,
+            PromotionPricingService promotionPricingService
     ) {
         this.productRepository = productRepository;
         this.wishlistItemRepository = wishlistItemRepository;
         this.cartItemRepository = cartItemRepository;
         this.reviewRepository = reviewRepository;
+        this.promotionPricingService = promotionPricingService;
     }
 
     @Transactional(readOnly = true)
@@ -45,12 +52,12 @@ public class ProductQueryService {
 
     @Transactional(readOnly = true)
     public Page<ProductSummaryResponse> findOnSaleProducts(Long viewerId, Pageable pageable) {
-        return productRepository.findPublicSummariesByStatusOrderByIdDesc(ProductStatus.ON_SALE, viewerId, pageable);
+        return withPromotionPrices(productRepository.findPublicSummariesByStatusOrderByIdDesc(ProductStatus.ON_SALE, viewerId, pageable));
     }
 
     @Transactional(readOnly = true)
     public Page<ProductSummaryResponse> findMine(Long sellerId, Pageable pageable) {
-        return productRepository.findSummariesBySellerIdOrderByIdDesc(sellerId, pageable);
+        return withPromotionPrices(productRepository.findSummariesBySellerIdOrderByIdDesc(sellerId, pageable));
     }
 
     @Transactional(readOnly = true)
@@ -78,7 +85,17 @@ public class ProductQueryService {
                 productSummary.reviewCount(),
                 productSummary.averageRating(),
                 sellerSummary.reviewCount(),
-                sellerSummary.averageRating()
+                sellerSummary.averageRating(),
+                promotionPricingService.quote(product)
         );
+    }
+
+    private Page<ProductSummaryResponse> withPromotionPrices(Page<ProductSummaryResponse> products) {
+        Map<Long, PromotionPrice> prices = promotionPricingService.quoteAll(products.getContent().stream()
+                .map(ProductSummaryResponse::id)
+                .toList());
+        return products.map(product -> product.withPromotionPrice(
+                prices.getOrDefault(product.id(), PromotionPrice.withoutPromotion(product.price()))
+        ));
     }
 }
