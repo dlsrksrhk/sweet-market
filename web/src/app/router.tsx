@@ -2,13 +2,17 @@ import { Route, Routes } from 'react-router-dom';
 import { RequireAdmin } from '../features/auth/RequireAdmin';
 import { RequireAuth } from '../features/auth/RequireAuth';
 import { AdminBusinessStoresPage } from '../pages/AdminBusinessStoresPage';
+import { AdminCouponCampaignsPage } from '../pages/AdminCouponCampaignsPage';
 import { AdminOperationsPage } from '../pages/AdminOperationsPage';
 import { AdminRefundRequestsPage } from '../pages/AdminRefundRequestsPage';
 import { AdminSettlementBatchPage } from '../pages/AdminSettlementBatchPage';
 import { BusinessStoreApplicationPage } from '../pages/BusinessStoreApplicationPage';
+import { CouponCampaignDetailPage } from '../pages/CouponCampaignDetailPage';
+import { CouponCampaignWorkspacePage } from '../pages/CouponCampaignWorkspacePage';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MyCartPage } from '../pages/MyCartPage';
+import { MyCouponsPage } from '../pages/MyCouponsPage';
 import { MyOrdersPage } from '../pages/MyOrdersPage';
 import { MyRefundHistoryPage } from '../pages/MyRefundHistoryPage';
 import { MyReportsPage } from '../pages/MyReportsPage';
@@ -82,6 +86,9 @@ export function AppRouter() {
             </RequireAuth>
           }
         />
+        <Route path="me/store/coupons" element={<RequireAuth><CouponCampaignWorkspacePage /></RequireAuth>} />
+        <Route path="me/store/coupons/:storeId/:campaignId" element={<RequireAuth><CouponCampaignDetailPage /></RequireAuth>} />
+        <Route path="me/coupons" element={<RequireAuth><MyCouponsPage /></RequireAuth>} />
         <Route
           path="me/wishlist"
           element={
@@ -178,6 +185,7 @@ export function AppRouter() {
             </RequireAdmin>
           }
         />
+        <Route path="admin/coupons" element={<RequireAdmin><AdminCouponCampaignsPage /></RequireAdmin>} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

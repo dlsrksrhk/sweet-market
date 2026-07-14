@@ -18,6 +18,7 @@ export function Shell() {
               <NavLink to="/me/wishlist">찜한 상품</NavLink>
               <NavLink to="/me/cart">장바구니</NavLink>
               <NavLink to="/me/orders">내 주문</NavLink>
+              <NavLink to="/me/coupons">내 쿠폰</NavLink>
               <NavLink to="/me/refunds">환불 내역</NavLink>
               <NavLink to="/me/sales">내 판매</NavLink>
               <NavLink to="/me/settlements">정산</NavLink>
@@ -28,6 +29,7 @@ export function Shell() {
                   <NavLink to="/admin/operations">관리자</NavLink>
                   <NavLink to="/admin/business-stores">사업자 상점 심사</NavLink>
                   <NavLink to="/admin/refunds">관리자 환불</NavLink>
+                  <NavLink to="/admin/coupons">쿠폰 캠페인</NavLink>
                 </>
               ) : null}
             </>
