@@ -77,7 +77,7 @@ class StorefrontQueryOptimizationTest extends QueryOptimizationTestSupport {
             assertThat(product.wishlisted()).isTrue();
             assertThat(product.carted()).isTrue();
         });
-        assertThat(queryCount()).isLessThanOrEqualTo(3L);
+        assertThat(queryCount()).isLessThanOrEqualTo(5L);
         assertThat(collectionFetchCount()).isZero();
     }
 

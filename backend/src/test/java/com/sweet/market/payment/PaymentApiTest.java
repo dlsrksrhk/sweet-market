@@ -149,6 +149,33 @@ class PaymentApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 프로모션_종료와_상품가격_변경_후에도_결제와_구매자_주문은_가격_스냅샷을_사용한다() throws Exception {
+        String sellerToken = signupAndLogin("snapshot-payment-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("snapshot-payment-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+        Long promotionId = createStoreWidePromotion(productId, 500_000L);
+        Long orderId = createOrder(buyerToken, productId);
+
+        jdbcTemplate.update("update products set price = ? where id = ?", 300_000L, productId);
+        jdbcTemplate.update("update promotion_campaigns set lifecycle_status = 'ENDED' where id = ?", promotionId);
+
+        mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.orderStatus").value("PAID"));
+        verify(paymentGateway).approve(orderId, 1_500_000L);
+
+        mockMvc.perform(get("/api/orders/{orderId}", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.productPrice").value(1_500_000L))
+                .andExpect(jsonPath("$.data.listPrice").value(2_000_000L))
+                .andExpect(jsonPath("$.data.promotionCampaignId").value(promotionId))
+                .andExpect(jsonPath("$.data.promotionDiscountAmount").value(500_000L))
+                .andExpect(jsonPath("$.data.finalPrice").value(1_500_000L));
+    }
+
+    @Test
     void 결제_승인은_JWT가_필요하다() throws Exception {
         mockMvc.perform(post("/api/payments/{orderId}/approve", 1L))
                 .andExpect(status().isUnauthorized())
@@ -313,6 +340,20 @@ class PaymentApiTest extends IntegrationTestSupport {
             inventoryService.initialize(savedProduct, totalQuantity, seller.getId());
             return savedProduct.getId();
         });
+    }
+
+    private Long createStoreWidePromotion(Long productId, long discountAmount) {
+        Long storeId = jdbcTemplate.queryForObject("select store_id from products where id = ?", Long.class, productId);
+        jdbcTemplate.update("update stores set type = 'BUSINESS' where id = ?", storeId);
+        return jdbcTemplate.queryForObject("""
+                insert into promotion_campaigns (
+                    version, store_id, scope, discount_type, discount_value, priority, title,
+                    start_at, end_at, lifecycle_status, created_at, updated_at
+                ) values (0, ?, 'STORE_WIDE', 'FIXED_AMOUNT', ?, 10, '결제 스냅샷 할인',
+                    current_timestamp - interval '1 minute', current_timestamp + interval '1 minute', 'DRAFT',
+                    current_timestamp, current_timestamp)
+                returning id
+                """, Long.class, storeId, discountAmount);
     }
 
     private void cancelPayment(String accessToken, Long orderId) throws Exception {

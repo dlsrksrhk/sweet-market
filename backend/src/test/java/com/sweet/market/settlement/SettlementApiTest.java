@@ -41,6 +41,35 @@ class SettlementApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 프로모션_종료와_상품가격_변경_후에도_정산은_주문_최종가격을_사용한다() throws Exception {
+        String sellerToken = signupAndLogin("snapshot-settlement-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("snapshot-settlement-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "프로모션 정산 상품");
+        Long promotionId = createStoreWidePromotion(productId, 500_000L);
+        Long orderId = createOrder(buyerToken, productId);
+
+        jdbcTemplate.update("update products set price = ? where id = ?", 300_000L, productId);
+        jdbcTemplate.update("update promotion_campaigns set lifecycle_status = 'ENDED' where id = ?", promotionId);
+        approvePayment(buyerToken, orderId);
+        startDelivery(buyerToken, orderId);
+        completeDelivery(buyerToken, orderId);
+        mockMvc.perform(post("/api/orders/{orderId}/confirm", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/settlements/orders/{orderId}", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.amount").value(1_500_000L));
+
+        mockMvc.perform(get("/api/settlements/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].orderId").value(orderId))
+                .andExpect(jsonPath("$.data[0].amount").value(1_500_000L));
+    }
+
+    @Test
     void 확정되지_않은_주문은_정산할_수_없다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
@@ -185,6 +214,20 @@ class SettlementApiTest extends IntegrationTestSupport {
         return root.path("data").path("id").asLong();
     }
 
+    private Long createStoreWidePromotion(Long productId, long discountAmount) {
+        Long storeId = jdbcTemplate.queryForObject("select store_id from products where id = ?", Long.class, productId);
+        jdbcTemplate.update("update stores set type = 'BUSINESS' where id = ?", storeId);
+        return jdbcTemplate.queryForObject("""
+                insert into promotion_campaigns (
+                    version, store_id, scope, discount_type, discount_value, priority, title,
+                    start_at, end_at, lifecycle_status, created_at, updated_at
+                ) values (0, ?, 'STORE_WIDE', 'FIXED_AMOUNT', ?, 10, '정산 스냅샷 할인',
+                    current_timestamp - interval '1 minute', current_timestamp + interval '1 minute', 'DRAFT',
+                    current_timestamp, current_timestamp)
+                returning id
+                """, Long.class, storeId, discountAmount);
+    }
+
     private Long uploadImage(String accessToken, String fileName) throws Exception {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -243,6 +286,24 @@ class SettlementApiTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk());
         return orderId;
+    }
+
+    private void approvePayment(String accessToken, Long orderId) throws Exception {
+        mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
+    }
+
+    private void startDelivery(String accessToken, Long orderId) throws Exception {
+        mockMvc.perform(post("/api/deliveries/{orderId}/start", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
+    }
+
+    private void completeDelivery(String accessToken, Long orderId) throws Exception {
+        mockMvc.perform(post("/api/deliveries/{orderId}/complete", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+                .andExpect(status().isOk());
     }
 
     private Long createRefundRequest(String accessToken, Long orderId) throws Exception {

@@ -102,6 +102,33 @@ class RefundRequestApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 프로모션_종료와_상품가격_변경_후에도_환불_주문_조회는_가격_스냅샷을_유지한다() throws Exception {
+        String sellerToken = signupAndLogin("snapshot-refund-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("snapshot-refund-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "프로모션 환불 상품");
+        Long promotionId = createStoreWidePromotion(productId, 500_000L);
+        Long orderId = createDeliveredOrder(buyerToken, productId);
+
+        jdbcTemplate.update("update products set price = ? where id = ?", 300_000L, productId);
+        jdbcTemplate.update("update promotion_campaigns set lifecycle_status = 'ENDED' where id = ?", promotionId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+
+        mockMvc.perform(get("/api/orders/{orderId}", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.listPrice").value(2_000_000L))
+                .andExpect(jsonPath("$.data.promotionCampaignId").value(promotionId))
+                .andExpect(jsonPath("$.data.promotionDiscountAmount").value(500_000L))
+                .andExpect(jsonPath("$.data.finalPrice").value(1_500_000L))
+                .andExpect(jsonPath("$.data.refundStatus").value("REQUESTED"));
+
+        mockMvc.perform(post("/api/seller/refund-requests/{refundRequestId}/approve", refundRequestId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("APPROVED"));
+    }
+
+    @Test
     void 구매자는_다른_사람의_주문에_환불을_요청할_수_없다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
@@ -880,6 +907,20 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                 .getContentAsString();
 
         return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private Long createStoreWidePromotion(Long productId, long discountAmount) {
+        Long storeId = jdbcTemplate.queryForObject("select store_id from products where id = ?", Long.class, productId);
+        jdbcTemplate.update("update stores set type = 'BUSINESS' where id = ?", storeId);
+        return jdbcTemplate.queryForObject("""
+                insert into promotion_campaigns (
+                    version, store_id, scope, discount_type, discount_value, priority, title,
+                    start_at, end_at, lifecycle_status, created_at, updated_at
+                ) values (0, ?, 'STORE_WIDE', 'FIXED_AMOUNT', ?, 10, '환불 스냅샷 할인',
+                    current_timestamp - interval '1 minute', current_timestamp + interval '1 minute', 'DRAFT',
+                    current_timestamp, current_timestamp)
+                returning id
+                """, Long.class, storeId, discountAmount);
     }
 
     private Long createStockProduct(String sellerEmail, int totalQuantity) {

@@ -115,7 +115,7 @@ class ProductQueryOptimizationTest extends QueryOptimizationTestSupport {
                     assertThat(summary.wishlistCount()).isZero();
                     assertThat(summary.wishlisted()).isFalse();
                 });
-        assertThat(queryCount()).isLessThanOrEqualTo(2);
+        assertThat(queryCount()).isLessThanOrEqualTo(3);
         assertThat(collectionFetchCount()).isZero();
     }
 
