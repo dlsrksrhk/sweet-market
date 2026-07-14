@@ -290,13 +290,15 @@ public class CouponCampaign {
             targets.clear();
             return;
         }
-        Set<Product> nextProducts = new HashSet<>(products);
-        targets.removeIf(target -> !nextProducts.contains(target.getProduct()));
-        Set<Product> currentProducts = targets.stream()
-                .map(CouponCampaignTarget::getProduct)
+        Set<Object> nextProductKeys = products.stream()
+                .map(CouponCampaign::targetKey)
+                .collect(java.util.stream.Collectors.toSet());
+        targets.removeIf(target -> !nextProductKeys.contains(targetKey(target.getProduct())));
+        Set<Object> currentProductKeys = targets.stream()
+                .map(target -> targetKey(target.getProduct()))
                 .collect(java.util.stream.Collectors.toSet());
         products.stream()
-                .filter(product -> !currentProducts.contains(product))
+                .filter(product -> !currentProductKeys.contains(targetKey(product)))
                 .forEach(product -> {
                     CouponCampaignTarget target = new CouponCampaignTarget(product);
                     target.assignCampaign(this);
@@ -346,14 +348,14 @@ public class CouponCampaign {
             Long maxDiscountAmount,
             long minimumPurchaseAmount
     ) {
-        if (discountType == null || discountValue < 0) {
+        if (discountType == null || discountValue <= 0) {
             throw new DomainException(CouponDomainError.INVALID_DISCOUNT_VALUE);
         }
         if (minimumPurchaseAmount < 0) {
             throw new DomainException(CouponDomainError.INVALID_MINIMUM_PURCHASE_AMOUNT);
         }
         boolean validMaximum = discountType == CouponDiscountType.PERCENTAGE
-                ? maxDiscountAmount != null && maxDiscountAmount >= 0
+                ? maxDiscountAmount == null || maxDiscountAmount >= 0
                 : maxDiscountAmount == null;
         if (!validMaximum) {
             throw new DomainException(CouponDomainError.MAX_DISCOUNT_AMOUNT_INVALID);
@@ -395,7 +397,11 @@ public class CouponCampaign {
         if (scope == CouponScope.ALL_PRODUCTS && !safeProducts.isEmpty()) {
             throw new DomainException(CouponDomainError.ALL_PRODUCTS_TARGET_NOT_ALLOWED);
         }
-        if (new HashSet<>(safeProducts).size() != safeProducts.size()) {
+        Set<Object> productKeys = new HashSet<>();
+        boolean duplicateTarget = safeProducts.stream()
+                .map(CouponCampaign::targetKey)
+                .anyMatch(productKey -> !productKeys.add(productKey));
+        if (duplicateTarget) {
             throw new DomainException(CouponDomainError.DUPLICATE_TARGET);
         }
         if (ownerType == CouponCampaignOwnerType.STORE
@@ -412,5 +418,9 @@ public class CouponCampaign {
                 && targetStore != null
                 && expectedStore.getId() != null
                 && Objects.equals(expectedStore.getId(), targetStore.getId());
+    }
+
+    private static Object targetKey(Product product) {
+        return product.getId() == null ? product : product.getId();
     }
 }

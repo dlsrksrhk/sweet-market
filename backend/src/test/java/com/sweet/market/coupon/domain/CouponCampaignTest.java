@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
@@ -120,6 +121,85 @@ class CouponCampaignTest {
                 .isInstanceOf(DomainException.class)
                 .extracting(exception -> ((DomainException) exception).error())
                 .isEqualTo(CouponDomainError.MAX_DISCOUNT_AMOUNT_INVALID);
+    }
+
+    @Test
+    void 정률_쿠폰은_최대_할인금액_없이_생성할_수_있다() {
+        CouponCampaign campaign = CouponCampaign.create(
+                CouponCampaignOwnerType.PLATFORM,
+                null,
+                CouponScope.ALL_PRODUCTS,
+                CouponDiscountType.PERCENTAGE,
+                10L,
+                null,
+                0L,
+                false,
+                "정률 쿠폰",
+                null,
+                ISSUE_STARTS_AT,
+                ISSUE_ENDS_AT,
+                CouponValidityType.COMMON_EXPIRY,
+                ISSUE_ENDS_AT,
+                null,
+                List.of()
+        );
+
+        assertThat(campaign.getMaxDiscountAmount()).isNull();
+    }
+
+    @Test
+    void 할인값은_0보다_커야_한다() {
+        assertThatThrownBy(() -> CouponCampaign.create(
+                CouponCampaignOwnerType.PLATFORM,
+                null,
+                CouponScope.ALL_PRODUCTS,
+                CouponDiscountType.FIXED_AMOUNT,
+                0L,
+                null,
+                0L,
+                false,
+                "플랫폼 쿠폰",
+                null,
+                ISSUE_STARTS_AT,
+                ISSUE_ENDS_AT,
+                CouponValidityType.COMMON_EXPIRY,
+                ISSUE_ENDS_AT,
+                null,
+                List.of()
+        ))
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(CouponDomainError.INVALID_DISCOUNT_VALUE);
+    }
+
+    @Test
+    void 선택상품_쿠폰은_서로_다른_객체여도_상품_ID가_중복되면_생성할_수_없다() {
+        Product firstProduct = Product.create(상점("상점"), "상품1", "설명", 10_000L);
+        Product secondProduct = Product.create(상점("상점"), "상품2", "설명", 10_000L);
+        ReflectionTestUtils.setField(firstProduct, "id", 1L);
+        ReflectionTestUtils.setField(secondProduct, "id", 1L);
+
+        assertThatThrownBy(() -> CouponCampaign.create(
+                CouponCampaignOwnerType.PLATFORM,
+                null,
+                CouponScope.SELECTED_PRODUCTS,
+                CouponDiscountType.FIXED_AMOUNT,
+                1_000L,
+                null,
+                0L,
+                false,
+                "플랫폼 쿠폰",
+                null,
+                ISSUE_STARTS_AT,
+                ISSUE_ENDS_AT,
+                CouponValidityType.COMMON_EXPIRY,
+                ISSUE_ENDS_AT,
+                null,
+                List.of(firstProduct, secondProduct)
+        ))
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(CouponDomainError.DUPLICATE_TARGET);
     }
 
     @Test
