@@ -4,8 +4,7 @@ import { toProductImageSrc } from '../products/productApi';
 import { WishlistToggle } from '../wishlist/WishlistToggle';
 import { BuyerAvailabilityBadge, StatusBadge } from '../../shared/ui/ResourceStates';
 import type { CatalogProductCard as CatalogProductCardModel } from './catalogApi';
-
-const currencyFormatter = new Intl.NumberFormat('ko-KR');
+import { BuyerPrice } from '../promotions/BuyerPrice';
 
 type CatalogProductCardProps = {
   product: CatalogProductCardModel;
@@ -26,7 +25,7 @@ export function CatalogProductCard({ product }: CatalogProductCardProps) {
         <div className="catalog-product-card-body">
           <span className="catalog-category-label">{categoryLabel(product.category)}</span>
           <h3>{product.title}</h3>
-          <strong>{currencyFormatter.format(product.price)}원</strong>
+          <BuyerPrice price={product} />
           <BuyerAvailabilityBadge availability={product.availability} />
         </div>
       </Link>

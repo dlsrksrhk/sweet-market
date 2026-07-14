@@ -8,12 +8,12 @@ import { createOrder } from '../features/orders/orderApi';
 import { getProduct, hideProduct, toProductImageSrc, type WishlistResponse } from '../features/products/productApi';
 import { getProductReviews } from '../features/reviews/reviewApi';
 import { getMyStores, storeQueryKeys } from '../features/stores/storeApi';
+import { BuyerPrice } from '../features/promotions/BuyerPrice';
 import { WishlistToggle } from '../features/wishlist/WishlistToggle';
 import { type ApiError } from '../shared/api/http';
 import { BuyerAvailabilityBadge, EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
 import { parsePositiveIntegerParam } from '../shared/utils/parseId';
 
-const currencyFormatter = new Intl.NumberFormat('ko-KR');
 const ratingFormatter = new Intl.NumberFormat('ko-KR', {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
@@ -133,7 +133,7 @@ export function ProductDetailPage() {
             />
           </div>
           <h1>{product.title}</h1>
-          <strong>{currencyFormatter.format(product.price)}원</strong>
+          <BuyerPrice price={product} />
           <div>
             <span>상점 </span>
             <Link to={`/stores/${product.storeId}`}>{product.storeName}</Link>{' '}

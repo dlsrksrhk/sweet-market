@@ -5,8 +5,7 @@ import { BuyerAvailabilityBadge, StatusBadge } from '../../shared/ui/ResourceSta
 import type { BuyerAvailability, ProductStatus } from './productApi';
 import { toProductImageSrc } from './productApi';
 import type { StoreType } from '../stores/storeApi';
-
-const currencyFormatter = new Intl.NumberFormat('ko-KR');
+import { BuyerPrice } from '../promotions/BuyerPrice';
 
 export type BuyerProductCard = {
   id: number;
@@ -16,6 +15,11 @@ export type BuyerProductCard = {
   sellerId: number;
   title: string;
   price: number;
+  listPrice: number;
+  promotionId: number | null;
+  promotionTitle: string | null;
+  promotionDiscountAmount: number;
+  effectivePrice: number;
   status: ProductStatus;
   thumbnailUrl: string | null;
   wishlistCount: number;
@@ -38,7 +42,7 @@ export function ProductCard({ product }: ProductCardProps) {
             <h2>{product.title}</h2>
             <BuyerAvailabilityBadge availability={product.availability} />
           </div>
-          <strong>{currencyFormatter.format(product.price)}원</strong>
+          <BuyerPrice price={product} />
         </div>
       </Link>
       <div className="product-card-actions">

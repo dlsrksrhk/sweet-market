@@ -14,6 +14,11 @@ export type CartItem = {
   sellerNickname: string;
   title: string;
   price: number;
+  listPrice: number;
+  promotionId: number | null;
+  promotionTitle: string | null;
+  promotionDiscountAmount: number;
+  effectivePrice: number;
   status: ProductStatus;
   thumbnailUrl: string | null;
   cartedAt: string;

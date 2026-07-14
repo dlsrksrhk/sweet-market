@@ -34,6 +34,11 @@ export type ProductSummary = {
   sellerNickname: string;
   title: string;
   price: number;
+  listPrice: number;
+  promotionId: number | null;
+  promotionTitle: string | null;
+  promotionDiscountAmount: number;
+  effectivePrice: number;
   status: ProductStatus;
   thumbnailUrl: string | null;
   wishlistCount: number;
@@ -124,6 +129,11 @@ export type WishlistItem = {
   sellerNickname: string;
   title: string;
   price: number;
+  listPrice: number;
+  promotionId: number | null;
+  promotionTitle: string | null;
+  promotionDiscountAmount: number;
+  effectivePrice: number;
   status: ProductStatus;
   thumbnailUrl: string | null;
   wishlisted: boolean;

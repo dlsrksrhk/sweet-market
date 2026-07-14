@@ -13,6 +13,11 @@ export type CatalogProductCard = {
   id: number;
   title: string;
   price: number;
+  listPrice: number;
+  promotionId: number | null;
+  promotionTitle: string | null;
+  promotionDiscountAmount: number;
+  effectivePrice: number;
   category: ProductCategory;
   representativeImageUrl: string | null;
   availability: BuyerAvailability;

@@ -2,9 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { getMyWishlist, toProductImageSrc, type Page, type WishlistItem, type WishlistResponse } from '../features/products/productApi';
 import { WishlistToggle } from '../features/wishlist/WishlistToggle';
+import { BuyerPrice } from '../features/promotions/BuyerPrice';
 import { BuyerAvailabilityBadge, EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
-
-const currencyFormatter = new Intl.NumberFormat('ko-KR');
 
 export function MyWishlistPage() {
   const queryClient = useQueryClient();
@@ -116,7 +115,7 @@ function WishlistCardMain({ item }: WishlistCardProps) {
           <StatusBadge status={item.status} />
           <BuyerAvailabilityBadge availability={item.availability} />
         </div>
-        <strong>{currencyFormatter.format(item.price)}원</strong>
+        <BuyerPrice price={item} />
         <span>{item.sellerNickname}</span>
       </div>
     </>

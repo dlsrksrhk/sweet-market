@@ -18,6 +18,8 @@ import { MyStorePage } from '../pages/MyStorePage';
 import { MyWishlistPage } from '../pages/MyWishlistPage';
 import { ProductDetailPage } from '../pages/ProductDetailPage';
 import { ProductFormPage } from '../pages/ProductFormPage';
+import { PromotionDetailPage } from '../pages/PromotionDetailPage';
+import { PromotionWorkspacePage } from '../pages/PromotionWorkspacePage';
 import { SellerRefundRequestsPage } from '../pages/SellerRefundRequestsPage';
 import { SignupPage } from '../pages/SignupPage';
 import { StoreProfilePage } from '../pages/StoreProfilePage';
@@ -61,6 +63,22 @@ export function AppRouter() {
           element={
             <RequireAuth>
               <BusinessStoreApplicationPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="me/store/promotions"
+          element={
+            <RequireAuth>
+              <PromotionWorkspacePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="me/store/promotions/:storeId/:promotionId"
+          element={
+            <RequireAuth>
+              <PromotionDetailPage />
             </RequireAuth>
           }
         />

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { checkoutCart, getMyCart, removeCart, type CartItem } from '../features/cart/cartApi';
 import { toProductImageSrc } from '../features/products/productApi';
+import { BuyerPrice } from '../features/promotions/BuyerPrice';
 import { type ApiError } from '../shared/api/http';
 import { BuyerAvailabilityBadge, EmptyState, ErrorState } from '../shared/ui/ResourceStates';
 
@@ -29,7 +30,7 @@ export function MyCartPage() {
   );
   const selectedTotal = cartItems
     .filter((item) => validSelectedIds.includes(item.cartItemId))
-    .reduce((sum, item) => sum + item.price, 0);
+    .reduce((sum, item) => sum + item.effectivePrice, 0);
   const allSelectableSelected = selectableIds.length > 0 && selectableIds.every((id) => validSelectedIds.includes(id));
 
   useEffect(() => {
@@ -102,7 +103,7 @@ export function MyCartPage() {
               />
               구매 가능 상품 전체 선택
             </label>
-            <strong>{currencyFormatter.format(selectedTotal)}원</strong>
+            <span className="cart-total"><strong>{currencyFormatter.format(selectedTotal)}원</strong><small>최종 결제 금액은 주문 시점에 확정됩니다.</small></span>
             <button
               type="button"
               className="text-button"
@@ -152,7 +153,7 @@ function CartCard({ item, checked, removePending, onToggle, onRemove }: CartCard
           <h2>{item.title}</h2>
           <BuyerAvailabilityBadge availability={item.availability} />
         </div>
-        <strong>{currencyFormatter.format(item.price)}원</strong>
+        <BuyerPrice price={item} />
         <span>{item.sellerNickname}</span>
         {!item.checkoutAvailable ? <span className="muted-text">{formatUnavailableReason(item.unavailableReason)}</span> : null}
       </div>

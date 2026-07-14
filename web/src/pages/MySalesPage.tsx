@@ -5,8 +5,7 @@ import { useAuth } from '../features/auth/AuthProvider';
 import { getMyProducts, hideProduct, type ProductSummary } from '../features/products/productApi';
 import { type ApiError } from '../shared/api/http';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
-
-const currencyFormatter = new Intl.NumberFormat('ko-KR');
+import { BuyerPrice } from '../features/promotions/BuyerPrice';
 
 export function MySalesPage() {
   const { member } = useAuth();
@@ -80,7 +79,7 @@ export function MySalesPage() {
                 <div className="record-main">
                   <StatusBadge status={product.status} />
                   <h2>{product.title}</h2>
-                  <strong>{currencyFormatter.format(product.price)}원</strong>
+                  <BuyerPrice price={product} />
                 </div>
                 <dl className="record-meta">
                   <div>
