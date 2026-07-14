@@ -261,6 +261,12 @@ public class CouponCampaign {
                 && effectiveStatus(now) == CouponEffectiveStatus.ACTIVE;
     }
 
+    public void requireClaimable(Instant now) {
+        if (!isUsableForIssuedCoupon(now)) {
+            throw new DomainException(CouponDomainError.LIFECYCLE_TRANSITION_NOT_ALLOWED);
+        }
+    }
+
     public List<CouponCampaignTarget> getTargets() {
         return Collections.unmodifiableList(targets);
     }
