@@ -1,6 +1,9 @@
 spring:
   application:
     name: market-test
+  datasource:
+    hikari:
+      maximum-pool-size: 4
   sql:
     init:
       mode: always
