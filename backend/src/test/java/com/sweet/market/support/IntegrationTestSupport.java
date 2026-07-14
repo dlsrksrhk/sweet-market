@@ -61,7 +61,7 @@ public abstract class IntegrationTestSupport {
 
     @AfterEach
     void cleanUp() {
-        jdbcTemplate.execute("TRUNCATE TABLE store_memberships, stores, settlements, deliveries, refund_requests, payments, reviews, orders, cart_items, wishlist_items, product_image_uploads, product_images, products, members RESTART IDENTITY CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE member_coupons, coupon_campaign_targets, coupon_campaigns, store_memberships, stores, settlements, deliveries, refund_requests, payments, reviews, orders, cart_items, wishlist_items, product_image_uploads, product_images, products, members RESTART IDENTITY CASCADE");
         deleteTestProductImages();
     }
 
