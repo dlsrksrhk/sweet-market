@@ -39,6 +39,24 @@ class CouponWalletApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 발급가능_목록과_쿠폰지갑은_출처와_적용상점_정보를_반환하고_출처로_필터링한다() throws Exception {
+        String token = signupAndLogin("coupon-wallet-source@example.com");
+        Long campaignId = activeCampaign();
+
+        mockMvc.perform(get("/api/coupon-campaigns/available?source=PLATFORM")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(campaignId))
+                .andExpect(jsonPath("$.data.content[0].source").value("PLATFORM"))
+                .andExpect(jsonPath("$.data.content[0].store").doesNotExist());
+        claim(token, campaignId);
+        mockMvc.perform(get("/api/me/coupons").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].source").value("PLATFORM"))
+                .andExpect(jsonPath("$.data.content[0].store").doesNotExist());
+    }
+
+    @Test
     void 쿠폰지갑은_발급시각과_ID_내림차순_페이지에서_모든_유효상태를_반영한다() throws Exception {
         String token = signupAndLogin("coupon-wallet-status@example.com");
         Long issuedCampaignId = activeCampaign();

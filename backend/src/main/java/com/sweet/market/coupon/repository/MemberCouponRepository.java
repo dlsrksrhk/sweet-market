@@ -20,12 +20,12 @@ public interface MemberCouponRepository extends JpaRepository<MemberCoupon, Long
 
     @Query(value = """
             select new com.sweet.market.coupon.query.MemberCouponWalletRow(
-                coupon.id, campaign.id, campaign.title, campaign.label,
+                coupon.id, campaign.id, campaign.title, campaign.label, campaign.ownerType, store.id, store.publicName,
                 coupon.discountType, coupon.discountValue, coupon.maxDiscountAmount,
                 coupon.minimumPurchaseAmount, coupon.scope, coupon.stackable,
                 coupon.issuedAt, coupon.validUntil, coupon.status,
                 campaign.lifecycleStatus, campaign.issueStartsAt, campaign.issueEndsAt)
-            from MemberCoupon coupon join coupon.campaign campaign
+            from MemberCoupon coupon join coupon.campaign campaign left join campaign.store store
             where coupon.member.id = :memberId
               and (
                     :status is null
@@ -50,7 +50,7 @@ public interface MemberCouponRepository extends JpaRepository<MemberCoupon, Long
                             or campaign.issueEndsAt <= :now))
               )
             """, countQuery = """
-            select count(coupon) from MemberCoupon coupon join coupon.campaign campaign
+            select count(coupon) from MemberCoupon coupon join coupon.campaign campaign left join campaign.store store
             where coupon.member.id = :memberId
               and (
                     :status is null

@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import com.sweet.market.coupon.domain.CouponCampaign;
 import com.sweet.market.coupon.domain.CouponCampaignOwnerType;
 import com.sweet.market.coupon.query.AvailableCouponCampaignRow;
+import com.sweet.market.coupon.query.CouponCampaignSummaryRow;
 
 public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, Long> {
 
@@ -27,7 +28,12 @@ public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, 
     Optional<CouponCampaign> findWithDetailsByIdAndOwnerType(Long id, CouponCampaignOwnerType ownerType);
 
     @Query(value = """
-            select campaign from CouponCampaign campaign
+            select new com.sweet.market.coupon.query.CouponCampaignSummaryRow(
+                campaign.id, campaign.ownerType, store.id, store.publicName, campaign.scope, campaign.discountType,
+                campaign.discountValue, campaign.maxDiscountAmount, campaign.minimumPurchaseAmount, campaign.stackable,
+                campaign.title, campaign.label, campaign.issueStartsAt, campaign.issueEndsAt, campaign.validityType,
+                campaign.commonExpiresAt, campaign.validityDays, campaign.lifecycleStatus, count(target.id))
+            from CouponCampaign campaign left join campaign.store store left join campaign.targets target
             where campaign.ownerType = :ownerType and (:storeId is null or campaign.store.id = :storeId)
               and campaign.issueEndsAt >= :periodFrom and campaign.issueStartsAt <= :periodTo
               and (:statusProvided = false
@@ -35,6 +41,10 @@ public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, 
                    or (:status = 'ENDED' and (campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED or (campaign.lifecycleStatus not in (com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED, com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED) and campaign.issueEndsAt <= :now)))
                    or (:status = 'SCHEDULED' and campaign.lifecycleStatus not in (com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED, com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED) and campaign.issueStartsAt > :now)
                    or (:status = 'ACTIVE' and campaign.lifecycleStatus not in (com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED, com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED) and campaign.issueStartsAt <= :now and campaign.issueEndsAt > :now))
+            group by campaign.id, campaign.ownerType, store.id, store.publicName, campaign.scope, campaign.discountType,
+                campaign.discountValue, campaign.maxDiscountAmount, campaign.minimumPurchaseAmount, campaign.stackable,
+                campaign.title, campaign.label, campaign.issueStartsAt, campaign.issueEndsAt, campaign.validityType,
+                campaign.commonExpiresAt, campaign.validityDays, campaign.lifecycleStatus
             order by campaign.id desc
             """, countQuery = """
             select count(campaign) from CouponCampaign campaign
@@ -46,7 +56,7 @@ public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, 
                    or (:status = 'SCHEDULED' and campaign.lifecycleStatus not in (com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED, com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED) and campaign.issueStartsAt > :now)
                    or (:status = 'ACTIVE' and campaign.lifecycleStatus not in (com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED, com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED) and campaign.issueStartsAt <= :now and campaign.issueEndsAt > :now))
             """)
-    Page<CouponCampaign> search(
+    Page<CouponCampaignSummaryRow> search(
             @Param("ownerType") CouponCampaignOwnerType ownerType, @Param("storeId") Long storeId,
             @Param("statusProvided") boolean statusProvided, @Param("status") String status,
             @Param("periodFrom") Instant periodFrom, @Param("periodTo") Instant periodTo, @Param("now") Instant now,
@@ -59,20 +69,25 @@ public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, 
                 campaign.discountValue, campaign.maxDiscountAmount, campaign.minimumPurchaseAmount,
                 campaign.stackable, campaign.title, campaign.label, campaign.issueStartsAt,
                 campaign.issueEndsAt, campaign.validityType, campaign.commonExpiresAt,
-                campaign.validityDays, campaign.lifecycleStatus,
+                campaign.validityDays, campaign.lifecycleStatus, campaign.store.id, store.publicName,
                 case when exists (select 1 from MemberCoupon coupon
                     where coupon.campaign.id = campaign.id and coupon.member.id = :memberId)
                     then true else false end)
-            from CouponCampaign campaign
+            from CouponCampaign campaign left join campaign.store store
             where campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.SCHEDULED
               and campaign.issueStartsAt <= :now and campaign.issueEndsAt > :now
+              and (:source is null or campaign.ownerType = :source)
+              and (:storeId is null or campaign.store.id = :storeId)
             order by campaign.id desc
             """, countQuery = """
             select count(campaign) from CouponCampaign campaign
             where campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.SCHEDULED
               and campaign.issueStartsAt <= :now and campaign.issueEndsAt > :now
+              and (:source is null or campaign.ownerType = :source)
+              and (:storeId is null or campaign.store.id = :storeId)
             """)
     Page<AvailableCouponCampaignRow> findAvailableForMember(
-            @Param("memberId") Long memberId, @Param("now") Instant now, Pageable pageable
+            @Param("memberId") Long memberId, @Param("now") Instant now,
+            @Param("source") CouponCampaignOwnerType source, @Param("storeId") Long storeId, Pageable pageable
     );
 }

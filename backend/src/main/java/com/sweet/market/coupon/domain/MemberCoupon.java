@@ -1,10 +1,15 @@
 package com.sweet.market.coupon.domain;
 
 import java.time.Instant;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import com.sweet.market.member.domain.Member;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -69,6 +74,11 @@ public class MemberCoupon {
     @Column(nullable = false, updatable = false)
     private boolean stackable;
 
+    @ElementCollection
+    @CollectionTable(name = "member_coupon_target_products", joinColumns = @JoinColumn(name = "member_coupon_id"))
+    @Column(name = "product_id", nullable = false)
+    private Set<Long> targetProductIds = new LinkedHashSet<>();
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private MemberCouponStatus status;
@@ -83,7 +93,8 @@ public class MemberCoupon {
             Long maxDiscountAmount,
             long minimumPurchaseAmount,
             CouponScope scope,
-            boolean stackable
+            boolean stackable,
+            Set<Long> targetProductIds
     ) {
         this.member = member;
         this.campaign = campaign;
@@ -95,13 +106,15 @@ public class MemberCoupon {
         this.minimumPurchaseAmount = minimumPurchaseAmount;
         this.scope = scope;
         this.stackable = stackable;
+        this.targetProductIds.addAll(targetProductIds);
         this.status = MemberCouponStatus.ISSUED;
     }
 
     public static MemberCoupon issue(Member member, CouponCampaign campaign, Instant issuedAt) {
         return new MemberCoupon(member, campaign, issuedAt, campaign.resolveValidUntil(issuedAt),
                 campaign.getDiscountType(), campaign.getDiscountValue(), campaign.getMaxDiscountAmount(),
-                campaign.getMinimumPurchaseAmount(), campaign.getScope(), campaign.isStackable());
+                campaign.getMinimumPurchaseAmount(), campaign.getScope(), campaign.isStackable(),
+                campaign.getTargets().stream().map(target -> target.getProduct().getId()).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
     }
 
     public MemberCouponStatus walletStatus(Instant now) {
@@ -115,5 +128,9 @@ public class MemberCoupon {
             return MemberCouponStatus.UNAVAILABLE;
         }
         return MemberCouponStatus.ISSUED;
+    }
+
+    public Set<Long> getTargetProductIds() {
+        return Collections.unmodifiableSet(targetProductIds);
     }
 }

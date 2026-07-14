@@ -1,7 +1,7 @@
 import { api } from '../../shared/api/http';
 import type { Page } from '../products/productApi';
 
-export type CouponScope = 'SELECTED_PRODUCTS' | 'STORE_WIDE';
+export type CouponScope = 'SELECTED_PRODUCTS' | 'ALL_PRODUCTS';
 export type CouponDiscountType = 'FIXED_AMOUNT' | 'PERCENTAGE';
 export type CouponValidityType = 'COMMON_EXPIRY' | 'DAYS_FROM_ISSUANCE';
 export type CouponLifecycleStatus = 'DRAFT' | 'SCHEDULED' | 'PAUSED' | 'ENDED';
@@ -52,24 +52,24 @@ export type CouponCampaignInput = {
 
 export type CouponCampaignSearchInput = { status?: CouponEffectiveStatus; periodFrom?: string; periodTo?: string; page: number; size: number };
 export type AvailableCouponCampaign = {
-  id: number; ownerType: 'PLATFORM' | 'STORE'; scope: CouponScope; discountType: CouponDiscountType;
+  id: number; source: 'PLATFORM' | 'STORE'; store: { id: number; publicName: string } | null; scope: CouponScope; discountType: CouponDiscountType;
   discountValue: number; maxDiscountAmount: number | null; minimumPurchaseAmount: number; stackable: boolean;
   title: string; label: string | null; issueStartsAt: string; issueEndsAt: string; validityType: CouponValidityType;
   commonExpiresAt: string | null; validityDays: number | null; effectiveStatus: CouponEffectiveStatus; claimed: boolean;
 };
 
 export type MemberCoupon = {
-  id: number; campaignId: number; title: string; label: string | null; discountType: CouponDiscountType;
+  id: number; campaignId: number; title: string; label: string | null; source: 'PLATFORM' | 'STORE'; store: { id: number; publicName: string } | null; discountType: CouponDiscountType;
   discountValue: number; maxDiscountAmount: number | null; minimumPurchaseAmount: number; scope: CouponScope;
   stackable: boolean; issuedAt: string; validUntil: string; status: MemberCouponStatus;
   unavailabilityReason: CouponEffectiveStatus | null;
 };
 
-export type CouponListInput = { page: number; size: number };
+export type CouponListInput = { page: number; size: number; source?: 'PLATFORM' | 'STORE'; storeId?: number };
 
 export const couponQueryKeys = {
   all: ['coupons'] as const,
-  available: (input: CouponListInput) => [...couponQueryKeys.all, 'available', input.page, input.size] as const,
+  available: (input: CouponListInput) => [...couponQueryKeys.all, 'available', input.source ?? null, input.storeId ?? null, input.page, input.size] as const,
   wallet: (input: CouponListInput & { status?: MemberCouponStatus }) => [...couponQueryKeys.all, 'wallet', input.status ?? null, input.page, input.size] as const,
   store: (storeId: number) => [...couponQueryKeys.all, 'store', storeId] as const,
   storeList: (storeId: number, input: CouponCampaignSearchInput) => [...couponQueryKeys.store(storeId), 'list', input.status ?? null, input.periodFrom ?? null, input.periodTo ?? null, input.page, input.size] as const,
@@ -87,7 +87,7 @@ function campaignQuery(input: CouponCampaignSearchInput) {
   return query.toString();
 }
 
-function listQuery(input: CouponListInput & { status?: MemberCouponStatus }) { const query = new URLSearchParams({ page: String(input.page), size: String(input.size) }); if (input.status) query.set('status', input.status); return query.toString(); }
+function listQuery(input: CouponListInput & { status?: MemberCouponStatus }) { const query = new URLSearchParams({ page: String(input.page), size: String(input.size) }); if (input.status) query.set('status', input.status); if (input.source) query.set('source', input.source); if (input.storeId) query.set('storeId', String(input.storeId)); return query.toString(); }
 
 export function getAvailableCouponCampaigns(input: CouponListInput) { return api<Page<AvailableCouponCampaign>>(`/api/coupon-campaigns/available?${listQuery(input)}`); }
 export function claimCouponCampaign(campaignId: number) { return api<MemberCoupon>(`/api/coupon-campaigns/${campaignId}/claim`, { method: 'POST' }); }

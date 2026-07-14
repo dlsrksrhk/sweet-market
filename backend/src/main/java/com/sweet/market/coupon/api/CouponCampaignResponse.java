@@ -13,6 +13,7 @@ import com.sweet.market.coupon.domain.CouponEffectiveStatus;
 import com.sweet.market.coupon.domain.CouponLifecycleStatus;
 import com.sweet.market.coupon.domain.CouponScope;
 import com.sweet.market.coupon.domain.CouponValidityType;
+import com.sweet.market.coupon.query.CouponCampaignSummaryRow;
 import com.sweet.market.store.domain.Store;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -26,6 +27,13 @@ public record CouponCampaignResponse(
 ) {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     public static CouponCampaignResponse summary(CouponCampaign campaign, Instant now) { return from(campaign, now, null); }
+    public static CouponCampaignResponse summary(CouponCampaignSummaryRow row, Instant now) {
+        return new CouponCampaignResponse(row.id(), row.ownerType(), row.storeId() == null ? null : new StoreSummary(row.storeId(), row.storeName()),
+                row.scope(), row.discountType(), row.discountValue(), row.maxDiscountAmount(), row.minimumPurchaseAmount(),
+                row.stackable(), row.title(), row.label(), local(row.issueStartsAt()), local(row.issueEndsAt()), row.validityType(),
+                local(row.commonExpiresAt()), row.validityDays(), row.lifecycleStatus(), effectiveStatus(row.lifecycleStatus(), row.issueStartsAt(), row.issueEndsAt(), now),
+                Math.toIntExact(row.targetCount()), null);
+    }
     public static CouponCampaignResponse detail(CouponCampaign campaign, Instant now) {
         List<CouponTargetProductResponse> targets = campaign.getScope() == CouponScope.SELECTED_PRODUCTS
                 ? campaign.getTargets().stream().map(target -> CouponTargetProductResponse.from(target.getProduct())).toList() : null;
@@ -40,5 +48,11 @@ public record CouponCampaignResponse(
                 campaign.effectiveStatus(now), campaign.getTargets().size(), targets);
     }
     private static LocalDateTime local(Instant instant) { return instant == null ? null : LocalDateTime.ofInstant(instant, KST); }
+    private static CouponEffectiveStatus effectiveStatus(CouponLifecycleStatus lifecycleStatus, Instant startsAt, Instant endsAt, Instant now) {
+        if (lifecycleStatus == CouponLifecycleStatus.DRAFT) return CouponEffectiveStatus.SCHEDULED;
+        if (lifecycleStatus == CouponLifecycleStatus.PAUSED) return CouponEffectiveStatus.PAUSED;
+        if (lifecycleStatus == CouponLifecycleStatus.ENDED || !now.isBefore(endsAt)) return CouponEffectiveStatus.ENDED;
+        return now.isBefore(startsAt) ? CouponEffectiveStatus.SCHEDULED : CouponEffectiveStatus.ACTIVE;
+    }
     public record StoreSummary(Long id, String publicName) { static StoreSummary from(Store store) { return store == null ? null : new StoreSummary(store.getId(), store.getPublicName()); } }
 }

@@ -227,6 +227,41 @@ class CouponCampaignTest {
                 .isEqualTo(CouponDomainError.INVALID_VALIDITY_POLICY);
     }
 
+    @Test
+    void 발급시작시각이_지난_초안_캠페인은_예약전까지_수정할_수_있다() {
+        Instant now = Instant.parse("2026-07-14T00:00:00Z");
+        CouponCampaign campaign = CouponCampaign.create(
+                CouponCampaignOwnerType.PLATFORM, null, CouponScope.ALL_PRODUCTS,
+                CouponDiscountType.FIXED_AMOUNT, 1_000L, null, 0L, false,
+                "초안 쿠폰", null, now.minusSeconds(60), now.plusSeconds(3_600),
+                CouponValidityType.DAYS_FROM_ISSUANCE, null, 7, List.of());
+
+        campaign.update(CouponScope.ALL_PRODUCTS, CouponDiscountType.FIXED_AMOUNT, 2_000L,
+                null, 0L, false, "수정한 초안 쿠폰", null, now.minusSeconds(30), now.plusSeconds(7_200),
+                CouponValidityType.DAYS_FROM_ISSUANCE, null, 7, List.of(), now);
+
+        assertThat(campaign.getTitle()).isEqualTo("수정한 초안 쿠폰");
+    }
+
+    @Test
+    void 선택상품_쿠폰은_발급시점의_대상상품을_스냅샷으로_보존한다() {
+        Product first = Product.create(상점("상점"), "첫 상품", "설명", 10_000L);
+        Product second = Product.create(상점("상점"), "둘째 상품", "설명", 10_000L);
+        ReflectionTestUtils.setField(first, "id", 1L);
+        ReflectionTestUtils.setField(second, "id", 2L);
+        CouponCampaign campaign = CouponCampaign.create(
+                CouponCampaignOwnerType.PLATFORM, null, CouponScope.SELECTED_PRODUCTS,
+                CouponDiscountType.FIXED_AMOUNT, 1_000L, null, 0L, false, "선택 쿠폰", null,
+                ISSUE_STARTS_AT, ISSUE_ENDS_AT, CouponValidityType.DAYS_FROM_ISSUANCE, null, 7, List.of(first));
+
+        MemberCoupon coupon = MemberCoupon.issue(회원(), campaign, ISSUE_STARTS_AT);
+        campaign.update(CouponScope.SELECTED_PRODUCTS, CouponDiscountType.FIXED_AMOUNT, 1_000L,
+                null, 0L, false, "변경 쿠폰", null, ISSUE_STARTS_AT, ISSUE_ENDS_AT,
+                CouponValidityType.DAYS_FROM_ISSUANCE, null, 7, List.of(second), ISSUE_STARTS_AT.minusSeconds(1));
+
+        assertThat(coupon.getTargetProductIds()).containsExactly(1L);
+    }
+
     private CouponCampaign 발급일_기준_캠페인() {
         return CouponCampaign.create(
                 CouponCampaignOwnerType.PLATFORM,

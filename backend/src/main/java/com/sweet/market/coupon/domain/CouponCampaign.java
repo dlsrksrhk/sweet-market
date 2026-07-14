@@ -175,6 +175,9 @@ public class CouponCampaign {
     }
 
     public CouponEffectiveStatus effectiveStatus(Instant now) {
+        if (lifecycleStatus == CouponLifecycleStatus.DRAFT) {
+            return CouponEffectiveStatus.SCHEDULED;
+        }
         if (lifecycleStatus == CouponLifecycleStatus.PAUSED) {
             return CouponEffectiveStatus.PAUSED;
         }
@@ -284,6 +287,9 @@ public class CouponCampaign {
     }
 
     private boolean canUpdate(Instant now) {
+        if (lifecycleStatus == CouponLifecycleStatus.DRAFT) {
+            return true;
+        }
         CouponEffectiveStatus status = effectiveStatus(now);
         return status != CouponEffectiveStatus.ACTIVE
                 && status != CouponEffectiveStatus.ENDED

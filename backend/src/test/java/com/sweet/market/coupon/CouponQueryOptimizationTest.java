@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
@@ -69,7 +70,7 @@ class CouponQueryOptimizationTest extends QueryOptimizationTestSupport {
         resetStatistics();
 
         var page = couponDiscoveryQueryService.findAvailable(member.getId(),
-                new AvailableCouponCampaignSearchRequest(0, PAGE_SIZE));
+                new AvailableCouponCampaignSearchRequest(0, PAGE_SIZE, null, null));
 
         assertThat(page.getContent()).hasSize(PAGE_SIZE);
         assertThat(collectionFetchCount()).isZero();
@@ -90,6 +91,22 @@ class CouponQueryOptimizationTest extends QueryOptimizationTestSupport {
 
         var page = couponWalletQueryService.findMine(member.getId(),
                 new MemberCouponSearchRequest(null, 0, PAGE_SIZE));
+
+        assertThat(page.getContent()).hasSize(PAGE_SIZE);
+        assertThat(collectionFetchCount()).isZero();
+        assertThat(queryCount()).isLessThanOrEqualTo(2);
+    }
+
+    @Test
+    @Transactional
+    void 운영자_캠페인목록_한페이지는_대상상품_컬렉션_N플러스일_조회없이_반환한다() {
+        Product target = saveProduct("owner-list-target@example.com", "운영자 목록 대상 상품");
+        saveActiveSelectedCampaigns(target, PAGE_SIZE + 5);
+        flushAndClear();
+        resetStatistics();
+
+        var page = couponCampaignRepository.search(CouponCampaignOwnerType.PLATFORM, null, false, "",
+                Instant.EPOCH, Instant.parse("9999-12-31T14:59:59Z"), Instant.now(), PageRequest.of(0, PAGE_SIZE));
 
         assertThat(page.getContent()).hasSize(PAGE_SIZE);
         assertThat(collectionFetchCount()).isZero();

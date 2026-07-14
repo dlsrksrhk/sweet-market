@@ -37,6 +37,7 @@ class CouponMigrationTest {
             assertThat(tableExists(connection, "coupon_campaigns")).isTrue();
             assertThat(tableExists(connection, "coupon_campaign_targets")).isTrue();
             assertThat(tableExists(connection, "member_coupons")).isTrue();
+            assertThat(tableExists(connection, "member_coupon_target_products")).isTrue();
             assertThat(constraintExists(connection, "uq_coupon_campaign_targets_campaign_product")).isTrue();
             assertThat(constraintExists(connection, "uq_member_coupons_campaign_member")).isTrue();
             assertThat(columnExists(connection, "member_coupons", "issued_at")).isTrue();

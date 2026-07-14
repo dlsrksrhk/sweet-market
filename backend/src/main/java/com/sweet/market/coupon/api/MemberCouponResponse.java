@@ -6,6 +6,7 @@ import java.time.ZoneId;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.sweet.market.coupon.domain.CouponEffectiveStatus;
+import com.sweet.market.coupon.domain.CouponCampaignOwnerType;
 import com.sweet.market.coupon.domain.CouponLifecycleStatus;
 import com.sweet.market.coupon.domain.MemberCoupon;
 import com.sweet.market.coupon.domain.MemberCouponStatus;
@@ -13,7 +14,7 @@ import com.sweet.market.coupon.query.MemberCouponWalletRow;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record MemberCouponResponse(
-        Long id, Long campaignId, String title, String label,
+        Long id, Long campaignId, String title, String label, CouponCampaignOwnerType source, CouponCampaignResponse.StoreSummary store,
         com.sweet.market.coupon.domain.CouponDiscountType discountType, long discountValue,
         Long maxDiscountAmount, long minimumPurchaseAmount, com.sweet.market.coupon.domain.CouponScope scope,
         boolean stackable, LocalDateTime issuedAt, LocalDateTime validUntil,
@@ -26,7 +27,7 @@ public record MemberCouponResponse(
         CouponEffectiveStatus reason = status == MemberCouponStatus.UNAVAILABLE
                 ? coupon.getCampaign().effectiveStatus(now) : null;
         return new MemberCouponResponse(coupon.getId(), coupon.getCampaign().getId(), coupon.getCampaign().getTitle(),
-                coupon.getCampaign().getLabel(), coupon.getDiscountType(), coupon.getDiscountValue(),
+                coupon.getCampaign().getLabel(), coupon.getCampaign().getOwnerType(), store(coupon.getCampaign().getStore()), coupon.getDiscountType(), coupon.getDiscountValue(),
                 coupon.getMaxDiscountAmount(), coupon.getMinimumPurchaseAmount(), coupon.getScope(), coupon.isStackable(),
                 local(coupon.getIssuedAt()), local(coupon.getValidUntil()), status, reason);
     }
@@ -34,7 +35,7 @@ public record MemberCouponResponse(
     public static MemberCouponResponse from(MemberCouponWalletRow row, Instant now) {
         CouponEffectiveStatus effectiveStatus = effectiveStatus(row.campaignLifecycleStatus(), row.campaignIssueStartsAt(), row.campaignIssueEndsAt(), now);
         MemberCouponStatus status = walletStatus(row.persistedStatus(), row.validUntil(), effectiveStatus, now);
-        return new MemberCouponResponse(row.id(), row.campaignId(), row.title(), row.label(), row.discountType(),
+        return new MemberCouponResponse(row.id(), row.campaignId(), row.title(), row.label(), row.source(), store(row.storeId(), row.storeName()), row.discountType(),
                 row.discountValue(), row.maxDiscountAmount(), row.minimumPurchaseAmount(), row.scope(), row.stackable(),
                 local(row.issuedAt()), local(row.validUntil()), status,
                 status == MemberCouponStatus.UNAVAILABLE ? effectiveStatus : null);
@@ -53,4 +54,6 @@ public record MemberCouponResponse(
     }
 
     private static LocalDateTime local(Instant value) { return value == null ? null : LocalDateTime.ofInstant(value, KST); }
+    private static CouponCampaignResponse.StoreSummary store(com.sweet.market.store.domain.Store store) { return store == null ? null : new CouponCampaignResponse.StoreSummary(store.getId(), store.getPublicName()); }
+    private static CouponCampaignResponse.StoreSummary store(Long id, String name) { return id == null ? null : new CouponCampaignResponse.StoreSummary(id, name); }
 }

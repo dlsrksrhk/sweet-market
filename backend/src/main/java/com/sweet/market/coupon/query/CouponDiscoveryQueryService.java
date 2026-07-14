@@ -31,7 +31,7 @@ public class CouponDiscoveryQueryService {
     @Transactional(readOnly = true)
     public Page<AvailableCouponCampaignResponse> findAvailable(Long memberId, AvailableCouponCampaignSearchRequest request) {
         Instant now = clock.instant();
-        return campaignRepository.findAvailableForMember(memberId, now,
+        return campaignRepository.findAvailableForMember(memberId, now, request.source(), request.storeId(),
                 PageRequest.of(request.resolvedPage(), request.resolvedSize()))
                 .map(AvailableCouponCampaignResponse::from);
     }
