@@ -1,13 +1,38 @@
-# Task 5 Report
+# M26 Task 5 실행 보고서
 
 ## 변경 사항
 
-- 카탈로그 단일 JDBC 투영에서 선택 상품·상점 전체의 유효 프로모션 하나를 실판매가, 우선순위, ID 순으로 선택합니다.
-- 최소/최대 가격 필터, 가격 정렬, 키셋 커서가 실판매가를 사용하도록 변경했습니다.
-- 구매자 카드에 `listPrice`, 프로모션 정보, `effectivePrice`를 추가했습니다.
-- 익명 페이지의 단일 투영과 인증 사용자별 찜·장바구니 일괄 조회 구조를 유지했습니다.
+- `CouponQueryOptimizationTest`를 추가했습니다.
+  - 선택상품 캠페인 25건을 시드해 사용가능 캠페인 첫 페이지가 대상 컬렉션을 초기화하지 않고 카드별 발급 조회 없이 20건을 반환하는지 검증했습니다.
+  - 동일하게 쿠폰지갑 25건을 시드해 캠페인별 N+1 없이 첫 페이지 20건을 반환하는지 검증했습니다.
+  - 쿠폰 발급 뒤 직접 주문과 장바구니 체크아웃이 M25 프로모션 가격 스냅샷만 저장하는지 검증했습니다.
+- Hibernate 통계로 두 목록의 `collectionFetchCount == 0`, 준비 SQL 문 수 `<= 2`를 확인했습니다.
+- 재사용 가능한 SQL assertion은 필요하지 않아 `QueryOptimizationTestSupport`는 변경하지 않았습니다.
 
-## TDD 및 검증
+## PostgreSQL 실행계획 증적
 
-- 구현 전에 실판매가 필터·정렬·동점 경계·선택/상점 전체 프로모션 및 카드 응답을 검증하는 테스트를 추가했고, 필요한 투영 API가 없어 컴파일 실패하는 것을 확인했습니다.
-- JDK 21과 `JWT_SECRET` 환경에서 `CatalogApiTest`, `CatalogSearchRepositoryTest`, `CatalogCursorCodecTest`, `CatalogQueryOptimizationTest`를 실행해 통과했습니다.
+Docker Desktop에서 `postgres:17-alpine` 격리 컨테이너를 생성했습니다. 105,000개 캠페인, 105,000개 회원 쿠폰, 5,000개 대상 회원 쿠폰을 시드한 다음 `EXPLAIN (ANALYZE, BUFFERS)`를 수행했습니다.
+
+| 경로 | 관측 결과 | 결론 |
+| --- | --- | --- |
+| 사용가능 캠페인 20건 | `coupon_campaigns_pkey` 역방향 스캔, 발급 `EXISTS`는 `idx_member_coupons_member_status_valid_until_id`를 한 번 Bitmap Scan하여 해시 집합화, 1.248 ms | 페이지별 쿼리이며 카드별 쿼리가 없습니다. |
+| 지갑 ISSUED 20건 | `idx_member_coupons_member_status_valid_until_id`가 회원/상태/만료 조건에 Bitmap Index Scan으로 사용, 14.985 ms | 회원 지갑 범위가 인덱스로 축소됩니다. |
+| 소유자·기간 관리 목록 20건 | `idx_coupon_campaigns_owner_lifecycle_issue_period` Index Scan, 0.665 ms | 소유자/기간 복합 인덱스가 사용됩니다. |
+| 대상 | 세 목록 계획에 `coupon_campaign_targets`가 없음; 대상 인덱스 `idx_coupon_campaign_targets_product_campaign`은 상세/대상 경로를 위해 유지 | 목록은 대상 컬렉션을 fetch하지 않습니다. |
+
+위 관측으로 추가 인덱스는 불필요했습니다.
+
+## 검증
+
+| 명령 | 결과 |
+| --- | --- |
+| `./gradlew.bat test --tests 'com.sweet.market.coupon.*' --tests 'com.sweet.market.promotion.*' --tests 'com.sweet.market.cart.*' --tests 'com.sweet.market.order.*' --tests 'com.sweet.market.payment.*' --rerun-tasks` | `BUILD SUCCESSFUL`, 169 tests / 22 classes, failure 0, error 0, skipped 0, 1m 06s |
+| `./gradlew.bat test --rerun-tasks` | `BUILD SUCCESSFUL`, 597 tests / 86 classes, failure 0, error 0, skipped 0, 2m 57s |
+| `npm run build` | 종료코드 0 |
+
+`npm run build`는 518.00 kB 생산 JavaScript 청크 경고를 출력했습니다. 기존 번들 크기 경고이며 Task 5 변경으로 새로 생긴 실패는 아닙니다.
+
+## 남은 범위
+
+- M27에서 발급 용량/재고와 동시성 정책을 추가합니다.
+- M28에서 쿠폰을 주문 가격에 적용하고 사용·취소·환불 수명주기를 처리합니다.
