@@ -9,6 +9,7 @@ import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreMemberRole;
 import com.sweet.market.store.domain.StoreMembership;
 import com.sweet.market.store.domain.StoreStatus;
+import com.sweet.market.store.domain.StoreType;
 import com.sweet.market.store.repository.StoreMembershipRepository;
 import com.sweet.market.store.repository.StoreRepository;
 
@@ -52,6 +53,18 @@ public class StoreAccessService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.STORE_OWNER_REQUIRED));
         if (membership.getRole() != StoreMemberRole.OWNER || !store.getOwnerMember().getId().equals(memberId)) {
             throw new BusinessException(ErrorCode.STORE_OWNER_REQUIRED);
+        }
+        return store;
+    }
+
+    @Transactional(readOnly = true)
+    public Store requireActiveBusinessOwner(Long memberId, Long storeId) {
+        Store store = requireOwner(memberId, storeId);
+        if (store.getType() != StoreType.BUSINESS) {
+            throw new BusinessException(ErrorCode.STORE_INVALID_TYPE);
+        }
+        if (store.getStatus() != StoreStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.STORE_ACCESS_DENIED);
         }
         return store;
     }

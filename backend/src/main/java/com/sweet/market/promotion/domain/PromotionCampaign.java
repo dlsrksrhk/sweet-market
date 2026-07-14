@@ -229,11 +229,18 @@ public class PromotionCampaign {
     }
 
     private void replaceTargets(PromotionScope scope, List<Product> products) {
-        targets.clear();
         if (scope == PromotionScope.STORE_WIDE) {
+            targets.clear();
             return;
         }
-        products.forEach(product -> {
+        Set<Product> nextProducts = new HashSet<>(products);
+        targets.removeIf(target -> !nextProducts.contains(target.getProduct()));
+        Set<Product> currentProducts = targets.stream()
+                .map(PromotionTarget::getProduct)
+                .collect(java.util.stream.Collectors.toSet());
+        products.stream()
+                .filter(product -> !currentProducts.contains(product))
+                .forEach(product -> {
             PromotionTarget target = new PromotionTarget(product);
             target.assignCampaign(this);
             targets.add(target);
