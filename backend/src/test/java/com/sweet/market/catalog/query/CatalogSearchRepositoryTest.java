@@ -130,6 +130,48 @@ class CatalogSearchRepositoryTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 활성_프로모션의_실판매가로_가격_필터_정렬과_키셋을_조회한다() {
+        Store store = 활성_사업자_상점("effective-price-catalog@example.com");
+        Product selected = 단품_상품을_저장한다(store, "선택 할인", "설명", 10_000L, ProductCategory.OTHER);
+        Product storeWide = 단품_상품을_저장한다(store, "상점 전체 할인", "설명", 7_000L, ProductCategory.OTHER);
+        Product higherEffectivePrice = 단품_상품을_저장한다(store, "더 높은 실판매가", "설명", 8_000L, ProductCategory.OTHER);
+
+        Long storeWidePromotionId = 활성_프로모션을_저장한다(store.getId(), "STORE_WIDE", "FIXED_AMOUNT", 1_000L, 1);
+        Long selectedPromotionId = 활성_프로모션을_저장한다(store.getId(), "SELECTED_PRODUCTS", "FIXED_AMOUNT", 4_000L, 1);
+        jdbcTemplate.update("insert into promotion_targets (promotion_campaign_id, product_id) values (?, ?)",
+                selectedPromotionId, selected.getId());
+
+        List<CatalogProductRow> ascending = repository.findPage(조건(
+                null, null, 6_000L, 6_000L, null, null, null, null, CatalogSort.PRICE_ASC, 10
+        ), null);
+        assertThat(ascending).extracting(CatalogProductRow::productId)
+                .containsExactly(selected.getId(), storeWide.getId());
+        assertThat(ascending.getFirst())
+                .extracting(CatalogProductRow::listPrice, CatalogProductRow::promotionId,
+                        CatalogProductRow::promotionDiscountAmount, CatalogProductRow::effectivePrice)
+                .containsExactly(10_000L, selectedPromotionId, 4_000L, 6_000L);
+        assertThat(ascending.get(1).promotionId()).isEqualTo(storeWidePromotionId);
+
+        List<CatalogProductRow> firstPage = repository.findPage(조건(CatalogSort.PRICE_ASC, 1), null);
+        CatalogCursor ascendingCursor = new CatalogCursor(
+                CatalogSort.PRICE_ASC, firstPage.getFirst().effectivePrice(), firstPage.getFirst().productId(),
+                "fingerprint", Instant.now().plusSeconds(60)
+        );
+        assertThat(repository.findPage(조건(CatalogSort.PRICE_ASC, 1), ascendingCursor))
+                .extracting(CatalogProductRow::productId)
+                .containsExactly(storeWide.getId(), higherEffectivePrice.getId());
+
+        List<CatalogProductRow> descending = repository.findPage(조건(CatalogSort.PRICE_DESC, 1), null);
+        CatalogCursor descendingCursor = new CatalogCursor(
+                CatalogSort.PRICE_DESC, descending.get(1).effectivePrice(), descending.get(1).productId(),
+                "fingerprint", Instant.now().plusSeconds(60)
+        );
+        assertThat(repository.findPage(조건(CatalogSort.PRICE_DESC, 1), descendingCursor))
+                .extracting(CatalogProductRow::productId)
+                .containsExactly(selected.getId());
+    }
+
+    @Test
     void 카탈로그_필터와_대표이미지와_구매자_가용성만_투영한다() {
         Store businessStore = 활성_사업자_상점("business-catalog@example.com");
         Store personalStore = 개인_상점("personal-catalog@example.com");
@@ -319,6 +361,24 @@ class CatalogSearchRepositoryTest extends IntegrationTestSupport {
 
     private void 상태를_변경한다(Product product, String status) {
         jdbcTemplate.update("update products set status = ? where id = ?", status, product.getId());
+    }
+
+    private Long 활성_프로모션을_저장한다(
+            Long storeId,
+            String scope,
+            String discountType,
+            long discountValue,
+            int priority
+    ) {
+        return jdbcTemplate.queryForObject("""
+                insert into promotion_campaigns (
+                    version, store_id, scope, discount_type, discount_value, priority, title,
+                    start_at, end_at, lifecycle_status, created_at, updated_at
+                ) values (0, ?, ?, ?, ?, ?, '카탈로그 할인',
+                    current_timestamp - interval '1 hour', current_timestamp + interval '1 hour',
+                    'SCHEDULED', current_timestamp, current_timestamp)
+                returning id
+                """, Long.class, storeId, scope, discountType, discountValue, priority);
     }
 
     private void 대표_이미지를_추가한다(Product product, String firstUrl, String representativeUrl) {

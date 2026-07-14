@@ -108,6 +108,31 @@ class CatalogApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 카탈로그_구매자_카드는_프로모션_가격_필드를_반환한다() throws Exception {
+        Store store = saveActiveBusinessStore("catalog-promotion-card@example.com");
+        Product product = saveProduct(store, "카탈로그 할인 상품", 10_000L, ProductCategory.OTHER);
+        Long promotionId = jdbcTemplate.queryForObject("""
+                insert into promotion_campaigns (
+                    version, store_id, scope, discount_type, discount_value, priority, title,
+                    start_at, end_at, lifecycle_status, created_at, updated_at
+                ) values (0, ?, 'STORE_WIDE', 'FIXED_AMOUNT', 3_000, 1, '카탈로그 카드 할인',
+                    current_timestamp - interval '1 hour', current_timestamp + interval '1 hour',
+                    'SCHEDULED', current_timestamp, current_timestamp)
+                returning id
+                """, Long.class, store.getId());
+
+        mockMvc.perform(get("/api/catalog/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(product.getId()))
+                .andExpect(jsonPath("$.data.content[0].price").value(10_000L))
+                .andExpect(jsonPath("$.data.content[0].listPrice").value(10_000L))
+                .andExpect(jsonPath("$.data.content[0].promotionId").value(promotionId))
+                .andExpect(jsonPath("$.data.content[0].promotionTitle").value("카탈로그 카드 할인"))
+                .andExpect(jsonPath("$.data.content[0].promotionDiscountAmount").value(3_000L))
+                .andExpect(jsonPath("$.data.content[0].effectivePrice").value(7_000L));
+    }
+
+    @Test
     void 카탈로그_커서는_다음_페이지와_정렬_기준을_유지한다() throws Exception {
         Store store = saveActiveBusinessStore("catalog-cursor@example.com");
         Product first = saveProduct(store, "저가 상품", 10_000L, ProductCategory.OTHER);

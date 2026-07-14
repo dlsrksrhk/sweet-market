@@ -75,7 +75,8 @@ public class CatalogSearchQueryService {
 
     private CatalogProductCardResponse response(CatalogProductRow row, boolean wishlisted, boolean carted) {
         return new CatalogProductCardResponse(
-                row.productId(), row.title(), row.price(), row.category(), row.representativeImageUrl(), row.availability(),
+                row.productId(), row.title(), row.price(), row.listPrice(), row.promotionId(), row.promotionTitle(),
+                row.promotionDiscountAmount(), row.effectivePrice(), row.category(), row.representativeImageUrl(), row.availability(),
                 row.salesPolicy(), row.storeId(), row.sellerId(), row.storeName(), row.storeType(), wishlisted, carted
         );
     }
@@ -83,7 +84,7 @@ public class CatalogSearchQueryService {
     private CatalogCursor cursorFor(CatalogProductRow row, CatalogSort sort, String fingerprint) {
         return new CatalogCursor(
                 sort,
-                sort == CatalogSort.NEWEST ? null : row.price(),
+                sort == CatalogSort.NEWEST ? null : row.effectivePrice(),
                 row.productId(),
                 fingerprint,
                 catalogCursorCodec.expiresAt()

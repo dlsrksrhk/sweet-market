@@ -24,6 +24,7 @@ public class CatalogSearchRepository {
             SELECT p.id AS product_id,
                    p.title,
                    p.price,
+                   p.price AS list_price,
                    p.category,
                    representative_image.image_url AS representative_image_url,
                    p.sales_policy,
@@ -32,7 +33,11 @@ public class CatalogSearchRepository {
                    s.id AS store_id,
                    s.owner_member_id AS seller_id,
                    s.public_name AS store_name,
-                   s.type AS store_type
+                   s.type AS store_type,
+                   promotion.promotion_id,
+                   promotion.promotion_title,
+                   COALESCE(promotion.promotion_discount_amount, 0) AS promotion_discount_amount,
+                   COALESCE(promotion.effective_price, p.price) AS effective_price
             FROM products p
             JOIN stores s ON s.id = p.store_id AND s.status = 'ACTIVE'
             LEFT JOIN inventories i ON i.product_id = p.id
@@ -43,6 +48,39 @@ public class CatalogSearchRepository {
                 ORDER BY pi.representative DESC, pi.sort_order ASC, pi.id ASC
                 LIMIT 1
             ) representative_image ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT candidate.promotion_id,
+                       candidate.promotion_title,
+                       candidate.promotion_discount_amount,
+                       p.price - candidate.promotion_discount_amount AS effective_price
+                FROM (
+                    SELECT pc.id AS promotion_id,
+                           pc.title AS promotion_title,
+                           pc.priority,
+                           CASE
+                               WHEN pc.discount_type = 'FIXED_AMOUNT' THEN LEAST(pc.discount_value, p.price)
+                               WHEN pc.discount_value >= 100 THEN p.price
+                               ELSE (p.price / 100) * pc.discount_value
+                                       + ((p.price % 100) * pc.discount_value) / 100
+                           END AS promotion_discount_amount
+                    FROM promotion_campaigns pc
+                    WHERE pc.store_id = p.store_id
+                      AND s.type = 'BUSINESS'
+                      AND pc.lifecycle_status IN ('DRAFT', 'SCHEDULED')
+                      AND pc.start_at <= CURRENT_TIMESTAMP
+                      AND pc.end_at > CURRENT_TIMESTAMP
+                      AND (pc.scope = 'STORE_WIDE' OR EXISTS (
+                          SELECT 1
+                          FROM promotion_targets pt
+                          WHERE pt.promotion_campaign_id = pc.id
+                            AND pt.product_id = p.id
+                      ))
+                ) candidate
+                ORDER BY p.price - candidate.promotion_discount_amount ASC,
+                         candidate.priority DESC,
+                         candidate.promotion_id ASC
+                LIMIT 1
+            ) promotion ON TRUE
             WHERE p.status = 'ON_SALE'
               AND (p.sales_policy = 'SINGLE_ITEM' OR i.total_quantity - i.reserved_quantity > 0)
             """;
@@ -92,11 +130,11 @@ public class CatalogSearchRepository {
             parameters.addValue("category", criteria.category().name());
         }
         if (criteria.minPrice() != null) {
-            sql.append(" AND p.price >= :minPrice");
+            sql.append(" AND COALESCE(promotion.effective_price, p.price) >= :minPrice");
             parameters.addValue("minPrice", criteria.minPrice());
         }
         if (criteria.maxPrice() != null) {
-            sql.append(" AND p.price <= :maxPrice");
+            sql.append(" AND COALESCE(promotion.effective_price, p.price) <= :maxPrice");
             parameters.addValue("maxPrice", criteria.maxPrice());
         }
         if (criteria.availability() != null) {
@@ -142,11 +180,13 @@ public class CatalogSearchRepository {
             case NEWEST -> sql.append(" AND p.id < :cursorId");
             case PRICE_ASC -> {
                 parameters.addValue("cursorPrice", cursor.price());
-                sql.append(" AND (p.price > :cursorPrice OR (p.price = :cursorPrice AND p.id > :cursorId))");
+                sql.append(" AND (COALESCE(promotion.effective_price, p.price) > :cursorPrice"
+                        + " OR (COALESCE(promotion.effective_price, p.price) = :cursorPrice AND p.id > :cursorId))");
             }
             case PRICE_DESC -> {
                 parameters.addValue("cursorPrice", cursor.price());
-                sql.append(" AND (p.price < :cursorPrice OR (p.price = :cursorPrice AND p.id < :cursorId))");
+                sql.append(" AND (COALESCE(promotion.effective_price, p.price) < :cursorPrice"
+                        + " OR (COALESCE(promotion.effective_price, p.price) = :cursorPrice AND p.id < :cursorId))");
             }
         }
     }
@@ -154,8 +194,8 @@ public class CatalogSearchRepository {
     private String orderBy(CatalogSort sort) {
         return switch (sort) {
             case NEWEST -> "p.id DESC";
-            case PRICE_ASC -> "p.price ASC, p.id ASC";
-            case PRICE_DESC -> "p.price DESC, p.id DESC";
+            case PRICE_ASC -> "COALESCE(promotion.effective_price, p.price) ASC, p.id ASC";
+            case PRICE_DESC -> "COALESCE(promotion.effective_price, p.price) DESC, p.id DESC";
         };
     }
 
@@ -164,6 +204,11 @@ public class CatalogSearchRepository {
                 resultSet.getLong("product_id"),
                 resultSet.getString("title"),
                 resultSet.getLong("price"),
+                resultSet.getLong("list_price"),
+                nullableLong(resultSet, "promotion_id"),
+                resultSet.getString("promotion_title"),
+                resultSet.getLong("promotion_discount_amount"),
+                resultSet.getLong("effective_price"),
                 ProductCategory.valueOf(resultSet.getString("category")),
                 resultSet.getString("representative_image_url"),
                 buyerAvailability(resultSet),
@@ -184,6 +229,11 @@ public class CatalogSearchRepository {
 
     private Integer nullableInteger(ResultSet resultSet, String columnName) throws SQLException {
         int value = resultSet.getInt(columnName);
+        return resultSet.wasNull() ? null : value;
+    }
+
+    private Long nullableLong(ResultSet resultSet, String columnName) throws SQLException {
+        long value = resultSet.getLong(columnName);
         return resultSet.wasNull() ? null : value;
     }
 }
