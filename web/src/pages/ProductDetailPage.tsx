@@ -54,10 +54,11 @@ export function ProductDetailPage() {
     () => new Set((ownedStoresQuery.data ?? []).map((store) => store.storeId)),
     [ownedStoresQuery.data],
   );
+  const shouldLoadEligibleCoupons = !authLoading && member !== null && product !== undefined && !ownedStoreIds.has(product.storeId);
   const eligibleCouponsQuery = useQuery({
     queryKey: couponQueryKeys.eligible(member?.id ?? 0, parsedProductId ?? 0),
     queryFn: () => getEligibleCoupons(parsedProductId ?? 0),
-    enabled: !authLoading && member !== null && product !== undefined && !ownedStoreIds.has(product.storeId),
+    enabled: shouldLoadEligibleCoupons,
   });
 
   const hideMutation = useMutation({
@@ -195,7 +196,7 @@ export function ProductDetailPage() {
                 </select>
               </label>
               {eligibleCouponsQuery.isLoading ? <p className="status-text">적용 가능한 쿠폰을 불러오고 있습니다.</p> : null}
-              {eligibleCouponsQuery.isError ? <p className="error-text">적용 가능한 쿠폰을 불러오지 못했습니다.</p> : null}
+              {eligibleCouponsQuery.isError ? <p className="error-text">적용 가능한 쿠폰을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p> : null}
               {selectedCoupon ? (
                 <p className="status-text">
                   쿠폰 할인 {currencyFormatter.format(selectedCoupon.discountAmount)}원 · 예상 결제금액 {currencyFormatter.format(selectedCoupon.finalPrice)}원
@@ -204,7 +205,7 @@ export function ProductDetailPage() {
               <button
                 type="button"
                 className="text-button"
-                disabled={orderMutation.isPending}
+                disabled={orderMutation.isPending || (shouldLoadEligibleCoupons && (eligibleCouponsQuery.isLoading || eligibleCouponsQuery.isError))}
                 onClick={() => orderMutation.mutate(selectedCoupon?.id ?? null)}
               >
                 {orderMutation.isPending ? '주문 중' : '주문하기'}
