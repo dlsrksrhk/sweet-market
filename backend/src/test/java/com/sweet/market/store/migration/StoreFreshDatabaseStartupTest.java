@@ -44,13 +44,19 @@ class StoreFreshDatabaseStartupTest {
 
     @Test
     void 빈_PostgreSQL에서도_Flyway와_JPA_업데이트로_애플리케이션이_시작된다() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("10");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("11");
         assertThat(tableExists("stores")).isTrue();
         assertThat(tableExists("members")).isTrue();
         assertThat(tableExists("products")).isTrue();
         assertThat(tableExists("orders")).isTrue();
         assertThat(tableExists("promotion_campaigns")).isTrue();
         assertThat(tableExists("promotion_targets")).isTrue();
+        assertThat(columnExists("coupon_campaigns", "issue_limit")).isTrue();
+        assertThat(columnIsNotNull("coupon_campaigns", "issued_count")).isTrue();
+        assertThat(checkConstraintDefinition("chk_coupon_campaigns_issue_limit"))
+                .contains("issue_limit IS NULL", "issue_limit > 0");
+        assertThat(checkConstraintDefinition("chk_coupon_campaigns_issued_count"))
+                .contains("issued_count >= 0", "issued_count <= issue_limit");
         assertThat(columnExists("products", "store_id")).isTrue();
         assertThat(columnIsNotNull("products", "category")).isTrue();
         assertThat(checkConstraintDefinition("chk_products_category"))
