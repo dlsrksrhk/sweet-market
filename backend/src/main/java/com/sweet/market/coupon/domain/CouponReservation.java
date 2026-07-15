@@ -83,6 +83,9 @@ public class CouponReservation {
 
     public void expire(Instant now) {
         requireReserved();
+        if (now.isBefore(expiresAt)) {
+            throw new DomainException(CouponDomainError.RESERVATION_NOT_EXPIRED);
+        }
         this.status = CouponReservationStatus.EXPIRED;
         this.releasedAt = now;
     }

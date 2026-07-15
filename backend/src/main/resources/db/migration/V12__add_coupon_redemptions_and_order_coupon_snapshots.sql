@@ -17,6 +17,10 @@ CREATE UNIQUE INDEX uq_coupon_reservations_active_member_coupon
     ON coupon_reservations (member_coupon_id)
     WHERE status = 'RESERVED';
 
+CREATE INDEX idx_coupon_reservations_reserved_expires_at
+    ON coupon_reservations (expires_at)
+    WHERE status = 'RESERVED';
+
 ALTER TABLE orders
     ADD COLUMN member_coupon_id BIGINT REFERENCES member_coupons (id),
     ADD COLUMN coupon_discount_amount BIGINT NOT NULL DEFAULT 0;

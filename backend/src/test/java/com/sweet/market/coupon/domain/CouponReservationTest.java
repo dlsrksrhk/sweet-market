@@ -57,6 +57,27 @@ class CouponReservationTest {
     }
 
     @Test
+    void 예약은_만료시각_전에는_만료_처리할_수_없다() {
+        CouponReservation reservation = CouponReservation.reserve(null, null, RESERVED_AT, EXPIRES_AT);
+
+        assertThatThrownBy(() -> reservation.expire(EXPIRES_AT.minusSeconds(1)))
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(CouponDomainError.RESERVATION_NOT_EXPIRED);
+        assertThat(reservation.getStatus()).isEqualTo(CouponReservationStatus.RESERVED);
+    }
+
+    @Test
+    void 예약은_만료시각에_만료_처리할_수_있다() {
+        CouponReservation reservation = CouponReservation.reserve(null, null, RESERVED_AT, EXPIRES_AT);
+
+        reservation.expire(EXPIRES_AT);
+
+        assertThat(reservation.getStatus()).isEqualTo(CouponReservationStatus.EXPIRED);
+        assertThat(reservation.getReleasedAt()).isEqualTo(EXPIRES_AT);
+    }
+
+    @Test
     void 발급_쿠폰은_한번만_사용_처리할_수_있다() {
         MemberCoupon coupon = MemberCoupon.issue(
                 Member.create("member@example.com", "encoded-password", "회원"),
