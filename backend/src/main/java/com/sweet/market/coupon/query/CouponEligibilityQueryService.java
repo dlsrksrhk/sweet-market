@@ -3,6 +3,7 @@ package com.sweet.market.coupon.query;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,10 +52,24 @@ public class CouponEligibilityQueryService {
         Instant now = clock.instant();
         return memberCouponRepository.findEligibleByMemberId(memberId, now).stream()
                 .map(coupon -> eligible(coupon, product, promotion, now))
+                .flatMap(Optional::stream)
                 .toList();
     }
 
-    private EligibleMemberCouponResponse eligible(MemberCoupon coupon, Product product, PromotionPrice promotion, Instant now) {
-        return EligibleMemberCouponResponse.from(coupon, couponRedemptionService.quote(coupon, product, promotion, now));
+    private Optional<EligibleMemberCouponResponse> eligible(MemberCoupon coupon, Product product, PromotionPrice promotion, Instant now) {
+        try {
+            return Optional.of(EligibleMemberCouponResponse.from(coupon, couponRedemptionService.quote(coupon, product, promotion, now)));
+        } catch (BusinessException exception) {
+            if (isIneligibleForProduct(exception.errorCode())) {
+                return Optional.empty();
+            }
+            throw exception;
+        }
+    }
+
+    private boolean isIneligibleForProduct(ErrorCode errorCode) {
+        return errorCode == ErrorCode.MEMBER_COUPON_TARGET_MISMATCH
+                || errorCode == ErrorCode.MEMBER_COUPON_MINIMUM_PURCHASE_NOT_MET
+                || errorCode == ErrorCode.MEMBER_COUPON_PROMOTION_STACKING_NOT_ALLOWED;
     }
 }

@@ -83,6 +83,31 @@ class CouponEligibilityApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data[0].title").value("사용 가능"));
     }
 
+    @Test
+    void 적용불가_쿠폰이_섞여도_적용가능한_쿠폰만_정확한_견적으로_조회한다() throws Exception {
+        String buyerToken = signupAndLogin("eligible-mixed-buyer@example.com");
+        String sellerToken = signupAndLogin("eligible-mixed-seller@example.com");
+        Long productId = createProduct(sellerToken);
+        Long otherProductId = createProduct(sellerToken);
+        Long eligibleCampaign = activeCampaign("적용 가능", "ALL_PRODUCTS", "[]", 0, true);
+        Long targetMismatchCampaign = activeCampaign("다른 상품", "SELECTED_PRODUCTS", "[" + otherProductId + "]", 0, true);
+        Long minimumPurchaseCampaign = activeCampaign("최소 금액 미달", "ALL_PRODUCTS", "[]", 10_001, true);
+        Long nonStackableCampaign = activeCampaign("프로모션 중복 불가", "ALL_PRODUCTS", "[]", 0, false);
+        claim(buyerToken, eligibleCampaign);
+        claim(buyerToken, targetMismatchCampaign);
+        claim(buyerToken, minimumPurchaseCampaign);
+        claim(buyerToken, nonStackableCampaign);
+        activatePromotion(productId);
+
+        mockMvc.perform(get("/api/me/coupons/eligible?productId={productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].title").value("적용 가능"))
+                .andExpect(jsonPath("$.data[0].discountAmount").value(1_000))
+                .andExpect(jsonPath("$.data[0].finalPrice").value(8_000));
+    }
+
     private Long activeCampaign(String title) throws Exception {
         Long id = draftCampaign(title);
         mockMvc.perform(post("/api/admin/coupon-campaigns/{campaignId}/schedule", id)
@@ -91,14 +116,26 @@ class CouponEligibilityApiTest extends IntegrationTestSupport {
         return id;
     }
 
+    private Long activeCampaign(String title, String scope, String productIds, long minimumPurchaseAmount, boolean stackable) throws Exception {
+        Long id = draftCampaign(title, scope, productIds, minimumPurchaseAmount, stackable);
+        mockMvc.perform(post("/api/admin/coupon-campaigns/{campaignId}/schedule", id)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken()))
+                .andExpect(status().isOk());
+        return id;
+    }
+
     private Long draftCampaign(String title) throws Exception {
+        return draftCampaign(title, "ALL_PRODUCTS", "[]", 0, true);
+    }
+
+    private Long draftCampaign(String title, String scope, String productIds, long minimumPurchaseAmount, boolean stackable) throws Exception {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul")).withSecond(0).withNano(0);
         String body = """
-                { "scope": "ALL_PRODUCTS", "discountType": "FIXED_AMOUNT", "discountValue": 1000,
-                  "minimumPurchaseAmount": 0, "stackable": true, "title": "%s",
+                { "scope": "%s", "discountType": "FIXED_AMOUNT", "discountValue": 1000,
+                  "minimumPurchaseAmount": %d, "stackable": %s, "title": "%s",
                   "issueStartsAt": "%s", "issueEndsAt": "%s", "validityType": "DAYS_FROM_ISSUANCE",
-                  "validityDays": 7, "productIds": [] }
-                """.formatted(title, now.minusDays(1), now.plusDays(2));
+                  "validityDays": 7, "productIds": %s }
+                """.formatted(scope, minimumPurchaseAmount, stackable, title, now.minusDays(1), now.plusDays(2), productIds);
         String response = mockMvc.perform(post("/api/admin/coupon-campaigns")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())
                         .contentType(MediaType.APPLICATION_JSON).content(body))
@@ -150,6 +187,19 @@ class CouponEligibilityApiTest extends IntegrationTestSupport {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"productId\":%d}".formatted(productId)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private void activatePromotion(Long productId) {
+        Long storeId = jdbcTemplate.queryForObject("select store_id from products where id = ?", Long.class, productId);
+        jdbcTemplate.update("update stores set type = 'BUSINESS', status = 'ACTIVE' where id = ?", storeId);
+        jdbcTemplate.update("""
+                insert into promotion_campaigns (
+                    version, store_id, scope, discount_type, discount_value, priority, title, label,
+                    start_at, end_at, lifecycle_status, created_at, updated_at
+                ) values (0, ?, 'STORE_WIDE', 'FIXED_AMOUNT', 1000, 1, '조회 프로모션', null,
+                          current_timestamp - interval '1 minute', current_timestamp + interval '1 day', 'SCHEDULED',
+                          current_timestamp, current_timestamp)
+                """, storeId);
     }
 
     private String adminToken() throws Exception {

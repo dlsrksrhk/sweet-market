@@ -37,6 +37,16 @@ class CouponRedemptionServiceTest {
     }
 
     @Test
+    void 정률_쿠폰은_계산한_할인액을_최대할인금액으로_제한한다() {
+        MemberCoupon coupon = coupon(CouponDiscountType.PERCENTAGE, 30, 2_000L, 0L, true, CouponScope.ALL_PRODUCTS, Set.of());
+
+        CouponDiscountQuote quote = service.quote(coupon, product(101L), PromotionPrice.withoutPromotion(10_000L), now);
+
+        assertThat(quote.discountAmount()).isEqualTo(2_000L);
+        assertThat(quote.finalPrice()).isEqualTo(8_000L);
+    }
+
+    @Test
     void 정액_쿠폰은_기준금액까지만_할인해_0원_주문을_만든다() {
         MemberCoupon coupon = coupon(CouponDiscountType.FIXED_AMOUNT, 20_000L, null, 0L, true, CouponScope.ALL_PRODUCTS, Set.of());
 
