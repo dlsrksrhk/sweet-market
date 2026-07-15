@@ -50,6 +50,7 @@ import com.sweet.market.coupon.application.issuance.CouponIssuanceReservation;
 import com.sweet.market.coupon.application.issuance.CouponIssuanceGateUnavailableException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.coupon.application.issuance.ReservationType;
 import com.sweet.market.coupon.repository.CouponCampaignRepository;
 import com.sweet.market.coupon.repository.MemberCouponRepository;
 import com.sweet.market.support.IntegrationTestSupport;
@@ -219,6 +220,56 @@ class CouponIssueApiTest extends IntegrationTestSupport {
 
         verify(issuanceGate, times(1)).complete(same(reservation), any());
         verify(issuanceGate, never()).release(any(), any());
+    }
+
+    @Test
+    void 레디스_소진응답_사이에_비활성화된_캠페인은_수명주기_충돌을_반환한다() throws Exception {
+        Long campaignId = activeCampaignWithLimit(1);
+        signupAndLogin("sold-out-lifecycle@example.com");
+        Long memberId = memberId("sold-out-lifecycle@example.com");
+        doAnswer(invocation -> {
+            pause(campaignId);
+            return CouponIssuanceGateResult.of(ReservationType.SOLD_OUT);
+        }).when(issuanceGate).reserve(eq(campaignId), eq(memberId), anyInt(), anyInt(), any(), any());
+
+        assertThatThrownBy(() -> couponIssueService.claim(memberId, campaignId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).errorCode())
+                .isEqualTo(ErrorCode.COUPON_LIFECYCLE_NOT_ALLOWED);
+    }
+
+    @Test
+    void 진행중_예약은_쿠폰이_확정될_때까지_재시도해_기존_쿠폰을_반환한다() throws Exception {
+        Long campaignId = activeCampaignWithLimit(1);
+        signupAndLogin("in-progress-retry@example.com");
+        Long memberId = memberId("in-progress-retry@example.com");
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<?> durableIssue = executor.submit(() -> {
+            Thread.sleep(100);
+            issueTransactionService.issue(memberId, campaignId, java.time.Instant.now());
+            return null;
+        });
+        doReturn(CouponIssuanceGateResult.of(ReservationType.IN_PROGRESS))
+                .when(issuanceGate).reserve(eq(campaignId), eq(memberId), anyInt(), anyInt(), any(), any());
+
+        try {
+            assertThat(couponIssueService.claim(memberId, campaignId).campaignId()).isEqualTo(campaignId);
+        } finally {
+            durableIssue.get(5, TimeUnit.SECONDS);
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void 데이터베이스_확정후_레디스_완료가_실패해도_쿠폰을_반환한다() throws Exception {
+        Long campaignId = activeCampaignWithLimit(1);
+        signupAndLogin("complete-unavailable@example.com");
+        Long memberId = memberId("complete-unavailable@example.com");
+        doThrow(new CouponIssuanceGateUnavailableException(new IllegalStateException("Redis unavailable")))
+                .when(issuanceGate).complete(any(), any());
+
+        assertThat(couponIssueService.claim(memberId, campaignId).campaignId()).isEqualTo(campaignId);
+        assertThat(memberCouponCount(campaignId)).isEqualTo(1);
     }
 
     @Test

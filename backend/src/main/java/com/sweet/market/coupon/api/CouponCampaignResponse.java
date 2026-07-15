@@ -22,7 +22,8 @@ public record CouponCampaignResponse(
         CouponDiscountType discountType, long discountValue, Long maxDiscountAmount, long minimumPurchaseAmount,
         boolean stackable, String title, String label, LocalDateTime issueStartsAt, LocalDateTime issueEndsAt,
         CouponValidityType validityType, LocalDateTime commonExpiresAt, Integer validityDays,
-        Integer issueLimit, int issuedCount, Integer remainingIssueCount,
+        @JsonInclude(JsonInclude.Include.ALWAYS) Integer issueLimit, int issuedCount,
+        @JsonInclude(JsonInclude.Include.ALWAYS) Integer remainingIssueCount,
         CouponLifecycleStatus lifecycleStatus, CouponEffectiveStatus effectiveStatus, int targetCount,
         List<CouponTargetProductResponse> targets
 ) {

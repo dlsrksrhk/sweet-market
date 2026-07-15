@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.nullValue;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -71,15 +72,15 @@ class CouponWalletApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void 운영자_목록의_무제한_캠페인은_발급한도와_잔여수를_반환하지_않는다() throws Exception {
+    void 운영자_목록의_무제한_캠페인은_발급한도와_잔여수를_null로_반환한다() throws Exception {
         Long campaignId = draftCampaign(null);
 
         mockMvc.perform(get("/api/admin/coupon-campaigns").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].id").value(campaignId))
-                .andExpect(jsonPath("$.data.content[0].issueLimit").doesNotExist())
+                .andExpect(jsonPath("$.data.content[0].issueLimit").value(nullValue()))
                 .andExpect(jsonPath("$.data.content[0].issuedCount").value(0))
-                .andExpect(jsonPath("$.data.content[0].remainingIssueCount").doesNotExist());
+                .andExpect(jsonPath("$.data.content[0].remainingIssueCount").value(nullValue()));
     }
 
     @Test

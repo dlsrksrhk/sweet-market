@@ -35,6 +35,16 @@ class RedisCouponIssuanceGateTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 레디스_캐시가_비어도_영속_발급수를_기준으로_남은_수량만_예약한다() {
+        List<CouponIssuanceGateResult> results = IntStream.range(0, 3)
+                .mapToObj(memberId -> reserve(5, 3, (long) memberId, NOW))
+                .toList();
+
+        assertThat(results).filteredOn(result -> result.type() == ReservationType.RESERVED).hasSize(2);
+        assertThat(results).filteredOn(result -> result.type() == ReservationType.SOLD_OUT).hasSize(1);
+    }
+
+    @Test
     void 같은_회원의_진행중_예약은_중복_슬롯을_차지하지_않는다() {
         CouponIssuanceGateResult first = reserve(1, 7L, NOW);
         CouponIssuanceGateResult retry = reserve(1, 7L, NOW);
@@ -78,6 +88,10 @@ class RedisCouponIssuanceGateTest extends IntegrationTestSupport {
     }
 
     private CouponIssuanceGateResult reserve(int issueLimit, long memberId, Instant now) {
-        return gate.reserve(CAMPAIGN_ID, memberId, issueLimit, 0, ISSUE_ENDS_AT, now);
+        return reserve(issueLimit, 0, memberId, now);
+    }
+
+    private CouponIssuanceGateResult reserve(int issueLimit, int issuedCount, long memberId, Instant now) {
+        return gate.reserve(CAMPAIGN_ID, memberId, issueLimit, issuedCount, ISSUE_ENDS_AT, now);
     }
 }

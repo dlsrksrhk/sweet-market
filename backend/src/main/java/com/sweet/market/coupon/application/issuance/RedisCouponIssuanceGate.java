@@ -16,7 +16,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class RedisCouponIssuanceGate implements CouponIssuanceGate {
 
-    private static final Duration RESERVATION_DURATION = Duration.ofSeconds(30);
     private static final Duration CACHE_RECOVERY_GRACE = Duration.ofMinutes(1);
 
     private final StringRedisTemplate redisTemplate;
@@ -44,7 +43,7 @@ public class RedisCouponIssuanceGate implements CouponIssuanceGate {
                 Integer.toString(issuedCount),
                 Integer.toString(issueLimit),
                 token,
-                Long.toString(now.plus(RESERVATION_DURATION).toEpochMilli()),
+                Long.toString(now.plus(CouponIssuanceGate.RESERVATION_DURATION).toEpochMilli()),
                 Long.toString(cacheTtlMillis(issueEndsAt, now)),
                 memberId.toString(),
                 keyPrefix + "member:");

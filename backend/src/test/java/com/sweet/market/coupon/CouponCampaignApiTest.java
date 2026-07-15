@@ -1,6 +1,7 @@
 package com.sweet.market.coupon;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -56,9 +57,9 @@ class CouponCampaignApiTest extends IntegrationTestSupport {
         createStoreCampaign(token, storeId, "ALL_PRODUCTS", "[]")
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.targetCount").value(0))
-                .andExpect(jsonPath("$.data.issueLimit").doesNotExist())
+                .andExpect(jsonPath("$.data.issueLimit").value(nullValue()))
                 .andExpect(jsonPath("$.data.issuedCount").value(0))
-                .andExpect(jsonPath("$.data.remainingIssueCount").doesNotExist());
+                .andExpect(jsonPath("$.data.remainingIssueCount").value(nullValue()));
     }
 
     @Test
