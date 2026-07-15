@@ -2,6 +2,7 @@ package com.sweet.market.coupon.repository;
 
 import java.time.Instant;
 import java.util.Optional;
+import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +30,26 @@ public interface MemberCouponRepository extends JpaRepository<MemberCoupon, Long
             """)
     Optional<MemberCoupon> findRedemptionTargetForUpdate(@Param("couponId") Long couponId, @Param("memberId") Long memberId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"member", "campaign", "targetProductIds"})
+    @Query("select coupon from MemberCoupon coupon where coupon.id = :couponId")
+    Optional<MemberCoupon> findRedemptionTargetByIdForUpdate(@Param("couponId") Long couponId);
+
+    @EntityGraph(attributePaths = {"campaign", "targetProductIds"})
+    @Query("""
+            select coupon from MemberCoupon coupon
+            where coupon.member.id = :memberId
+              and coupon.status = com.sweet.market.coupon.domain.MemberCouponStatus.ISSUED
+              and coupon.validUntil > :now
+              and not exists (
+                  select reservation from CouponReservation reservation
+                  where reservation.memberCoupon = coupon
+                    and reservation.status = com.sweet.market.coupon.domain.CouponReservationStatus.RESERVED
+              )
+            order by coupon.validUntil asc, coupon.id asc
+            """)
+    List<MemberCoupon> findEligibleByMemberId(@Param("memberId") Long memberId, @Param("now") Instant now);
+
     @Query(value = """
             select new com.sweet.market.coupon.query.MemberCouponWalletRow(
                 coupon.id, campaign.id, campaign.title, campaign.label, campaign.ownerType, store.id, store.publicName,
@@ -47,18 +68,11 @@ public interface MemberCouponRepository extends JpaRepository<MemberCoupon, Long
                         and coupon.validUntil <= :now)
                     or (:status = 'ISSUED'
                         and coupon.status <> com.sweet.market.coupon.domain.MemberCouponStatus.USED
-                        and coupon.validUntil > :now
-                        and campaign.lifecycleStatus <> com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED
-                        and campaign.lifecycleStatus <> com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED
-                        and campaign.issueStartsAt <= :now
-                        and campaign.issueEndsAt > :now)
+                        and coupon.validUntil > :now)
                     or (:status = 'UNAVAILABLE'
                         and coupon.status <> com.sweet.market.coupon.domain.MemberCouponStatus.USED
                         and coupon.validUntil > :now
-                        and (campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED
-                            or campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED
-                            or campaign.issueStartsAt > :now
-                            or campaign.issueEndsAt <= :now))
+                        and false)
               )
             """, countQuery = """
             select count(coupon) from MemberCoupon coupon join coupon.campaign campaign left join campaign.store store
@@ -72,18 +86,11 @@ public interface MemberCouponRepository extends JpaRepository<MemberCoupon, Long
                         and coupon.validUntil <= :now)
                     or (:status = 'ISSUED'
                         and coupon.status <> com.sweet.market.coupon.domain.MemberCouponStatus.USED
-                        and coupon.validUntil > :now
-                        and campaign.lifecycleStatus <> com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED
-                        and campaign.lifecycleStatus <> com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED
-                        and campaign.issueStartsAt <= :now
-                        and campaign.issueEndsAt > :now)
+                        and coupon.validUntil > :now)
                     or (:status = 'UNAVAILABLE'
                         and coupon.status <> com.sweet.market.coupon.domain.MemberCouponStatus.USED
                         and coupon.validUntil > :now
-                        and (campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.PAUSED
-                            or campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.ENDED
-                            or campaign.issueStartsAt > :now
-                            or campaign.issueEndsAt <= :now))
+                        and false)
               )
             """)
     Page<MemberCouponWalletRow> findWalletByMemberId(

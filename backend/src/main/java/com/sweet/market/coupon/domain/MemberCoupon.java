@@ -125,9 +125,6 @@ public class MemberCoupon {
         if (!now.isBefore(validUntil)) {
             return MemberCouponStatus.EXPIRED;
         }
-        if (!campaign.isUsableForIssuedCoupon(now)) {
-            return MemberCouponStatus.UNAVAILABLE;
-        }
         return MemberCouponStatus.ISSUED;
     }
 

@@ -7,12 +7,16 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.sweet.market.auth.security.AuthenticatedMember;
 import com.sweet.market.common.api.ApiResponse;
 import com.sweet.market.coupon.application.CouponIssueService;
 import com.sweet.market.coupon.query.CouponDiscoveryQueryService;
 import com.sweet.market.coupon.query.CouponWalletQueryService;
+import com.sweet.market.coupon.query.CouponEligibilityQueryService;
+
+import java.util.List;
 
 import jakarta.validation.Valid;
 
@@ -21,15 +25,18 @@ public class CouponClaimController {
     private final CouponIssueService issueService;
     private final CouponDiscoveryQueryService discoveryQueryService;
     private final CouponWalletQueryService walletQueryService;
+    private final CouponEligibilityQueryService eligibilityQueryService;
 
     public CouponClaimController(
             CouponIssueService issueService,
             CouponDiscoveryQueryService discoveryQueryService,
-            CouponWalletQueryService walletQueryService
+            CouponWalletQueryService walletQueryService,
+            CouponEligibilityQueryService eligibilityQueryService
     ) {
         this.issueService = issueService;
         this.discoveryQueryService = discoveryQueryService;
         this.walletQueryService = walletQueryService;
+        this.eligibilityQueryService = eligibilityQueryService;
     }
 
     @GetMapping("/api/coupon-campaigns/available")
@@ -49,6 +56,12 @@ public class CouponClaimController {
             Authentication authentication, @Valid @ModelAttribute MemberCouponSearchRequest request
     ) {
         return ApiResponse.ok(walletQueryService.findMine(memberId(authentication), request));
+    }
+
+    @GetMapping("/api/me/coupons/eligible")
+    public ApiResponse<List<EligibleMemberCouponResponse>> findEligible(Authentication authentication,
+                                                                         @RequestParam Long productId) {
+        return ApiResponse.ok(eligibilityQueryService.findEligible(memberId(authentication), productId));
     }
 
     private Long memberId(Authentication authentication) {

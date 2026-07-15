@@ -130,12 +130,12 @@ class CouponWalletApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].campaignId").value(expiredCampaignId))
                 .andExpect(jsonPath("$.data.content[0].status").value("EXPIRED"))
                 .andExpect(jsonPath("$.data.content[1].campaignId").value(unavailableCampaignId))
-                .andExpect(jsonPath("$.data.content[1].status").value("UNAVAILABLE"))
-                .andExpect(jsonPath("$.data.content[1].unavailabilityReason").value("PAUSED"));
+                .andExpect(jsonPath("$.data.content[1].status").value("ISSUED"))
+                .andExpect(jsonPath("$.data.content[1].unavailabilityReason").doesNotExist());
 
         mockMvc.perform(get("/api/me/coupons?status=ISSUED&page=0&size=20").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.totalElements").value(2))
                 .andExpect(jsonPath("$.data.content[0].campaignId").value(issuedCampaignId))
                 .andExpect(jsonPath("$.data.content[0].status").value("ISSUED"));
     }

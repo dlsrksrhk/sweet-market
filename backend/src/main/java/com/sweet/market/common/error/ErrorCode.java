@@ -67,6 +67,14 @@ public enum ErrorCode {
     COUPON_CAMPAIGN_NOT_FOUND(HttpStatus.NOT_FOUND, "쿠폰 캠페인을 찾을 수 없습니다."),
     COUPON_LIFECYCLE_NOT_ALLOWED(HttpStatus.CONFLICT, "현재 쿠폰 캠페인 상태에서는 처리할 수 없습니다."),
     COUPON_ISSUE_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "쿠폰 발급 한도를 초과했습니다."),
+    MEMBER_COUPON_NOT_FOUND(HttpStatus.NOT_FOUND, "쿠폰을 찾을 수 없습니다."),
+    MEMBER_COUPON_ACCESS_DENIED(HttpStatus.FORBIDDEN, "쿠폰에 접근할 권한이 없습니다."),
+    MEMBER_COUPON_NOT_ISSUED(HttpStatus.CONFLICT, "사용 가능한 발급 쿠폰이 아닙니다."),
+    MEMBER_COUPON_EXPIRED(HttpStatus.CONFLICT, "쿠폰 유효기간이 만료되었습니다."),
+    MEMBER_COUPON_TARGET_MISMATCH(HttpStatus.CONFLICT, "쿠폰 적용 대상 상품이 아닙니다."),
+    MEMBER_COUPON_MINIMUM_PURCHASE_NOT_MET(HttpStatus.CONFLICT, "쿠폰 최소 구매 금액을 충족하지 않았습니다."),
+    MEMBER_COUPON_PROMOTION_STACKING_NOT_ALLOWED(HttpStatus.CONFLICT, "프로모션과 중복 적용할 수 없는 쿠폰입니다."),
+    MEMBER_COUPON_ALREADY_RESERVED(HttpStatus.CONFLICT, "쿠폰이 다른 주문에서 예약되어 있습니다."),
     CATALOG_CURSOR_INVALID(HttpStatus.BAD_REQUEST, "상품 목록 커서가 올바르지 않습니다."),
     CATALOG_CURSOR_STALE(HttpStatus.BAD_REQUEST, "상품 목록 커서가 만료되었습니다.");
 

@@ -15,6 +15,14 @@ import jakarta.persistence.LockModeType;
 
 public interface CouponReservationRepository extends JpaRepository<CouponReservation, Long> {
 
+    @Query("""
+            select case when count(reservation) > 0 then true else false end
+            from CouponReservation reservation
+            where reservation.memberCoupon.id = :memberCouponId
+              and reservation.status = com.sweet.market.coupon.domain.CouponReservationStatus.RESERVED
+            """)
+    boolean existsActiveByMemberCouponId(@Param("memberCouponId") Long memberCouponId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select reservation from CouponReservation reservation
