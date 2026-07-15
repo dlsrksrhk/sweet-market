@@ -3,7 +3,7 @@
 ## 범위와 기준점
 
 - 브랜치: `codex/milestone-27-first-come-coupon-events`
-- M27 기능 최종 커밋: `57bbe31 feat: show first-come coupon event status`
+- M27 기능 최종 커밋: `5a782c3 test: expect coupon issue limit migration`
 - DB 마이그레이션: `backend/src/main/resources/db/migration/V11__add_coupon_campaign_issue_limits.sql`
 
 M27은 쿠폰 캠페인별 선택적 발급 한도와 선착순 발급 제어, 운영자 현황 및 구매자 마감 표시를 제공합니다.
@@ -31,9 +31,9 @@ $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 
 결과: 1분 6초, `BUILD SUCCESSFUL`.
 
-### 전체 백엔드 테스트: 미완료
+### 전체 백엔드 테스트: 통과
 
-다음 명령을 같은 JDK 21과 JWT 설정으로 시작했으나, 60초 안에 완료 출력이 오지 않아 대기 한도에 따라 중단했습니다. 이는 실패나 제품 회귀 판정이 아닙니다. Docker/Testcontainers는 준비되어 있었으므로 다음 세션에서 이 명령을 처음부터 완료해야 합니다.
+집중 테스트 이후 Docker Desktop과 Testcontainers를 준비한 뒤 전체 테스트를 다시 실행했습니다. M27 작업 브랜치와 병합된 `main` 모두에서 종료 코드 0과 `BUILD SUCCESSFUL`을 확인했습니다.
 
 ```powershell
 cd backend
@@ -42,6 +42,8 @@ $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
 $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 .\gradlew.bat test
 ```
+
+병합된 `main`의 최종 실행 결과: 3분 14초, `BUILD SUCCESSFUL`.
 
 ### 웹 프로덕션 빌드: 통과
 
