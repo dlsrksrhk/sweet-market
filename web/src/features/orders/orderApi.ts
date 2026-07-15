@@ -24,6 +24,12 @@ export type OrderSummary = {
   productId: number;
   productTitle: string;
   productPrice: number;
+  listPrice: number;
+  promotionCampaignId: number | null;
+  promotionDiscountAmount: number;
+  memberCouponId: number | null;
+  couponDiscountAmount: number;
+  finalPrice: number;
   sellerId: number;
   sellerNickname: string;
   status: OrderStatus;
@@ -42,10 +48,10 @@ export type Order = OrderSummary & {
   canceledAt: string | null;
 };
 
-export function createOrder(productId: number) {
+export function createOrder(productId: number, memberCouponId: number | null = null) {
   return api<Order>('/api/orders', {
     method: 'POST',
-    body: JSON.stringify({ productId }),
+    body: JSON.stringify({ productId, memberCouponId }),
   });
 }
 

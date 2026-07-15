@@ -312,7 +312,10 @@ export function MyOrdersPage() {
                 <div className="record-main">
                   <StatusPill status={order.status} />
                   <h2>{order.productTitle}</h2>
-                  <strong>{currencyFormatter.format(order.productPrice)}원</strong>
+                  <strong>{currencyFormatter.format(order.finalPrice)}원</strong>
+                  {order.memberCouponId !== null && order.couponDiscountAmount > 0 ? (
+                    <span className="muted-text">쿠폰 할인 {currencyFormatter.format(order.couponDiscountAmount)}원</span>
+                  ) : null}
                 </div>
                 <dl className="record-meta">
                   <div>
