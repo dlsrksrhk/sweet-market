@@ -29,6 +29,9 @@ export type CouponCampaign = {
   validityDays: number | null;
   lifecycleStatus: CouponLifecycleStatus;
   effectiveStatus: CouponEffectiveStatus;
+  issueLimit: number | null;
+  issuedCount: number;
+  remainingIssueCount: number | null;
   targetCount: number;
   targets?: CouponTarget[];
 };
@@ -47,6 +50,7 @@ export type CouponCampaignInput = {
   validityType: CouponValidityType;
   commonExpiresAt?: string;
   validityDays?: number;
+  issueLimit?: number;
   productIds?: number[];
 };
 
@@ -55,7 +59,7 @@ export type AvailableCouponCampaign = {
   id: number; source: 'PLATFORM' | 'STORE'; store: { id: number; publicName: string } | null; scope: CouponScope; discountType: CouponDiscountType;
   discountValue: number; maxDiscountAmount: number | null; minimumPurchaseAmount: number; stackable: boolean;
   title: string; label: string | null; issueStartsAt: string; issueEndsAt: string; validityType: CouponValidityType;
-  commonExpiresAt: string | null; validityDays: number | null; effectiveStatus: CouponEffectiveStatus; claimed: boolean;
+  commonExpiresAt: string | null; validityDays: number | null; effectiveStatus: CouponEffectiveStatus; claimed: boolean; soldOut: boolean;
 };
 
 export type MemberCoupon = {
