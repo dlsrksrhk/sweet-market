@@ -7,6 +7,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,7 +17,25 @@ import com.sweet.market.coupon.domain.CouponCampaignOwnerType;
 import com.sweet.market.coupon.query.AvailableCouponCampaignRow;
 import com.sweet.market.coupon.query.CouponCampaignSummaryRow;
 
+import jakarta.persistence.LockModeType;
+
 public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, Long> {
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update CouponCampaign campaign
+               set campaign.issuedCount = campaign.issuedCount + 1,
+                   campaign.version = campaign.version + 1
+             where campaign.id = :campaignId
+               and campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.SCHEDULED
+               and campaign.issueStartsAt <= :now and campaign.issueEndsAt > :now
+               and campaign.issuedCount < campaign.issueLimit
+            """)
+    int incrementLimitedIssuedCount(@Param("campaignId") Long campaignId, @Param("now") Instant now);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select campaign from CouponCampaign campaign where campaign.id = :campaignId")
+    Optional<CouponCampaign> findByIdForIssuance(@Param("campaignId") Long campaignId);
 
     Optional<CouponCampaign> findByIdAndStoreId(Long id, Long storeId);
 
