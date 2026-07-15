@@ -58,7 +58,7 @@ public class CouponCampaignService {
     public CouponCampaignResponse createPlatformCampaign(CouponCampaignCreateRequest request) { return create(CouponCampaignOwnerType.PLATFORM, null, request); }
     private CouponCampaignResponse create(CouponCampaignOwnerType ownerType, Store store, CouponCampaignCreateRequest request) {
         try {
-            CouponCampaign campaign = CouponCampaign.create(ownerType, store, request.scope(), request.discountType(), request.discountValue(), request.maxDiscountAmount(), request.minimumPurchaseAmount(), request.stackable(), request.title(), request.label(), toInstant(request.issueStartsAt()), toInstant(request.issueEndsAt()), request.validityType(), toInstant(request.commonExpiresAt()), request.validityDays(), validatedTargets(ownerType, store, request));
+            CouponCampaign campaign = CouponCampaign.create(ownerType, store, request.scope(), request.discountType(), request.discountValue(), request.maxDiscountAmount(), request.minimumPurchaseAmount(), request.stackable(), request.title(), request.label(), toInstant(request.issueStartsAt()), toInstant(request.issueEndsAt()), request.validityType(), toInstant(request.commonExpiresAt()), request.validityDays(), request.issueLimit(), validatedTargets(ownerType, store, request));
             return CouponCampaignResponse.detail(campaignRepository.save(campaign), now());
         } catch (DomainException exception) { throw map(exception); }
     }
@@ -84,7 +84,7 @@ public class CouponCampaignService {
     @Transactional
     public CouponCampaignResponse updatePlatform(Long campaignId, CouponCampaignUpdateRequest request) { return update(platformCampaign(campaignId), request); }
     private CouponCampaignResponse update(CouponCampaign campaign, CouponCampaignUpdateRequest request) {
-        try { CouponCampaignCreateRequest input = request.asCreateRequest(); campaign.update(input.scope(), input.discountType(), input.discountValue(), input.maxDiscountAmount(), input.minimumPurchaseAmount(), input.stackable(), input.title(), input.label(), toInstant(input.issueStartsAt()), toInstant(input.issueEndsAt()), input.validityType(), toInstant(input.commonExpiresAt()), input.validityDays(), validatedTargets(campaign.getOwnerType(), campaign.getStore(), input), now()); return CouponCampaignResponse.detail(campaign, now()); }
+        try { CouponCampaignCreateRequest input = request.asCreateRequest(); campaign.update(input.scope(), input.discountType(), input.discountValue(), input.maxDiscountAmount(), input.minimumPurchaseAmount(), input.stackable(), input.title(), input.label(), toInstant(input.issueStartsAt()), toInstant(input.issueEndsAt()), input.validityType(), toInstant(input.commonExpiresAt()), input.validityDays(), input.issueLimit(), validatedTargets(campaign.getOwnerType(), campaign.getStore(), input), now()); return CouponCampaignResponse.detail(campaign, now()); }
         catch (DomainException exception) { throw map(exception); }
     }
     @Transactional public CouponCampaignResponse scheduleStore(Long memberId, Long storeId, Long id) { storeAccessService.requireActiveBusinessOwner(memberId, storeId); return transition(storeCampaign(storeId, id), c -> c.schedule(now())); }

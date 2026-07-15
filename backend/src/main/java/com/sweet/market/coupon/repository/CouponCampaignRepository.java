@@ -32,7 +32,8 @@ public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, 
                 campaign.id, campaign.ownerType, store.id, store.publicName, campaign.scope, campaign.discountType,
                 campaign.discountValue, campaign.maxDiscountAmount, campaign.minimumPurchaseAmount, campaign.stackable,
                 campaign.title, campaign.label, campaign.issueStartsAt, campaign.issueEndsAt, campaign.validityType,
-                campaign.commonExpiresAt, campaign.validityDays, campaign.lifecycleStatus, count(target.id))
+                campaign.commonExpiresAt, campaign.validityDays, campaign.issueLimit, campaign.issuedCount,
+                campaign.lifecycleStatus, count(target.id))
             from CouponCampaign campaign left join campaign.store store left join campaign.targets target
             where campaign.ownerType = :ownerType and (:storeId is null or campaign.store.id = :storeId)
               and campaign.issueEndsAt >= :periodFrom and campaign.issueStartsAt <= :periodTo
@@ -44,7 +45,8 @@ public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, 
             group by campaign.id, campaign.ownerType, store.id, store.publicName, campaign.scope, campaign.discountType,
                 campaign.discountValue, campaign.maxDiscountAmount, campaign.minimumPurchaseAmount, campaign.stackable,
                 campaign.title, campaign.label, campaign.issueStartsAt, campaign.issueEndsAt, campaign.validityType,
-                campaign.commonExpiresAt, campaign.validityDays, campaign.lifecycleStatus
+                campaign.commonExpiresAt, campaign.validityDays, campaign.issueLimit, campaign.issuedCount,
+                campaign.lifecycleStatus
             order by campaign.id desc
             """, countQuery = """
             select count(campaign) from CouponCampaign campaign

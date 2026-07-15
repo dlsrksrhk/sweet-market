@@ -22,6 +22,7 @@ public record CouponCampaignResponse(
         CouponDiscountType discountType, long discountValue, Long maxDiscountAmount, long minimumPurchaseAmount,
         boolean stackable, String title, String label, LocalDateTime issueStartsAt, LocalDateTime issueEndsAt,
         CouponValidityType validityType, LocalDateTime commonExpiresAt, Integer validityDays,
+        Integer issueLimit, int issuedCount, Integer remainingIssueCount,
         CouponLifecycleStatus lifecycleStatus, CouponEffectiveStatus effectiveStatus, int targetCount,
         List<CouponTargetProductResponse> targets
 ) {
@@ -31,7 +32,8 @@ public record CouponCampaignResponse(
         return new CouponCampaignResponse(row.id(), row.ownerType(), row.storeId() == null ? null : new StoreSummary(row.storeId(), row.storeName()),
                 row.scope(), row.discountType(), row.discountValue(), row.maxDiscountAmount(), row.minimumPurchaseAmount(),
                 row.stackable(), row.title(), row.label(), local(row.issueStartsAt()), local(row.issueEndsAt()), row.validityType(),
-                local(row.commonExpiresAt()), row.validityDays(), row.lifecycleStatus(), effectiveStatus(row.lifecycleStatus(), row.issueStartsAt(), row.issueEndsAt(), now),
+                local(row.commonExpiresAt()), row.validityDays(), row.issueLimit(), row.issuedCount(), remaining(row.issueLimit(), row.issuedCount()),
+                row.lifecycleStatus(), effectiveStatus(row.lifecycleStatus(), row.issueStartsAt(), row.issueEndsAt(), now),
                 Math.toIntExact(row.targetCount()), null);
     }
     public static CouponCampaignResponse detail(CouponCampaign campaign, Instant now) {
@@ -44,10 +46,11 @@ public record CouponCampaignResponse(
                 campaign.getScope(), campaign.getDiscountType(), campaign.getDiscountValue(), campaign.getMaxDiscountAmount(),
                 campaign.getMinimumPurchaseAmount(), campaign.isStackable(), campaign.getTitle(), campaign.getLabel(),
                 local(campaign.getIssueStartsAt()), local(campaign.getIssueEndsAt()), campaign.getValidityType(),
-                local(campaign.getCommonExpiresAt()), campaign.getValidityDays(), campaign.getLifecycleStatus(),
+                local(campaign.getCommonExpiresAt()), campaign.getValidityDays(), campaign.getIssueLimit(), campaign.getIssuedCount(), campaign.remainingIssueCount(), campaign.getLifecycleStatus(),
                 campaign.effectiveStatus(now), campaign.getTargets().size(), targets);
     }
     private static LocalDateTime local(Instant instant) { return instant == null ? null : LocalDateTime.ofInstant(instant, KST); }
+    private static Integer remaining(Integer issueLimit, int issuedCount) { return issueLimit == null ? null : issueLimit - issuedCount; }
     private static CouponEffectiveStatus effectiveStatus(CouponLifecycleStatus lifecycleStatus, Instant startsAt, Instant endsAt, Instant now) {
         if (lifecycleStatus == CouponLifecycleStatus.DRAFT) return CouponEffectiveStatus.SCHEDULED;
         if (lifecycleStatus == CouponLifecycleStatus.PAUSED) return CouponEffectiveStatus.PAUSED;

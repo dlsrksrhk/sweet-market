@@ -21,7 +21,7 @@ public record CouponCampaignUpdateRequest(
         @NotBlank @Size(max = 100) String title, @Size(max = 200) String label,
         @NotNull LocalDateTime issueStartsAt, @NotNull LocalDateTime issueEndsAt,
         @NotNull CouponValidityType validityType, LocalDateTime commonExpiresAt,
-        @Positive Integer validityDays, List<@Positive Long> productIds
+        @Positive Integer validityDays, @Positive Integer issueLimit, List<@Positive Long> productIds
 ) {
     @AssertTrue(message = "정액 할인에는 최대 할인 금액을 입력할 수 없습니다.")
     public boolean isMaximumDiscountPolicyValid() { return discountType == null || discountType == CouponDiscountType.PERCENTAGE || maxDiscountAmount == null; }
@@ -31,6 +31,6 @@ public record CouponCampaignUpdateRequest(
     public boolean isTargetPolicyValid() { if (scope == null) return true; List<Long> ids = productIds == null ? List.of() : productIds; return scope == CouponScope.ALL_PRODUCTS ? ids.isEmpty() : !ids.isEmpty() && ids.stream().distinct().count() == ids.size(); }
     public CouponCampaignCreateRequest asCreateRequest() {
         return new CouponCampaignCreateRequest(scope, discountType, discountValue, maxDiscountAmount, minimumPurchaseAmount,
-                stackable, title, label, issueStartsAt, issueEndsAt, validityType, commonExpiresAt, validityDays, productIds);
+                stackable, title, label, issueStartsAt, issueEndsAt, validityType, commonExpiresAt, validityDays, issueLimit, productIds);
     }
 }
