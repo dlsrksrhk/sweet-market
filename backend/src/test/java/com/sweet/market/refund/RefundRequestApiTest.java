@@ -89,6 +89,23 @@ class RefundRequestApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 쿠폰_환불_요청은_주문_쿠폰_할인_스냅샷을_반환한다() throws Exception {
+        String sellerToken = signupAndLogin("coupon-refund-response-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("coupon-refund-response-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "쿠폰 환불 응답 상품");
+        Long couponId = issueFixedAmountCoupon("coupon-refund-response-buyer@example.com", 1_000L);
+        Long orderId = createDeliveredCouponOrder(buyerToken, productId, couponId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/refund-requests", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"쿠폰 할인 주문 환불 요청\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.memberCouponId").value(couponId))
+                .andExpect(jsonPath("$.data.couponDiscountAmount").value(1_000L));
+    }
+
+    @Test
     void 구매자는_배송완료_주문에_환불을_요청할_수_있다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");

@@ -177,6 +177,21 @@ class AdminOrderOperationsApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 관리자_주문_목록은_쿠폰_할인_스냅샷을_반환한다() throws Exception {
+        String adminToken = createAdminAndLogin("admin-coupon-list@example.com");
+        OrderFixture order = createOrder("coupon-list");
+        Long couponId = createCouponSnapshot(order.buyerId());
+        jdbcTemplate.update("update orders set member_coupon_id = ?, coupon_discount_amount = ?, final_price = ? where id = ?",
+                couponId, 1_000L, 1_999_000L, order.orderId());
+
+        mockMvc.perform(get("/api/admin/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].memberCouponId").value(couponId))
+                .andExpect(jsonPath("$.data.content[0].couponDiscountAmount").value(1_000L));
+    }
+
+    @Test
     void 관리자_주문_상세는_쿠폰_할인_스냅샷을_반환한다() throws Exception {
         String adminToken = createAdminAndLogin("admin-coupon-detail@example.com");
         OrderFixture order = createOrder("coupon-detail");

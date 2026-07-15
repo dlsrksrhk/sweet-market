@@ -18,7 +18,9 @@ public record RefundRequestResponse(
         LocalDateTime requestedAt,
         Long handledById,
         LocalDateTime handledAt,
-        String rejectReason
+        String rejectReason,
+        Long memberCouponId,
+        long couponDiscountAmount
 ) {
 
     public static RefundRequestResponse from(RefundRequest refundRequest) {
@@ -36,7 +38,9 @@ public record RefundRequestResponse(
                 refundRequest.getRequestedAt(),
                 refundRequest.getHandledBy() == null ? null : refundRequest.getHandledBy().getId(),
                 refundRequest.getHandledAt(),
-                refundRequest.getRejectReason()
+                refundRequest.getRejectReason(),
+                refundRequest.getOrder().getMemberCouponId(),
+                refundRequest.getOrder().getCouponDiscountAmount()
         );
     }
 }

@@ -71,6 +71,26 @@ class AdminSettlementApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 관리자_정산_목록과_상세는_쿠폰_할인_스냅샷을_반환한다() throws Exception {
+        String adminToken = createAdminAndLogin("admin-coupon-settlement@example.com");
+        SettlementFixture settlement = createSettlement("coupon-snapshot", LocalDateTime.of(2026, 6, 3, 10, 0));
+        jdbcTemplate.update("update orders set member_coupon_id = ?, coupon_discount_amount = ?, final_price = ? where id = ?",
+                9_999L, 1_000L, 1_999_000L, settlement.orderId());
+
+        mockMvc.perform(get("/api/admin/settlements")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].memberCouponId").value(9_999L))
+                .andExpect(jsonPath("$.data.content[0].couponDiscountAmount").value(1_000L));
+
+        mockMvc.perform(get("/api/admin/settlements/{settlementId}", settlement.settlementId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memberCouponId").value(9_999L))
+                .andExpect(jsonPath("$.data.couponDiscountAmount").value(1_000L));
+    }
+
+    @Test
     void 관리자는_주문_ID로_정산을_필터링한다() throws Exception {
         String adminToken = createAdminAndLogin("admin-order-filter@example.com");
         createSettlement("order-other", LocalDateTime.of(2026, 6, 1, 10, 0));

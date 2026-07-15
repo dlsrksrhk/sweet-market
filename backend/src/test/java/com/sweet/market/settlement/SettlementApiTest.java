@@ -41,6 +41,22 @@ class SettlementApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 쿠폰_할인_주문의_정산은_쿠폰_스냅샷을_반환한다() throws Exception {
+        String sellerToken = signupAndLogin("coupon-settlement-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("coupon-settlement-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "쿠폰 정산 상품");
+        Long orderId = createConfirmedOrder(buyerToken, productId);
+        jdbcTemplate.update("update orders set member_coupon_id = ?, coupon_discount_amount = ?, final_price = ? where id = ?",
+                9_999L, 1_000L, 1_999_000L, orderId);
+
+        mockMvc.perform(post("/api/settlements/orders/{orderId}", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.memberCouponId").value(9_999L))
+                .andExpect(jsonPath("$.data.couponDiscountAmount").value(1_000L));
+    }
+
+    @Test
     void 프로모션_종료와_상품가격_변경_후에도_정산은_주문_최종가격을_사용한다() throws Exception {
         String sellerToken = signupAndLogin("snapshot-settlement-seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("snapshot-settlement-buyer@example.com", "password123", "buyer");

@@ -11,7 +11,9 @@ public record PaymentResponse(
         String status,
         String orderStatus,
         LocalDateTime approvedAt,
-        LocalDateTime canceledAt
+        LocalDateTime canceledAt,
+        Long memberCouponId,
+        long couponDiscountAmount
 ) {
 
     public static PaymentResponse from(Payment payment) {
@@ -22,7 +24,9 @@ public record PaymentResponse(
                 payment.getStatus().name(),
                 payment.getOrder().getStatus().name(),
                 payment.getApprovedAt(),
-                payment.getCanceledAt()
+                payment.getCanceledAt(),
+                payment.getOrder().getMemberCouponId(),
+                payment.getOrder().getCouponDiscountAmount()
         );
     }
 }

@@ -163,7 +163,11 @@ class PaymentApiTest extends IntegrationTestSupport {
         Long couponId = issueFixedAmountCoupon("coupon-payment-buyer@example.com", 1_000L);
         Long orderId = createCouponOrder(buyerToken, productId, couponId);
 
-        approvePayment(buyerToken, orderId);
+        mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memberCouponId").value(couponId))
+                .andExpect(jsonPath("$.data.couponDiscountAmount").value(1_000L));
 
         assertThat(jdbcTemplate.queryForObject(
                 "select status from coupon_reservations where order_id = ?", String.class, orderId
