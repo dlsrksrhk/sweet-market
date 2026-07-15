@@ -91,7 +91,7 @@ public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, 
                 campaign.discountValue, campaign.maxDiscountAmount, campaign.minimumPurchaseAmount,
                 campaign.stackable, campaign.title, campaign.label, campaign.issueStartsAt,
                 campaign.issueEndsAt, campaign.validityType, campaign.commonExpiresAt,
-                campaign.validityDays, campaign.lifecycleStatus, campaign.store.id, store.publicName,
+                campaign.validityDays, campaign.issueLimit, campaign.issuedCount, campaign.lifecycleStatus, campaign.store.id, store.publicName,
                 case when exists (select 1 from MemberCoupon coupon
                     where coupon.campaign.id = campaign.id and coupon.member.id = :memberId)
                     then true else false end)

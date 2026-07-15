@@ -13,6 +13,6 @@ public record AvailableCouponCampaignRow(
         long discountValue, Long maxDiscountAmount, long minimumPurchaseAmount, boolean stackable,
         String title, String label, Instant issueStartsAt, Instant issueEndsAt,
         CouponValidityType validityType, Instant commonExpiresAt, Integer validityDays,
-        CouponLifecycleStatus lifecycleStatus, Long storeId, String storeName, boolean claimed
+        Integer issueLimit, int issuedCount, CouponLifecycleStatus lifecycleStatus, Long storeId, String storeName, boolean claimed
 ) {
 }

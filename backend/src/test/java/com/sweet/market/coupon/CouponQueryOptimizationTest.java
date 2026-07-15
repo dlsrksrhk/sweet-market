@@ -79,6 +79,27 @@ class CouponQueryOptimizationTest extends QueryOptimizationTestSupport {
 
     @Test
     @Transactional
+    void 사용가능_소진캠페인_한페이지도_카드별_발급조회없이_발급여부와_마감상태를_반환한다() {
+        Member member = memberRepository.save(Member.create("available-sold-out-member@example.com", "encoded-password", "회원"));
+        Product target = saveProduct("available-sold-out-target@example.com", "소진 조회 대상 상품");
+        CouponCampaign campaign = saveActiveLimitedCampaign(target, 1);
+        memberCouponRepository.save(MemberCoupon.issue(member, campaign, Instant.now()));
+        flushAndClear();
+        jdbcTemplate.update("update coupon_campaigns set issued_count = 1 where id = ?", campaign.getId());
+        resetStatistics();
+
+        var page = couponDiscoveryQueryService.findAvailable(member.getId(),
+                new AvailableCouponCampaignSearchRequest(0, PAGE_SIZE, null, null));
+
+        assertThat(page.getContent()).hasSize(1);
+        assertThat(page.getContent().getFirst().claimed()).isTrue();
+        assertThat(page.getContent().getFirst().soldOut()).isTrue();
+        assertThat(collectionFetchCount()).isZero();
+        assertThat(queryCount()).isLessThanOrEqualTo(2);
+    }
+
+    @Test
+    @Transactional
     void 쿠폰지갑_한페이지는_캠페인별_N플러스일_조회없이_반환한다() {
         Member member = memberRepository.save(Member.create("wallet-member@example.com", "encoded-password", "회원"));
         Product target = saveProduct("wallet-target@example.com", "지갑 대상 상품");
@@ -163,6 +184,17 @@ class CouponQueryOptimizationTest extends QueryOptimizationTestSupport {
                     return couponCampaignRepository.save(campaign);
                 })
                 .toList();
+    }
+
+    private CouponCampaign saveActiveLimitedCampaign(Product target, int issueLimit) {
+        Instant now = Instant.now();
+        CouponCampaign campaign = CouponCampaign.create(
+                CouponCampaignOwnerType.PLATFORM, null, CouponScope.SELECTED_PRODUCTS,
+                CouponDiscountType.FIXED_AMOUNT, 1_000L, null, 0L, true,
+                "소진 페이지 쿠폰", "선택 상품", now.minusSeconds(3_600), now.plusSeconds(86_400),
+                CouponValidityType.DAYS_FROM_ISSUANCE, null, 7, issueLimit, List.of(target));
+        campaign.schedule(now);
+        return couponCampaignRepository.save(campaign);
     }
 
     private Product saveProduct(String email, String title) {
