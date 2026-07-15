@@ -79,6 +79,7 @@ export function MyStorePage() {
             <Link to="/me/settlements">정산</Link>
             <Link to="/me/reports">리포트</Link>
             <Link to="/me/store/promotions">프로모션</Link>
+            <Link to="/me/store/coupons">쿠폰</Link>
           </nav>
         ) : null}
       </section>

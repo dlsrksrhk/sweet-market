@@ -1,0 +1,18 @@
+package com.sweet.market.coupon.domain;
+
+import com.sweet.market.common.domain.error.DomainError;
+
+public enum CouponDomainError implements DomainError {
+    OWNER_STORE_INVALID,
+    INVALID_PERIOD,
+    INVALID_DISCOUNT_VALUE,
+    MAX_DISCOUNT_AMOUNT_INVALID,
+    INVALID_MINIMUM_PURCHASE_AMOUNT,
+    SELECTED_TARGET_REQUIRED,
+    ALL_PRODUCTS_TARGET_NOT_ALLOWED,
+    DUPLICATE_TARGET,
+    TARGET_STORE_MISMATCH,
+    INVALID_VALIDITY_POLICY,
+    LIFECYCLE_TRANSITION_NOT_ALLOWED,
+    UPDATE_NOT_ALLOWED
+}
