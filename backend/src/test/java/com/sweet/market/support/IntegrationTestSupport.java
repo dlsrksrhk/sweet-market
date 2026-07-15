@@ -12,10 +12,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.GenericContainer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,8 +32,12 @@ public abstract class IntegrationTestSupport {
             .withPassword("market")
             .withInitScript("org/springframework/batch/core/schema-postgresql.sql");
 
+    static final GenericContainer<?> REDIS = new GenericContainer<>("redis:7.4-alpine")
+            .withExposedPorts(6379);
+
     static {
         POSTGRESQL.start();
+        REDIS.start();
     }
 
     @Autowired
@@ -43,6 +49,9 @@ public abstract class IntegrationTestSupport {
     @Autowired
     protected JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    protected StringRedisTemplate stringRedisTemplate;
+
     @DynamicPropertySource
     static void overrideProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRESQL::getJdbcUrl);
@@ -51,6 +60,8 @@ public abstract class IntegrationTestSupport {
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create");
         registry.add("spring.flyway.enabled", () -> "false");
         registry.add("spring.batch.jdbc.initialize-schema", () -> "never");
+        registry.add("spring.data.redis.host", REDIS::getHost);
+        registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
         registry.add("jwt.secret", () -> "sweet-market-test-secret-key-32bytes-minimum");
         registry.add("jwt.access-token-validity-seconds", () -> "3600");
         registry.add("product.images.upload-root", () -> "build/test-product-images");
@@ -62,6 +73,7 @@ public abstract class IntegrationTestSupport {
     @AfterEach
     void cleanUp() {
         jdbcTemplate.execute("TRUNCATE TABLE member_coupons, coupon_campaign_targets, coupon_campaigns, store_memberships, stores, settlements, deliveries, refund_requests, payments, reviews, orders, cart_items, wishlist_items, product_image_uploads, product_images, products, members RESTART IDENTITY CASCADE");
+        stringRedisTemplate.keys("coupon:issue:*").forEach(stringRedisTemplate::delete);
         deleteTestProductImages();
     }
 

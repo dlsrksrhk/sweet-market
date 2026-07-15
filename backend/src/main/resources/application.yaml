@@ -19,6 +19,11 @@ spring:
     username: ${DB_USERNAME:market}
     password: ${DB_PASSWORD:market}
     driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 500ms
   flyway:
     enabled: true
     baseline-on-migrate: true
