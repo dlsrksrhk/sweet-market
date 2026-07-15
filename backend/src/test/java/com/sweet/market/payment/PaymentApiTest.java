@@ -1,8 +1,10 @@
 package com.sweet.market.payment;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -33,6 +35,7 @@ import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.payment.application.PaymentGateway;
 import com.sweet.market.payment.application.PaymentGatewayException;
+import com.sweet.market.payment.application.PaymentFailureCompensationService;
 import com.sweet.market.payment.repository.PaymentRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductSalesPolicy;
@@ -52,8 +55,11 @@ class PaymentApiTest extends IntegrationTestSupport {
     @Autowired
     private ProductRepository productRepository;
 
-    @Autowired
+    @MockitoSpyBean
     private InventoryService inventoryService;
+
+    @Autowired
+    private PaymentFailureCompensationService paymentFailureCompensationService;
 
     @Autowired
     private PlatformTransactionManager transactionManager;
@@ -188,6 +194,57 @@ class PaymentApiTest extends IntegrationTestSupport {
         assertThat(jdbcTemplate.queryForObject(
                 "select status from member_coupons where id = ?", String.class, couponId
         )).isEqualTo("ISSUED");
+    }
+
+    @Test
+    void 쿠폰_결제_승인_실패_보상은_예약_해제와_주문_취소와_재고_해제를_함께_처리한다() throws Exception {
+        signupAndLogin("coupon-stock-failure-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("coupon-stock-failure-buyer@example.com", "password123", "buyer");
+        Long productId = createStockProduct("coupon-stock-failure-seller@example.com", 5);
+        Long couponId = issueFixedAmountCoupon("coupon-stock-failure-buyer@example.com", 1_000L);
+        Long orderId = createCouponOrder(buyerToken, productId, couponId);
+        doThrow(new PaymentGatewayException("gateway rejected"))
+                .when(paymentGateway).approve(orderId, 9_000L);
+
+        mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PAYMENT_APPROVE_NOT_ALLOWED"));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from coupon_reservations where order_id = ?", String.class, orderId
+        )).isEqualTo("RELEASED");
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from member_coupons where id = ?", String.class, couponId
+        )).isEqualTo("ISSUED");
+        assertThat(jdbcTemplate.queryForObject("select status from orders where id = ?", String.class, orderId))
+                .isEqualTo("CANCELED");
+        assertInventory(productId, 5, 0);
+    }
+
+    @Test
+    void 결제_실패_보상에서_재고_해제가_실패하면_쿠폰_예약_해제도_롤백한다() throws Exception {
+        signupAndLogin("coupon-compensation-rollback-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("coupon-compensation-rollback-buyer@example.com", "password123", "buyer");
+        Long productId = createStockProduct("coupon-compensation-rollback-seller@example.com", 5);
+        Long couponId = issueFixedAmountCoupon("coupon-compensation-rollback-buyer@example.com", 1_000L);
+        Long orderId = createCouponOrder(buyerToken, productId, couponId);
+        doThrow(new IllegalStateException("inventory release failed"))
+                .when(inventoryService).releaseForFailedPaymentApproval(any());
+
+        assertThatThrownBy(() -> paymentFailureCompensationService.compensate(orderId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("inventory release failed");
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from coupon_reservations where order_id = ?", String.class, orderId
+        )).isEqualTo("RESERVED");
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from member_coupons where id = ?", String.class, couponId
+        )).isEqualTo("ISSUED");
+        assertThat(jdbcTemplate.queryForObject("select status from orders where id = ?", String.class, orderId))
+                .isEqualTo("CREATED");
+        assertInventory(productId, 5, 1);
     }
 
     @Test

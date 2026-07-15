@@ -4,8 +4,6 @@ import java.time.Instant;
 
 import org.springframework.stereotype.Service;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
@@ -95,12 +93,6 @@ public class CouponRedemptionService {
         }
         reservation.consume(now);
         reservation.getMemberCoupon().markUsed();
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void releaseForFailedApproval(Long orderId) {
-        couponReservationRepository.findActiveByOrderIdForUpdate(orderId)
-                .ifPresent(reservation -> reservation.release(Instant.now()));
     }
 
     private void requireIssuedAndValid(MemberCoupon coupon, Instant now) {

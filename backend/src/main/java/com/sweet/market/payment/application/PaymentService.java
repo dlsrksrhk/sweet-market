@@ -7,7 +7,6 @@ import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.inventory.application.InventoryService;
-import com.sweet.market.coupon.application.CouponRedemptionService;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.payment.api.PaymentResponse;
@@ -23,7 +22,7 @@ public class PaymentService {
     private final PaymentGateway paymentGateway;
     private final InventoryService inventoryService;
     private final PaymentApprovalTransactionService paymentApprovalTransactionService;
-    private final CouponRedemptionService couponRedemptionService;
+    private final PaymentFailureCompensationService paymentFailureCompensationService;
 
     public PaymentService(
             PaymentRepository paymentRepository,
@@ -31,22 +30,21 @@ public class PaymentService {
             PaymentGateway paymentGateway,
             InventoryService inventoryService,
             PaymentApprovalTransactionService paymentApprovalTransactionService,
-            CouponRedemptionService couponRedemptionService
+            PaymentFailureCompensationService paymentFailureCompensationService
     ) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
         this.paymentGateway = paymentGateway;
         this.inventoryService = inventoryService;
         this.paymentApprovalTransactionService = paymentApprovalTransactionService;
-        this.couponRedemptionService = couponRedemptionService;
+        this.paymentFailureCompensationService = paymentFailureCompensationService;
     }
 
     public PaymentResponse approve(Long memberId, Long orderId) {
         try {
             return paymentApprovalTransactionService.approve(memberId, orderId);
         } catch (PaymentGatewayException exception) {
-            couponRedemptionService.releaseForFailedApproval(orderId);
-            inventoryService.releaseAfterFailedPaymentApproval(orderId);
+            paymentFailureCompensationService.compensate(orderId);
             throw new BusinessException(ErrorCode.PAYMENT_APPROVE_NOT_ALLOWED, exception);
         }
     }
