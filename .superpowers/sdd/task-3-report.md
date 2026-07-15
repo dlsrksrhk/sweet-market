@@ -53,3 +53,9 @@ Result: blocked before test execution. The shared Testcontainers setup throws `I
 ## Concern
 
 - Start Docker Desktop (Linux containers) and rerun `CouponIssueApiTest` before merging to obtain the required live Redis/PostgreSQL concurrency proof.
+
+## Review follow-up
+
+- Changed the database fallback transaction to acquire `PESSIMISTIC_WRITE` on the campaign before rereading the member coupon. A Redis confirmation that commits while the fallback waits can now be observed as the already-issued coupon instead of consuming capacity or returning a conflict.
+- Added Korean-named coverage for that lock-then-reread ordering, exact same-object one-time reservation release and completion, and retries by an existing buyer after pause and end.
+- Re-ran `compileJava compileTestJava` plus `CouponCampaignTest`: passed. The 11-test `CouponIssueApiTest` remains blocked before execution by the unavailable Docker/Testcontainers engine.
