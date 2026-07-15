@@ -39,4 +39,13 @@ public interface CouponReservationRepository extends JpaRepository<CouponReserva
               and reservation.expiresAt <= :now
             """)
     List<Long> findExpiredReservationIds(@Param("now") Instant now);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select reservation from CouponReservation reservation
+            join fetch reservation.order
+            join fetch reservation.memberCoupon
+            where reservation.id = :reservationId
+            """)
+    Optional<CouponReservation> findByIdForUpdate(@Param("reservationId") Long reservationId);
 }

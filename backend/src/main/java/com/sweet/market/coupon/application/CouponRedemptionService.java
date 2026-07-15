@@ -24,11 +24,14 @@ import com.sweet.market.promotion.application.PromotionPrice;
 public class CouponRedemptionService {
     private final MemberCouponRepository memberCouponRepository;
     private final CouponReservationRepository couponReservationRepository;
+    private final CouponReservationExpiryTransactionService couponReservationExpiryTransactionService;
 
     public CouponRedemptionService(MemberCouponRepository memberCouponRepository,
-                                   CouponReservationRepository couponReservationRepository) {
+                                   CouponReservationRepository couponReservationRepository,
+                                   CouponReservationExpiryTransactionService couponReservationExpiryTransactionService) {
         this.memberCouponRepository = memberCouponRepository;
         this.couponReservationRepository = couponReservationRepository;
+        this.couponReservationExpiryTransactionService = couponReservationExpiryTransactionService;
     }
 
     public CouponDiscountQuote quote(MemberCoupon coupon, Product product, PromotionPrice promotion, Instant now) {
@@ -93,6 +96,19 @@ public class CouponRedemptionService {
         }
         reservation.consume(now);
         reservation.getMemberCoupon().markUsed();
+    }
+
+    public void releaseForCanceledOrder(Order order, Instant now) {
+        if (order.getMemberCouponId() == null) {
+            return;
+        }
+        couponReservationRepository.findActiveByOrderIdForUpdate(order.getId())
+                .ifPresent(reservation -> reservation.release(now));
+    }
+
+    public void expireReservations(Instant now) {
+        couponReservationRepository.findExpiredReservationIds(now)
+                .forEach(reservationId -> couponReservationExpiryTransactionService.expireReservation(reservationId, now));
     }
 
     private void requireIssuedAndValid(MemberCoupon coupon, Instant now) {

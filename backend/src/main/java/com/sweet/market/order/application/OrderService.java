@@ -123,6 +123,7 @@ public class OrderService {
             return OrderResponse.from(order);
         }
         if (order.getStatus() == OrderStatus.CREATED) {
+            couponRedemptionService.releaseForCanceledOrder(order, Instant.now());
             order.cancel();
             inventoryService.releaseForPreShippingExit(order);
             return OrderResponse.from(order);

@@ -376,6 +376,36 @@ class OrderApiTest extends IntegrationTestSupport {
         return createProduct(accessToken, 2_000_000L);
     }
 
+    @Test
+    void 결제_전_쿠폰_주문을_취소하면_예약을_해제하고_쿠폰과_재고를_복구한다() throws Exception {
+        String sellerToken = signupAndLogin("coupon-cancel-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("coupon-cancel-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, 10_000L);
+        Long couponId = issueFixedAmountCoupon("coupon-cancel-buyer@example.com", 1_000L);
+        String response = mockMvc.perform(post("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productId\":%d,\"memberCouponId\":%d}".formatted(productId, couponId)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        Long orderId = objectMapper.readTree(response).path("data").path("id").asLong();
+
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELED"));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from coupon_reservations where order_id = ?", String.class, orderId
+        )).isEqualTo("RELEASED");
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from member_coupons where id = ?", String.class, couponId
+        )).isEqualTo("ISSUED");
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from products where id = ?", String.class, productId
+        )).isEqualTo("ON_SALE");
+    }
+
     private Long createProduct(String accessToken, long price) throws Exception {
         Long storeId = activePersonalStoreId(accessToken);
         Long uploadId = uploadImage(accessToken, "macbook-1.jpg");

@@ -20,7 +20,7 @@ import com.sweet.market.promotion.application.PromotionPrice;
 
 class CouponRedemptionServiceTest {
 
-    private final CouponRedemptionService service = new CouponRedemptionService(null, null);
+    private final CouponRedemptionService service = new CouponRedemptionService(null, null, null);
     private final Instant now = Instant.parse("2026-07-15T00:00:00Z");
 
     @Test
