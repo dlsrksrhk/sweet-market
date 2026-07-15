@@ -5,6 +5,7 @@ import { useAuth } from '../features/auth/AuthProvider';
 import { CartToggle } from '../features/cart/CartToggle';
 import { type CartResponse } from '../features/cart/cartApi';
 import { createOrder } from '../features/orders/orderApi';
+import { couponQueryKeys, getEligibleCoupons } from '../features/coupons/couponApi';
 import { getProduct, hideProduct, toProductImageSrc, type WishlistResponse } from '../features/products/productApi';
 import { getProductReviews } from '../features/reviews/reviewApi';
 import { getMyStores, storeQueryKeys } from '../features/stores/storeApi';
@@ -21,6 +22,7 @@ const ratingFormatter = new Intl.NumberFormat('ko-KR', {
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
   dateStyle: 'medium',
 });
+const currencyFormatter = new Intl.NumberFormat('ko-KR');
 
 export function ProductDetailPage() {
   const navigate = useNavigate();
@@ -31,6 +33,7 @@ export function ProductDetailPage() {
   const hasValidProductId = parsedProductId !== null;
   const [wishlistState, setWishlistState] = useState<WishlistResponse | null>(null);
   const [cartState, setCartState] = useState<CartResponse | null>(null);
+  const [selectedMemberCouponId, setSelectedMemberCouponId] = useState<number | null>(null);
 
   const { data: product, error, isLoading } = useQuery({
     queryKey: ['products', parsedProductId],
@@ -51,6 +54,12 @@ export function ProductDetailPage() {
     () => new Set((ownedStoresQuery.data ?? []).map((store) => store.storeId)),
     [ownedStoresQuery.data],
   );
+  const shouldLoadEligibleCoupons = !authLoading && member !== null && product !== undefined && !ownedStoreIds.has(product.storeId);
+  const eligibleCouponsQuery = useQuery({
+    queryKey: couponQueryKeys.eligible(member?.id ?? 0, parsedProductId ?? 0),
+    queryFn: () => getEligibleCoupons(parsedProductId ?? 0),
+    enabled: shouldLoadEligibleCoupons,
+  });
 
   const hideMutation = useMutation({
     mutationFn: () => hideProduct(parsedProductId ?? 0),
@@ -60,12 +69,13 @@ export function ProductDetailPage() {
     },
   });
   const orderMutation = useMutation({
-    mutationFn: () => createOrder(parsedProductId ?? 0),
+    mutationFn: (memberCouponId: number | null) => createOrder(parsedProductId ?? 0, memberCouponId),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
         queryClient.invalidateQueries({ queryKey: ['my-cart'] }),
+        queryClient.invalidateQueries({ queryKey: couponQueryKeys.all }),
       ]);
       navigate('/me/orders');
     },
@@ -75,6 +85,10 @@ export function ProductDetailPage() {
     setWishlistState(null);
     setCartState(null);
   }, [product?.id, product?.wishlisted, product?.wishlistCount, product?.carted]);
+
+  useEffect(() => {
+    setSelectedMemberCouponId(null);
+  }, [parsedProductId]);
 
   if (!hasValidProductId) {
     return <ErrorState message="상품 주소가 올바르지 않습니다." />;
@@ -102,6 +116,8 @@ export function ProductDetailPage() {
   const galleryImages = product.images
     .slice()
     .sort((firstImage, secondImage) => Number(secondImage.representative) - Number(firstImage.representative) || firstImage.sortOrder - secondImage.sortOrder);
+  const eligibleCoupons = eligibleCouponsQuery.data ?? [];
+  const selectedCoupon = eligibleCoupons.find((coupon) => coupon.id === selectedMemberCouponId) ?? null;
 
   return (
     <section className="product-detail">
@@ -163,14 +179,38 @@ export function ProductDetailPage() {
               로그인하고 구매하기
             </Link>
           ) : (
-            <button
-              type="button"
-              className="text-button"
-              disabled={orderMutation.isPending}
-              onClick={() => orderMutation.mutate()}
-            >
-              {orderMutation.isPending ? '주문 중' : '주문하기'}
-            </button>
+            <>
+              <label>
+                사용할 쿠폰
+                <select
+                  value={selectedMemberCouponId ?? ''}
+                  disabled={orderMutation.isPending || eligibleCouponsQuery.isLoading}
+                  onChange={(event) => setSelectedMemberCouponId(event.target.value === '' ? null : Number(event.target.value))}
+                >
+                  <option value="">쿠폰 사용 안 함</option>
+                  {eligibleCoupons.map((coupon) => (
+                    <option key={coupon.id} value={coupon.id}>
+                      {coupon.title} (-{currencyFormatter.format(coupon.discountAmount)}원)
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {eligibleCouponsQuery.isLoading ? <p className="status-text">적용 가능한 쿠폰을 불러오고 있습니다.</p> : null}
+              {eligibleCouponsQuery.isError ? <p className="error-text">적용 가능한 쿠폰을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p> : null}
+              {selectedCoupon ? (
+                <p className="status-text">
+                  쿠폰 할인 {currencyFormatter.format(selectedCoupon.discountAmount)}원 · 예상 결제금액 {currencyFormatter.format(selectedCoupon.finalPrice)}원
+                </p>
+              ) : null}
+              <button
+                type="button"
+                className="text-button"
+                disabled={orderMutation.isPending || (shouldLoadEligibleCoupons && (eligibleCouponsQuery.isLoading || eligibleCouponsQuery.isError))}
+                onClick={() => orderMutation.mutate(selectedCoupon?.id ?? null)}
+              >
+                {orderMutation.isPending ? '주문 중' : '주문하기'}
+              </button>
+            </>
           )}
         </div>
         {hideMutation.isError ? <p className="error-text">상품을 숨기지 못했습니다.</p> : null}

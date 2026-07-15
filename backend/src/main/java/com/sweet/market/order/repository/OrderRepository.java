@@ -64,7 +64,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                         seller.nickname,
                         o.status,
                         p.status,
-                        o.orderedAt
+                        o.orderedAt,
+                        o.memberCouponId,
+                        o.couponDiscountAmount
                     )
                     from Order o
                     join o.buyer buyer

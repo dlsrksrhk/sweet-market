@@ -22,29 +22,29 @@ public class PaymentService {
     private final PaymentGateway paymentGateway;
     private final InventoryService inventoryService;
     private final PaymentApprovalTransactionService paymentApprovalTransactionService;
+    private final PaymentFailureCompensationService paymentFailureCompensationService;
 
     public PaymentService(
             PaymentRepository paymentRepository,
             OrderRepository orderRepository,
             PaymentGateway paymentGateway,
             InventoryService inventoryService,
-            PaymentApprovalTransactionService paymentApprovalTransactionService
+            PaymentApprovalTransactionService paymentApprovalTransactionService,
+            PaymentFailureCompensationService paymentFailureCompensationService
     ) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
         this.paymentGateway = paymentGateway;
         this.inventoryService = inventoryService;
         this.paymentApprovalTransactionService = paymentApprovalTransactionService;
+        this.paymentFailureCompensationService = paymentFailureCompensationService;
     }
 
     public PaymentResponse approve(Long memberId, Long orderId) {
         try {
             return paymentApprovalTransactionService.approve(memberId, orderId);
-        } catch (DomainException exception) {
-            inventoryService.releaseAfterFailedPaymentApproval(orderId);
-            throw new BusinessException(ErrorCode.PAYMENT_APPROVE_NOT_ALLOWED, exception);
         } catch (PaymentGatewayException exception) {
-            inventoryService.releaseAfterFailedPaymentApproval(orderId);
+            paymentFailureCompensationService.compensate(orderId);
             throw new BusinessException(ErrorCode.PAYMENT_APPROVE_NOT_ALLOWED, exception);
         }
     }

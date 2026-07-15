@@ -39,6 +39,8 @@ class OrderQueryApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].productId").value(buyerProductId))
                 .andExpect(jsonPath("$.data.content[0].productTitle").value("MacBook Pro"))
                 .andExpect(jsonPath("$.data.content[0].productPrice").value(2000000))
+                .andExpect(jsonPath("$.data.content[0].memberCouponId").isEmpty())
+                .andExpect(jsonPath("$.data.content[0].couponDiscountAmount").value(0))
                 .andExpect(jsonPath("$.data.content[0].sellerId").isNumber())
                 .andExpect(jsonPath("$.data.content[0].sellerNickname").value("seller"))
                 .andExpect(jsonPath("$.data.content[0].status").value("CREATED"))
@@ -108,10 +110,37 @@ class OrderQueryApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.sellerNickname").value("seller"))
                 .andExpect(jsonPath("$.data.productTitle").value("MacBook Pro"))
                 .andExpect(jsonPath("$.data.productPrice").value(2000000))
+                .andExpect(jsonPath("$.data.memberCouponId").isEmpty())
+                .andExpect(jsonPath("$.data.couponDiscountAmount").value(0))
                 .andExpect(jsonPath("$.data.status").value("CREATED"))
                 .andExpect(jsonPath("$.data.productStatus").value("RESERVED"))
                 .andExpect(jsonPath("$.data.orderedAt").exists())
                 .andExpect(jsonPath("$.data.canceledAt").doesNotExist());
+    }
+
+    @Test
+    void 쿠폰_주문_조회는_쿠폰_할인_스냅샷을_반환한다() throws Exception {
+        String sellerToken = signupAndLogin("coupon-query-seller@example.com", "password123", "seller");
+        String buyerEmail = "coupon-query-buyer@example.com";
+        String buyerToken = signupAndLogin(buyerEmail, "password123", "buyer");
+        Long productId = createProduct(sellerToken, "MacBook Pro");
+        Long couponId = issueFixedAmountCoupon(buyerEmail, 1_000L);
+        Long orderId = createOrder(buyerToken, productId, couponId);
+
+        mockMvc.perform(get("/api/orders/{orderId}", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memberCouponId").value(couponId))
+                .andExpect(jsonPath("$.data.couponDiscountAmount").value(1_000L))
+                .andExpect(jsonPath("$.data.finalPrice").value(1_999_000L));
+
+        mockMvc.perform(get("/api/orders/me")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content", hasSize(1)))
+                .andExpect(jsonPath("$.data.content[0].memberCouponId").value(couponId))
+                .andExpect(jsonPath("$.data.content[0].couponDiscountAmount").value(1_000L))
+                .andExpect(jsonPath("$.data.content[0].finalPrice").value(1_999_000L));
     }
 
     @Test
@@ -262,14 +291,19 @@ class OrderQueryApiTest extends IntegrationTestSupport {
     }
 
     private Long createOrder(String accessToken, Long productId) throws Exception {
+        return createOrder(accessToken, productId, null);
+    }
+
+    private Long createOrder(String accessToken, Long productId, Long memberCouponId) throws Exception {
+        String couponField = memberCouponId == null ? "" : ",\n  \"memberCouponId\": " + memberCouponId;
         String response = mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "productId": %d
+                                  "productId": %d%s
                                 }
-                                """.formatted(productId)))
+                                """.formatted(productId, couponField)))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
@@ -277,6 +311,30 @@ class OrderQueryApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("id").asLong();
+    }
+
+    private Long issueFixedAmountCoupon(String buyerEmail, long discountAmount) {
+        Long campaignId = jdbcTemplate.queryForObject("""
+                insert into coupon_campaigns (
+                    version, owner_type, scope, discount_type, discount_value, max_discount_amount,
+                    minimum_purchase_amount, stackable, title, issue_starts_at, issue_ends_at,
+                    validity_type, validity_days, lifecycle_status, issued_count, created_at, updated_at
+                ) values (
+                    0, 'PLATFORM', 'ALL_PRODUCTS', 'FIXED_AMOUNT', ?, null,
+                    0, true, '주문 쿠폰', current_timestamp - interval '1 day', current_timestamp + interval '1 day',
+                    'DAYS_FROM_ISSUANCE', 7, 'ENDED', 0, current_timestamp, current_timestamp
+                ) returning id
+                """, Long.class, discountAmount);
+        Long buyerId = jdbcTemplate.queryForObject("select id from members where email = ?", Long.class, buyerEmail);
+        return jdbcTemplate.queryForObject("""
+                insert into member_coupons (
+                    member_id, coupon_campaign_id, issued_at, valid_until, discount_type, discount_value,
+                    max_discount_amount, minimum_purchase_amount, scope, stackable, status
+                ) values (
+                    ?, ?, current_timestamp, current_timestamp + interval '7 days', 'FIXED_AMOUNT', ?,
+                    null, 0, 'ALL_PRODUCTS', true, 'ISSUED'
+                ) returning id
+                """, Long.class, buyerId, campaignId, discountAmount);
     }
 
     private Long createRefundRequest(String accessToken, Long orderId) throws Exception {

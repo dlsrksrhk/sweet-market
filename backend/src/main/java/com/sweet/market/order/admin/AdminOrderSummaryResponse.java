@@ -16,7 +16,9 @@ public record AdminOrderSummaryResponse(
         String sellerNickname,
         String status,
         String productStatus,
-        LocalDateTime orderedAt
+        LocalDateTime orderedAt,
+        Long memberCouponId,
+        long couponDiscountAmount
 ) {
 
     public AdminOrderSummaryResponse(
@@ -30,7 +32,9 @@ public record AdminOrderSummaryResponse(
             String sellerNickname,
             OrderStatus status,
             ProductStatus productStatus,
-            LocalDateTime orderedAt
+            LocalDateTime orderedAt,
+            Long memberCouponId,
+            long couponDiscountAmount
     ) {
         this(
                 orderId,
@@ -43,7 +47,9 @@ public record AdminOrderSummaryResponse(
                 sellerNickname,
                 status.name(),
                 productStatus.name(),
-                orderedAt
+                orderedAt,
+                memberCouponId,
+                couponDiscountAmount
         );
     }
 }

@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 
 import jakarta.persistence.Column;
@@ -124,13 +125,18 @@ public class MemberCoupon {
         if (!now.isBefore(validUntil)) {
             return MemberCouponStatus.EXPIRED;
         }
-        if (!campaign.isUsableForIssuedCoupon(now)) {
-            return MemberCouponStatus.UNAVAILABLE;
-        }
         return MemberCouponStatus.ISSUED;
     }
 
     public Set<Long> getTargetProductIds() {
         return Collections.unmodifiableSet(targetProductIds);
     }
+
+    public void markUsed() {
+        if (status != MemberCouponStatus.ISSUED) {
+            throw new DomainException(CouponDomainError.MEMBER_COUPON_USE_NOT_ALLOWED);
+        }
+        this.status = MemberCouponStatus.USED;
+    }
+
 }

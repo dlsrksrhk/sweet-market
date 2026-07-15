@@ -1,8 +1,13 @@
 package com.sweet.market.payment.application;
 
+import java.time.Instant;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.coupon.application.CouponRedemptionService;
+import com.sweet.market.coupon.domain.CouponReservation;
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.order.domain.Order;
@@ -17,26 +22,59 @@ public class PaymentApprovalTransactionService {
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final PaymentGateway paymentGateway;
+    private final CouponRedemptionService couponRedemptionService;
 
     public PaymentApprovalTransactionService(
             PaymentRepository paymentRepository,
             OrderRepository orderRepository,
-            PaymentGateway paymentGateway
+            PaymentGateway paymentGateway,
+            CouponRedemptionService couponRedemptionService
     ) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
         this.paymentGateway = paymentGateway;
+        this.couponRedemptionService = couponRedemptionService;
     }
 
     @Transactional
     public PaymentResponse approve(Long memberId, Long orderId) {
-        Order order = orderRepository.findWithBuyerAndProductById(orderId)
+        Instant approvedAt = Instant.now();
+        ApprovalTarget target = prepareApproval(memberId, orderId, approvedAt);
+        String externalPaymentId = paymentGateway.approve(target.order().getId(), target.order().getFinalPrice());
+        return finalizeApproval(target, approvedAt, externalPaymentId);
+    }
+
+    @Transactional
+    public PaymentResponse approveWithoutGateway(Long memberId, Long orderId) {
+        Instant approvedAt = Instant.now();
+        ApprovalTarget target = prepareApproval(memberId, orderId, approvedAt);
+        return finalizeApproval(target, approvedAt, "INTERNAL_ZERO_AMOUNT:" + target.order().getId());
+    }
+
+    private ApprovalTarget prepareApproval(Long memberId, Long orderId, Instant approvedAt) {
+        Order order = orderRepository.findStateChangeTargetById(orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
         if (!order.isOwnedBy(memberId)) {
             throw new BusinessException(ErrorCode.PAYMENT_ACCESS_DENIED);
         }
+        if (!order.canApprovePayment()) {
+            throw new BusinessException(ErrorCode.PAYMENT_APPROVE_NOT_ALLOWED);
+        }
 
-        String externalPaymentId = paymentGateway.approve(order.getId(), order.getFinalPrice());
-        return PaymentResponse.from(paymentRepository.save(Payment.approve(order, externalPaymentId)));
+        try {
+            return new ApprovalTarget(order, couponRedemptionService.prepareForPayment(order, approvedAt));
+        } catch (DomainException exception) {
+            throw new BusinessException(ErrorCode.PAYMENT_APPROVE_NOT_ALLOWED, exception);
+        }
+    }
+
+    private PaymentResponse finalizeApproval(ApprovalTarget target, Instant approvedAt, String externalPaymentId) {
+        couponRedemptionService.consumeAfterPaymentApproval(target.reservation(), approvedAt);
+        return PaymentResponse.from(paymentRepository.save(
+                Payment.approve(target.order(), externalPaymentId)
+        ));
+    }
+
+    private record ApprovalTarget(Order order, CouponReservation reservation) {
     }
 }

@@ -7,7 +7,6 @@ import java.time.ZoneId;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.sweet.market.coupon.domain.CouponEffectiveStatus;
 import com.sweet.market.coupon.domain.CouponCampaignOwnerType;
-import com.sweet.market.coupon.domain.CouponLifecycleStatus;
 import com.sweet.market.coupon.domain.MemberCoupon;
 import com.sweet.market.coupon.domain.MemberCouponStatus;
 import com.sweet.market.coupon.query.MemberCouponWalletRow;
@@ -33,24 +32,17 @@ public record MemberCouponResponse(
     }
 
     public static MemberCouponResponse from(MemberCouponWalletRow row, Instant now) {
-        CouponEffectiveStatus effectiveStatus = effectiveStatus(row.campaignLifecycleStatus(), row.campaignIssueStartsAt(), row.campaignIssueEndsAt(), now);
-        MemberCouponStatus status = walletStatus(row.persistedStatus(), row.validUntil(), effectiveStatus, now);
+        MemberCouponStatus status = walletStatus(row.persistedStatus(), row.validUntil(), now);
         return new MemberCouponResponse(row.id(), row.campaignId(), row.title(), row.label(), row.source(), store(row.storeId(), row.storeName()), row.discountType(),
                 row.discountValue(), row.maxDiscountAmount(), row.minimumPurchaseAmount(), row.scope(), row.stackable(),
                 local(row.issuedAt()), local(row.validUntil()), status,
-                status == MemberCouponStatus.UNAVAILABLE ? effectiveStatus : null);
+                null);
     }
 
-    private static MemberCouponStatus walletStatus(MemberCouponStatus persisted, Instant validUntil, CouponEffectiveStatus effective, Instant now) {
+    private static MemberCouponStatus walletStatus(MemberCouponStatus persisted, Instant validUntil, Instant now) {
         if (persisted == MemberCouponStatus.USED) return MemberCouponStatus.USED;
         if (!now.isBefore(validUntil)) return MemberCouponStatus.EXPIRED;
-        return effective == CouponEffectiveStatus.ACTIVE ? MemberCouponStatus.ISSUED : MemberCouponStatus.UNAVAILABLE;
-    }
-
-    private static CouponEffectiveStatus effectiveStatus(CouponLifecycleStatus lifecycle, Instant startsAt, Instant endsAt, Instant now) {
-        if (lifecycle == CouponLifecycleStatus.PAUSED) return CouponEffectiveStatus.PAUSED;
-        if (lifecycle == CouponLifecycleStatus.ENDED || !now.isBefore(endsAt)) return CouponEffectiveStatus.ENDED;
-        return now.isBefore(startsAt) ? CouponEffectiveStatus.SCHEDULED : CouponEffectiveStatus.ACTIVE;
+        return MemberCouponStatus.ISSUED;
     }
 
     private static LocalDateTime local(Instant value) { return value == null ? null : LocalDateTime.ofInstant(value, KST); }

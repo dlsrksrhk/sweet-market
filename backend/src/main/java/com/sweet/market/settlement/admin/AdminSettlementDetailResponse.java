@@ -18,7 +18,9 @@ public record AdminSettlementDetailResponse(
         String productTitle,
         long amount,
         String status,
-        LocalDateTime settledAt
+        LocalDateTime settledAt,
+        Long memberCouponId,
+        long couponDiscountAmount
 ) {
 
     public AdminSettlementDetailResponse(
@@ -34,7 +36,9 @@ public record AdminSettlementDetailResponse(
             String productTitle,
             long amount,
             SettlementStatus status,
-            LocalDateTime settledAt
+            LocalDateTime settledAt,
+            Long memberCouponId,
+            long couponDiscountAmount
     ) {
         this(
                 settlementId,
@@ -49,7 +53,9 @@ public record AdminSettlementDetailResponse(
                 productTitle,
                 amount,
                 status.name(),
-                settledAt
+                settledAt,
+                memberCouponId,
+                couponDiscountAmount
         );
     }
 }

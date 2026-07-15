@@ -3,6 +3,7 @@ import { type FormEvent, useRef, useState } from 'react';
 import { completeDelivery, startDelivery } from '../features/deliveries/deliveryApi';
 import { useAuth } from '../features/auth/AuthProvider';
 import { cancelOrder, confirmOrder, createRefundRequest, getMyOrders, type OrderSummary } from '../features/orders/orderApi';
+import { couponQueryKeys } from '../features/coupons/couponApi';
 import { approvePayment } from '../features/payments/paymentApi';
 import { createReview } from '../features/reviews/reviewApi';
 import { type ApiError } from '../shared/api/http';
@@ -312,7 +313,10 @@ export function MyOrdersPage() {
                 <div className="record-main">
                   <StatusPill status={order.status} />
                   <h2>{order.productTitle}</h2>
-                  <strong>{currencyFormatter.format(order.productPrice)}원</strong>
+                  <strong>{currencyFormatter.format(order.finalPrice)}원</strong>
+                  {order.memberCouponId !== null && order.couponDiscountAmount > 0 ? (
+                    <span className="muted-text">쿠폰 할인 {currencyFormatter.format(order.couponDiscountAmount)}원</span>
+                  ) : null}
                 </div>
                 <dl className="record-meta">
                   <div>
@@ -418,6 +422,7 @@ async function invalidateOrderResources(queryClient: QueryClient, productId: num
     queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
     queryClient.invalidateQueries({ queryKey: ['products'] }),
     queryClient.invalidateQueries({ queryKey: ['products', productId] }),
+    queryClient.invalidateQueries({ queryKey: couponQueryKeys.all }),
   ]);
 }
 

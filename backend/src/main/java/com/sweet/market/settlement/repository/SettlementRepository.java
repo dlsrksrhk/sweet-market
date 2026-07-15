@@ -38,7 +38,9 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
                         p.title,
                         s.amount,
                         s.status,
-                        s.settledAt
+                        s.settledAt,
+                        o.memberCouponId,
+                        o.couponDiscountAmount
                     )
                     from Settlement s
                     join s.order o
@@ -85,7 +87,9 @@ public interface SettlementRepository extends JpaRepository<Settlement, Long> {
                 p.title,
                 s.amount,
                 s.status,
-                s.settledAt
+                s.settledAt,
+                o.memberCouponId,
+                o.couponDiscountAmount
             )
             from Settlement s
             join s.order o

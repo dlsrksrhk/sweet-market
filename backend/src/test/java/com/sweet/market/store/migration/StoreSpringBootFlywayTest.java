@@ -48,7 +48,7 @@ class StoreSpringBootFlywayTest {
 
     @Test
     void 스프링_부트_Flyway_설정으로_상점_마이그레이션을_실행한다() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("11");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("12");
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM stores WHERE owner_member_id = 1 AND type = 'PERSONAL'",
                 Long.class
@@ -78,5 +78,28 @@ class StoreSpringBootFlywayTest {
                         + "AND indexname = 'idx_product_images_product_representative_sort_order_id'",
                 Long.class
         )).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'coupon_reservations'",
+                Long.class
+        )).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' "
+                        + "AND table_name = 'orders' AND column_name = 'member_coupon_id'",
+                Long.class
+        )).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' "
+                        + "AND table_name = 'orders' AND column_name = 'coupon_discount_amount'",
+                Long.class
+        )).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pg_constraint WHERE conname = 'chk_coupon_reservations_status'",
+                Long.class
+        )).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM pg_indexes WHERE tablename = 'coupon_reservations' "
+                        + "AND indexname = 'uq_coupon_reservations_active_member_coupon'",
+                Long.class
+        )).isEqualTo(1L);
     }
 }

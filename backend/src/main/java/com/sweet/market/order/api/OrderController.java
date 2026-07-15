@@ -58,7 +58,7 @@ public class OrderController {
             @Valid @RequestBody OrderCreateRequest request
     ) {
         AuthenticatedMember member = (AuthenticatedMember) authentication.getPrincipal();
-        return ApiResponse.ok(orderService.create(member.id(), request.productId()));
+        return ApiResponse.ok(orderService.create(member.id(), request.productId(), request.memberCouponId()));
     }
 
     @PostMapping("/{orderId}/cancel")

@@ -58,6 +58,8 @@ class InventoryMigrationTest {
                     .isZero();
             assertThat(queryLong(connection, "SELECT COUNT(*) FROM inventory_adjustments"))
                     .isZero();
+            assertThat(queryBoolean(connection, "SELECT to_regclass('public.coupon_reservations') IS NULL"))
+                    .isTrue();
         }
     }
 
@@ -69,6 +71,13 @@ class InventoryMigrationTest {
         try (var statement = connection.createStatement(); var resultSet = statement.executeQuery(sql)) {
             resultSet.next();
             return resultSet.getLong(1);
+        }
+    }
+
+    private boolean queryBoolean(Connection connection, String sql) throws SQLException {
+        try (var statement = connection.createStatement(); var resultSet = statement.executeQuery(sql)) {
+            resultSet.next();
+            return resultSet.getBoolean(1);
         }
     }
 }

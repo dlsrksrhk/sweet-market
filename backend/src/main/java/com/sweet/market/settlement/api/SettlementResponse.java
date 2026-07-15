@@ -13,7 +13,9 @@ public record SettlementResponse(
         String productTitle,
         long amount,
         String status,
-        LocalDateTime settledAt
+        LocalDateTime settledAt,
+        Long memberCouponId,
+        long couponDiscountAmount
 ) {
 
     public static SettlementResponse from(Settlement settlement) {
@@ -26,7 +28,9 @@ public record SettlementResponse(
                 settlement.getOrder().getProduct().getTitle(),
                 settlement.getAmount(),
                 settlement.getStatus().name(),
-                settlement.getSettledAt()
+                settlement.getSettledAt(),
+                settlement.getOrder().getMemberCouponId(),
+                settlement.getOrder().getCouponDiscountAmount()
         );
     }
 }

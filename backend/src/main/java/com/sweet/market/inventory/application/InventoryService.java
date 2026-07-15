@@ -95,10 +95,15 @@ public class InventoryService {
     public void releaseAfterFailedPaymentApproval(Long orderId) {
         orderRepository.findStateChangeTargetById(orderId)
                 .filter(order -> order.getStatus() == OrderStatus.CREATED && !order.getProduct().isSingleItem())
-                .ifPresent(order -> {
-                    order.cancel();
-                    releaseForPreShippingExit(order);
-                });
+                .ifPresent(this::releaseForFailedPaymentApproval);
+    }
+
+    public void releaseForFailedPaymentApproval(Order order) {
+        if (order.getStatus() != OrderStatus.CREATED) {
+            return;
+        }
+        order.cancel();
+        releaseForPreShippingExit(order);
     }
 
     @Transactional

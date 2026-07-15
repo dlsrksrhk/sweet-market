@@ -68,14 +68,14 @@ class CouponCampaignTest {
     }
 
     @Test
-    void 종료된_캠페인의_미사용_쿠폰은_즉시_사용불가다() {
+    void 종료된_캠페인의_유효한_미사용_쿠폰은_사용_가능하다() {
         Instant now = Instant.parse("2026-07-14T00:00:00Z");
         CouponCampaign campaign = 발급일_기준_캠페인();
         MemberCoupon coupon = MemberCoupon.issue(회원(), campaign, now);
 
         campaign.end();
 
-        assertThat(coupon.walletStatus(now)).isEqualTo(MemberCouponStatus.UNAVAILABLE);
+        assertThat(coupon.walletStatus(now)).isEqualTo(MemberCouponStatus.ISSUED);
     }
 
     @Test

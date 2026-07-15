@@ -69,12 +69,21 @@ export type MemberCoupon = {
   unavailabilityReason: CouponEffectiveStatus | null;
 };
 
+export type EligibleMemberCoupon = {
+  id: number;
+  title: string;
+  discountAmount: number;
+  finalPrice: number;
+  validUntil: string;
+};
+
 export type CouponListInput = { page: number; size: number; source?: 'PLATFORM' | 'STORE'; storeId?: number };
 
 export const couponQueryKeys = {
   all: ['coupons'] as const,
   available: (input: CouponListInput) => [...couponQueryKeys.all, 'available', input.source ?? null, input.storeId ?? null, input.page, input.size] as const,
   wallet: (input: CouponListInput & { status?: MemberCouponStatus }) => [...couponQueryKeys.all, 'wallet', input.status ?? null, input.page, input.size] as const,
+  eligible: (memberId: number, productId: number) => [...couponQueryKeys.all, 'eligible', memberId, productId] as const,
   store: (storeId: number) => [...couponQueryKeys.all, 'store', storeId] as const,
   storeList: (storeId: number, input: CouponCampaignSearchInput) => [...couponQueryKeys.store(storeId), 'list', input.status ?? null, input.periodFrom ?? null, input.periodTo ?? null, input.page, input.size] as const,
   storeDetail: (storeId: number, campaignId: number) => [...couponQueryKeys.store(storeId), 'detail', campaignId] as const,
@@ -96,6 +105,7 @@ function listQuery(input: CouponListInput & { status?: MemberCouponStatus }) { c
 export function getAvailableCouponCampaigns(input: CouponListInput) { return api<Page<AvailableCouponCampaign>>(`/api/coupon-campaigns/available?${listQuery(input)}`); }
 export function claimCouponCampaign(campaignId: number) { return api<MemberCoupon>(`/api/coupon-campaigns/${campaignId}/claim`, { method: 'POST' }); }
 export function getMyCoupons(input: CouponListInput & { status?: MemberCouponStatus }) { return api<Page<MemberCoupon>>(`/api/me/coupons?${listQuery(input)}`); }
+export function getEligibleCoupons(productId: number) { return api<EligibleMemberCoupon[]>(`/api/me/coupons/eligible?productId=${productId}`); }
 
 export function getStoreCouponCampaigns(storeId: number, input: CouponCampaignSearchInput) { return api<Page<CouponCampaign>>(`/api/stores/${storeId}/coupon-campaigns?${campaignQuery(input)}`); }
 export function getStoreCouponCampaign(storeId: number, campaignId: number) { return api<CouponCampaign>(`/api/stores/${storeId}/coupon-campaigns/${campaignId}`); }
