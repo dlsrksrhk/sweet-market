@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -41,6 +42,9 @@ class AdminOrderOperationsApiTest extends IntegrationTestSupport {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void 관리자는_주문_목록을_필터_없이_조회한다() throws Exception {
@@ -158,6 +162,8 @@ class AdminOrderOperationsApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.productId").value(order.productId()))
                 .andExpect(jsonPath("$.data.productTitle").value("MacBook Pro detail"))
                 .andExpect(jsonPath("$.data.productPrice").value(2_000_000))
+                .andExpect(jsonPath("$.data.memberCouponId").isEmpty())
+                .andExpect(jsonPath("$.data.couponDiscountAmount").value(0))
                 .andExpect(jsonPath("$.data.buyerId").value(order.buyerId()))
                 .andExpect(jsonPath("$.data.buyerNickname").value("buyer-detail"))
                 .andExpect(jsonPath("$.data.sellerId").value(order.sellerId()))
@@ -168,6 +174,25 @@ class AdminOrderOperationsApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.canceledAt").isEmpty())
                 .andExpect(jsonPath("$.data.confirmedAt").isNotEmpty())
                 .andExpect(jsonPath("$.data.settlementExists").value(true));
+    }
+
+    @Test
+    void 관리자_주문_상세는_쿠폰_할인_스냅샷을_반환한다() throws Exception {
+        String adminToken = createAdminAndLogin("admin-coupon-detail@example.com");
+        OrderFixture order = createOrder("coupon-detail");
+        Long couponId = createCouponSnapshot(order.buyerId());
+        jdbcTemplate.update("""
+                update orders
+                set member_coupon_id = ?, coupon_discount_amount = 1_000, final_price = 1_999_000
+                where id = ?
+                """, couponId, order.orderId());
+
+        mockMvc.perform(get("/api/admin/orders/{orderId}", order.orderId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.memberCouponId").value(couponId))
+                .andExpect(jsonPath("$.data.couponDiscountAmount").value(1_000L))
+                .andExpect(jsonPath("$.data.productPrice").value(1_999_000L));
     }
 
     @Test
@@ -266,6 +291,29 @@ class AdminOrderOperationsApiTest extends IntegrationTestSupport {
                     product.getId()
             );
         });
+    }
+
+    private Long createCouponSnapshot(Long buyerId) {
+        Long campaignId = jdbcTemplate.queryForObject("""
+                insert into coupon_campaigns (
+                    version, owner_type, scope, discount_type, discount_value, max_discount_amount,
+                    minimum_purchase_amount, stackable, title, issue_starts_at, issue_ends_at,
+                    validity_type, validity_days, lifecycle_status, issued_count, created_at, updated_at
+                ) values (
+                    0, 'PLATFORM', 'ALL_PRODUCTS', 'FIXED_AMOUNT', 1_000, null,
+                    0, true, '관리자 조회 쿠폰', current_timestamp - interval '1 day', current_timestamp + interval '1 day',
+                    'DAYS_FROM_ISSUANCE', 7, 'ENDED', 0, current_timestamp, current_timestamp
+                ) returning id
+                """, Long.class);
+        return jdbcTemplate.queryForObject("""
+                insert into member_coupons (
+                    member_id, coupon_campaign_id, issued_at, valid_until, discount_type, discount_value,
+                    max_discount_amount, minimum_purchase_amount, scope, stackable, status
+                ) values (
+                    ?, ?, current_timestamp, current_timestamp + interval '7 days', 'FIXED_AMOUNT', 1_000,
+                    null, 0, 'ALL_PRODUCTS', true, 'ISSUED'
+                ) returning id
+                """, Long.class, buyerId, campaignId);
     }
 
     private enum OrderStep {
