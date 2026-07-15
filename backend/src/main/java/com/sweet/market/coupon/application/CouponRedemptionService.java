@@ -4,10 +4,14 @@ import java.time.Instant;
 
 import org.springframework.stereotype.Service;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.coupon.domain.CouponDiscountType;
+import com.sweet.market.coupon.domain.CouponDomainError;
 import com.sweet.market.coupon.domain.CouponScope;
 import com.sweet.market.coupon.domain.MemberCoupon;
 import com.sweet.market.coupon.domain.MemberCouponStatus;
@@ -66,6 +70,37 @@ public class CouponRedemptionService {
             }
             throw exception;
         }
+    }
+
+    public CouponReservation prepareForPayment(Order order, Instant now) {
+        if (order.getMemberCouponId() == null) {
+            return null;
+        }
+        CouponReservation reservation = couponReservationRepository.findActiveByOrderIdForUpdate(order.getId())
+                .orElseThrow(() -> new DomainException(CouponDomainError.RESERVATION_TRANSITION_NOT_ALLOWED));
+        MemberCoupon memberCoupon = memberCouponRepository.findRedemptionTargetByIdForUpdate(reservation.getMemberCoupon().getId())
+                .orElseThrow(() -> new DomainException(CouponDomainError.MEMBER_COUPON_USE_NOT_ALLOWED));
+        if (memberCoupon.getStatus() != MemberCouponStatus.ISSUED) {
+            throw new DomainException(CouponDomainError.MEMBER_COUPON_USE_NOT_ALLOWED);
+        }
+        if (!now.isBefore(reservation.getExpiresAt())) {
+            throw new DomainException(CouponDomainError.RESERVATION_EXPIRED);
+        }
+        return reservation;
+    }
+
+    public void consumeAfterPaymentApproval(CouponReservation reservation, Instant now) {
+        if (reservation == null) {
+            return;
+        }
+        reservation.consume(now);
+        reservation.getMemberCoupon().markUsed();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void releaseForFailedApproval(Long orderId) {
+        couponReservationRepository.findActiveByOrderIdForUpdate(orderId)
+                .ifPresent(reservation -> reservation.release(Instant.now()));
     }
 
     private void requireIssuedAndValid(MemberCoupon coupon, Instant now) {

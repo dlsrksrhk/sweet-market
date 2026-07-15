@@ -17,6 +17,7 @@ import com.sweet.market.order.domain.OrderDomainError;
 import com.sweet.market.order.domain.OrderStatus;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.payment.application.PaymentGateway;
+import com.sweet.market.payment.application.PaymentApprovalTransactionService;
 import com.sweet.market.payment.domain.Payment;
 import com.sweet.market.payment.domain.PaymentStatus;
 import com.sweet.market.payment.repository.PaymentRepository;
@@ -39,6 +40,7 @@ public class OrderService {
     private final InventoryService inventoryService;
     private final PromotionPricingService promotionPricingService;
     private final CouponRedemptionService couponRedemptionService;
+    private final PaymentApprovalTransactionService paymentApprovalTransactionService;
 
     public OrderService(
             OrderRepository orderRepository,
@@ -48,7 +50,8 @@ public class OrderService {
             PaymentGateway paymentGateway,
             InventoryService inventoryService,
             PromotionPricingService promotionPricingService,
-            CouponRedemptionService couponRedemptionService
+            CouponRedemptionService couponRedemptionService,
+            PaymentApprovalTransactionService paymentApprovalTransactionService
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
@@ -58,6 +61,7 @@ public class OrderService {
         this.inventoryService = inventoryService;
         this.promotionPricingService = promotionPricingService;
         this.couponRedemptionService = couponRedemptionService;
+        this.paymentApprovalTransactionService = paymentApprovalTransactionService;
     }
 
     @Transactional
@@ -100,6 +104,9 @@ public class OrderService {
         inventoryService.reserveForOrder(savedOrder);
         if (couponReservationQuote != null) {
             couponRedemptionService.reserve(couponReservationQuote, savedOrder, Instant.now());
+        }
+        if (savedOrder.getFinalPrice() == 0L) {
+            paymentApprovalTransactionService.approveWithoutGateway(buyerId, savedOrder.getId());
         }
         return OrderResponse.from(savedOrder);
     }

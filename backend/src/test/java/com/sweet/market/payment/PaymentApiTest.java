@@ -7,6 +7,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -146,6 +147,110 @@ class PaymentApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.orderStatus").value("PAID"))
                 .andExpect(jsonPath("$.data.approvedAt").exists())
                 .andExpect(jsonPath("$.data.canceledAt").doesNotExist());
+    }
+
+    @Test
+    void 쿠폰_결제_승인에_성공하면_예약을_소비하고_쿠폰을_사용_처리한다() throws Exception {
+        String sellerToken = signupAndLogin("coupon-payment-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("coupon-payment-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, 10_000L);
+        Long couponId = issueFixedAmountCoupon("coupon-payment-buyer@example.com", 1_000L);
+        Long orderId = createCouponOrder(buyerToken, productId, couponId);
+
+        approvePayment(buyerToken, orderId);
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from coupon_reservations where order_id = ?", String.class, orderId
+        )).isEqualTo("CONSUMED");
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from member_coupons where id = ?", String.class, couponId
+        )).isEqualTo("USED");
+    }
+
+    @Test
+    void 쿠폰_결제_승인에_실패하면_예약을_해제하고_쿠폰은_발급_상태를_유지한다() throws Exception {
+        String sellerToken = signupAndLogin("coupon-failure-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("coupon-failure-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, 10_000L);
+        Long couponId = issueFixedAmountCoupon("coupon-failure-buyer@example.com", 1_000L);
+        Long orderId = createCouponOrder(buyerToken, productId, couponId);
+        doThrow(new PaymentGatewayException("gateway rejected"))
+                .when(paymentGateway).approve(orderId, 9_000L);
+
+        mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PAYMENT_APPROVE_NOT_ALLOWED"));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from coupon_reservations where order_id = ?", String.class, orderId
+        )).isEqualTo("RELEASED");
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from member_coupons where id = ?", String.class, couponId
+        )).isEqualTo("ISSUED");
+    }
+
+    @Test
+    void 만료된_쿠폰_예약은_결제_승인할_수_없고_소비되지_않는다() throws Exception {
+        String sellerToken = signupAndLogin("coupon-expired-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("coupon-expired-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, 10_000L);
+        Long couponId = issueFixedAmountCoupon("coupon-expired-buyer@example.com", 1_000L);
+        Long orderId = createCouponOrder(buyerToken, productId, couponId);
+        jdbcTemplate.update("update coupon_reservations set expires_at = current_timestamp - interval '1 second' where order_id = ?", orderId);
+
+        mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PAYMENT_APPROVE_NOT_ALLOWED"));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from coupon_reservations where order_id = ?", String.class, orderId
+        )).isNotEqualTo("CONSUMED");
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from member_coupons where id = ?", String.class, couponId
+        )).isEqualTo("ISSUED");
+    }
+
+    @Test
+    void 최종_결제금액이_0원이면_외부_결제없이_내부_결제를_승인한다() throws Exception {
+        String sellerToken = signupAndLogin("zero-payment-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("zero-payment-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, 10_000L);
+        Long couponId = issueFixedAmountCoupon("zero-payment-buyer@example.com", 10_000L);
+
+        Long orderId = createCouponOrder(buyerToken, productId, couponId);
+
+        verifyNoInteractions(paymentGateway);
+        assertThat(jdbcTemplate.queryForObject("select status from orders where id = ?", String.class, orderId))
+                .isEqualTo("PAID");
+        assertThat(jdbcTemplate.queryForObject("select external_payment_id from payments where order_id = ?", String.class, orderId))
+                .isEqualTo("INTERNAL_ZERO_AMOUNT:" + orderId);
+        assertThat(jdbcTemplate.queryForObject("select status from payments where order_id = ?", String.class, orderId))
+                .isEqualTo("APPROVED");
+        assertThat(jdbcTemplate.queryForObject("select status from coupon_reservations where order_id = ?", String.class, orderId))
+                .isEqualTo("CONSUMED");
+        assertThat(jdbcTemplate.queryForObject("select status from member_coupons where id = ?", String.class, couponId))
+                .isEqualTo("USED");
+    }
+
+    @Test
+    void 결제_취소_후에도_소비된_쿠폰은_사용_상태를_유지한다() throws Exception {
+        String sellerToken = signupAndLogin("coupon-cancel-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("coupon-cancel-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, 10_000L);
+        Long couponId = issueFixedAmountCoupon("coupon-cancel-buyer@example.com", 1_000L);
+        Long orderId = createCouponOrder(buyerToken, productId, couponId);
+        approvePayment(buyerToken, orderId);
+
+        cancelPayment(buyerToken, orderId);
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from coupon_reservations where order_id = ?", String.class, orderId
+        )).isEqualTo("CONSUMED");
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from member_coupons where id = ?", String.class, couponId
+        )).isEqualTo("USED");
     }
 
     @Test
@@ -289,6 +394,10 @@ class PaymentApiTest extends IntegrationTestSupport {
     }
 
     private Long createProduct(String accessToken) throws Exception {
+        return createProduct(accessToken, 2_000_000L);
+    }
+
+    private Long createProduct(String accessToken, long price) throws Exception {
         Long storeId = activePersonalStoreId(accessToken);
         Long uploadId = uploadImage(accessToken, "macbook-1.jpg");
 
@@ -300,7 +409,7 @@ class PaymentApiTest extends IntegrationTestSupport {
                                   "storeId": %d,
                                   "title": "MacBook Pro",
                                   "description": "M3 laptop",
-                                  "price": 2000000,
+                                  "price": %d,
                                   "salesPolicy": "SINGLE_ITEM",
                                   "images": [
                                     {
@@ -310,7 +419,7 @@ class PaymentApiTest extends IntegrationTestSupport {
                                     }
                                   ]
                                 }
-                                """.formatted(storeId, uploadId)))
+                                """.formatted(storeId, price, uploadId)))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
@@ -421,6 +530,42 @@ class PaymentApiTest extends IntegrationTestSupport {
 
         JsonNode root = objectMapper.readTree(response);
         return root.path("data").path("id").asLong();
+    }
+
+    private Long createCouponOrder(String accessToken, Long productId, Long couponId) throws Exception {
+        String response = mockMvc.perform(post("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productId\":%d,\"memberCouponId\":%d}".formatted(productId, couponId)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private Long issueFixedAmountCoupon(String buyerEmail, long discountAmount) {
+        Long campaignId = jdbcTemplate.queryForObject("""
+                insert into coupon_campaigns (
+                    version, owner_type, scope, discount_type, discount_value, max_discount_amount,
+                    minimum_purchase_amount, stackable, title, issue_starts_at, issue_ends_at,
+                    validity_type, validity_days, lifecycle_status, issued_count, created_at, updated_at
+                ) values (
+                    0, 'PLATFORM', 'ALL_PRODUCTS', 'FIXED_AMOUNT', ?, null,
+                    0, true, '결제 쿠폰', current_timestamp - interval '1 day', current_timestamp + interval '1 day',
+                    'DAYS_FROM_ISSUANCE', 7, 'ENDED', 0, current_timestamp, current_timestamp
+                ) returning id
+                """, Long.class, discountAmount);
+        Long buyerId = jdbcTemplate.queryForObject("select id from members where email = ?", Long.class, buyerEmail);
+        return jdbcTemplate.queryForObject("""
+                insert into member_coupons (
+                    member_id, coupon_campaign_id, issued_at, valid_until, discount_type, discount_value,
+                    max_discount_amount, minimum_purchase_amount, scope, stackable, status
+                ) values (
+                    ?, ?, current_timestamp, current_timestamp + interval '7 days', 'FIXED_AMOUNT', ?,
+                    null, 0, 'ALL_PRODUCTS', true, 'ISSUED'
+                ) returning id
+                """, Long.class, buyerId, campaignId, discountAmount);
     }
 
     private Long approvePayment(String accessToken, Long orderId) throws Exception {
