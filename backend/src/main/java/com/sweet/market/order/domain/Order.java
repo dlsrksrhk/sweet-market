@@ -6,6 +6,7 @@ import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.promotion.application.PromotionPrice;
+import com.sweet.market.coupon.application.CouponDiscountQuote;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -54,6 +55,12 @@ public class Order {
     @Column(name = "promotion_discount_amount", nullable = false)
     private long promotionDiscountAmount;
 
+    @Column(name = "member_coupon_id")
+    private Long memberCouponId;
+
+    @Column(name = "coupon_discount_amount", nullable = false)
+    private long couponDiscountAmount;
+
     @Column(name = "final_price", nullable = false)
     private long finalPrice;
 
@@ -75,6 +82,8 @@ public class Order {
             long listPrice,
             Long promotionCampaignId,
             long promotionDiscountAmount,
+            Long memberCouponId,
+            long couponDiscountAmount,
             long finalPrice,
             OrderStatus status,
             LocalDateTime orderedAt
@@ -85,12 +94,18 @@ public class Order {
         this.listPrice = listPrice;
         this.promotionCampaignId = promotionCampaignId;
         this.promotionDiscountAmount = promotionDiscountAmount;
+        this.memberCouponId = memberCouponId;
+        this.couponDiscountAmount = couponDiscountAmount;
         this.finalPrice = finalPrice;
         this.status = status;
         this.orderedAt = orderedAt;
     }
 
     public static Order create(Member buyer, Product product, PromotionPrice price) {
+        return create(buyer, product, price, null);
+    }
+
+    public static Order create(Member buyer, Product product, PromotionPrice price, CouponDiscountQuote coupon) {
         if (!product.isPurchasable()) {
             throw new DomainException(OrderDomainError.PRODUCT_NOT_PURCHASABLE);
         }
@@ -99,7 +114,10 @@ public class Order {
         }
         return new Order(
                 buyer, product, product.getStore().getOwnerMember(),
-                price.listPrice(), price.promotionId(), price.promotionDiscountAmount(), price.effectivePrice(),
+                price.listPrice(), price.promotionId(), price.promotionDiscountAmount(),
+                coupon == null ? null : coupon.memberCouponId(),
+                coupon == null ? 0L : coupon.discountAmount(),
+                coupon == null ? price.effectivePrice() : coupon.finalPrice(),
                 OrderStatus.CREATED, LocalDateTime.now()
         );
     }

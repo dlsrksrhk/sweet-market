@@ -3,6 +3,7 @@ package com.sweet.market.coupon.application;
 import java.time.Instant;
 
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
@@ -10,8 +11,10 @@ import com.sweet.market.coupon.domain.CouponDiscountType;
 import com.sweet.market.coupon.domain.CouponScope;
 import com.sweet.market.coupon.domain.MemberCoupon;
 import com.sweet.market.coupon.domain.MemberCouponStatus;
+import com.sweet.market.coupon.domain.CouponReservation;
 import com.sweet.market.coupon.repository.CouponReservationRepository;
 import com.sweet.market.coupon.repository.MemberCouponRepository;
+import com.sweet.market.order.domain.Order;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.promotion.application.PromotionPrice;
 
@@ -39,8 +42,8 @@ public class CouponRedemptionService {
         return new CouponDiscountQuote(coupon.getId(), discount, Math.max(0L, base - discount));
     }
 
-    public CouponDiscountQuote quoteForReservation(Long memberId, Long memberCouponId, Product product,
-                                                    PromotionPrice promotion, Instant now) {
+    public CouponReservationQuote quoteForReservation(Long memberId, Long memberCouponId, Product product,
+                                                       PromotionPrice promotion, Instant now) {
         MemberCoupon coupon = memberCouponRepository.findRedemptionTargetByIdForUpdate(memberCouponId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_COUPON_NOT_FOUND));
         if (!coupon.getMember().getId().equals(memberId)) {
@@ -49,7 +52,20 @@ public class CouponRedemptionService {
         if (couponReservationRepository.existsActiveByMemberCouponId(coupon.getId())) {
             throw new BusinessException(ErrorCode.MEMBER_COUPON_ALREADY_RESERVED);
         }
-        return quote(coupon, product, promotion, now);
+        return new CouponReservationQuote(coupon, quote(coupon, product, promotion, now));
+    }
+
+    public void reserve(CouponReservationQuote reservationQuote, Order order, Instant now) {
+        try {
+            couponReservationRepository.saveAndFlush(CouponReservation.reserve(
+                    reservationQuote.memberCoupon(), order, now, now.plusSeconds(1_800)
+            ));
+        } catch (DataIntegrityViolationException exception) {
+            if (isActiveReservationConstraintViolation(exception)) {
+                throw new BusinessException(ErrorCode.MEMBER_COUPON_ALREADY_RESERVED, exception);
+            }
+            throw exception;
+        }
     }
 
     private void requireIssuedAndValid(MemberCoupon coupon, Instant now) {
@@ -91,5 +107,17 @@ public class CouponRedemptionService {
             return base;
         }
         return (base / 100) * rate + ((base % 100) * rate) / 100;
+    }
+
+    private boolean isActiveReservationConstraintViolation(DataIntegrityViolationException exception) {
+        Throwable cause = exception;
+        while (cause != null) {
+            if (cause instanceof org.hibernate.exception.ConstraintViolationException constraintViolation
+                    && "uq_coupon_reservations_active_member_coupon".equals(constraintViolation.getConstraintName())) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 }

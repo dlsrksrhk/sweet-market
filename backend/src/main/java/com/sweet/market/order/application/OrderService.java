@@ -1,5 +1,7 @@
 package com.sweet.market.order.application;
 
+import java.time.Instant;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,9 @@ import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductDomainError;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.promotion.application.PromotionPricingService;
+import com.sweet.market.promotion.application.PromotionPrice;
+import com.sweet.market.coupon.application.CouponRedemptionService;
+import com.sweet.market.coupon.application.CouponReservationQuote;
 
 @Service
 public class OrderService {
@@ -33,6 +38,7 @@ public class OrderService {
     private final PaymentGateway paymentGateway;
     private final InventoryService inventoryService;
     private final PromotionPricingService promotionPricingService;
+    private final CouponRedemptionService couponRedemptionService;
 
     public OrderService(
             OrderRepository orderRepository,
@@ -41,7 +47,8 @@ public class OrderService {
             PaymentRepository paymentRepository,
             PaymentGateway paymentGateway,
             InventoryService inventoryService,
-            PromotionPricingService promotionPricingService
+            PromotionPricingService promotionPricingService,
+            CouponRedemptionService couponRedemptionService
     ) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
@@ -50,21 +57,37 @@ public class OrderService {
         this.paymentGateway = paymentGateway;
         this.inventoryService = inventoryService;
         this.promotionPricingService = promotionPricingService;
+        this.couponRedemptionService = couponRedemptionService;
     }
 
     @Transactional
     public OrderResponse create(Long buyerId, Long productId) {
+        return create(buyerId, productId, null);
+    }
+
+    @Transactional
+    public OrderResponse create(Long buyerId, Long productId, Long memberCouponId) {
         Member buyer = memberRepository.findById(buyerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
         Product product = productRepository.findWithStoreAndImagesById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
 
         Order order;
+        CouponReservationQuote couponReservationQuote = null;
         try {
             if (!product.isPurchasable()) {
                 throw new DomainException(OrderDomainError.PRODUCT_NOT_PURCHASABLE);
             }
-            order = Order.create(buyer, product, promotionPricingService.quote(product));
+            PromotionPrice promotionPrice = promotionPricingService.quote(product);
+            if (memberCouponId != null) {
+                Instant now = Instant.now();
+                couponReservationQuote = couponRedemptionService.quoteForReservation(
+                        buyerId, memberCouponId, product, promotionPrice, now
+                );
+                order = Order.create(buyer, product, promotionPrice, couponReservationQuote.discountQuote());
+            } else {
+                order = Order.create(buyer, product, promotionPrice);
+            }
         } catch (DomainException exception) {
             if (exception.error() == ProductDomainError.NOT_ON_SALE
                     || exception.error() == OrderDomainError.PRODUCT_NOT_PURCHASABLE) {
@@ -75,6 +98,9 @@ public class OrderService {
 
         Order savedOrder = orderRepository.save(order);
         inventoryService.reserveForOrder(savedOrder);
+        if (couponReservationQuote != null) {
+            couponRedemptionService.reserve(couponReservationQuote, savedOrder, Instant.now());
+        }
         return OrderResponse.from(savedOrder);
     }
 
