@@ -7,16 +7,27 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.sweet.market.coupon.domain.MemberCoupon;
 import com.sweet.market.coupon.query.MemberCouponWalletRow;
 
+import jakarta.persistence.LockModeType;
+
 public interface MemberCouponRepository extends JpaRepository<MemberCoupon, Long> {
 
     @EntityGraph(attributePaths = "campaign")
     Optional<MemberCoupon> findByCampaignIdAndMemberId(Long campaignId, Long memberId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"campaign", "targetProductIds"})
+    @Query("""
+            select coupon from MemberCoupon coupon
+            where coupon.id = :couponId and coupon.member.id = :memberId
+            """)
+    Optional<MemberCoupon> findRedemptionTargetForUpdate(@Param("couponId") Long couponId, @Param("memberId") Long memberId);
 
     @Query(value = """
             select new com.sweet.market.coupon.query.MemberCouponWalletRow(
