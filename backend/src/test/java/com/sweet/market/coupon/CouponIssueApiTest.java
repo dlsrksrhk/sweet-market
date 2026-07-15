@@ -5,8 +5,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -25,6 +32,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -37,9 +45,13 @@ import com.sweet.market.coupon.api.MemberCouponResponse;
 import com.sweet.market.coupon.application.CouponIssueService;
 import com.sweet.market.coupon.application.CouponIssueTransactionService;
 import com.sweet.market.coupon.application.issuance.CouponIssuanceGate;
+import com.sweet.market.coupon.application.issuance.CouponIssuanceGateResult;
+import com.sweet.market.coupon.application.issuance.CouponIssuanceReservation;
 import com.sweet.market.coupon.application.issuance.CouponIssuanceGateUnavailableException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.coupon.repository.CouponCampaignRepository;
+import com.sweet.market.coupon.repository.MemberCouponRepository;
 import com.sweet.market.support.IntegrationTestSupport;
 
 class CouponIssueApiTest extends IntegrationTestSupport {
@@ -52,6 +64,12 @@ class CouponIssueApiTest extends IntegrationTestSupport {
 
     @MockitoSpyBean
     private CouponIssuanceGate issuanceGate;
+
+    @MockitoSpyBean
+    private CouponCampaignRepository campaignRepository;
+
+    @MockitoSpyBean
+    private MemberCouponRepository memberCouponRepository;
 
     @Test
     void 같은_캠페인을_두번_발급해도_한장만_생성하고_같은_쿠폰을_반환한다() throws Exception {
@@ -151,22 +169,72 @@ class CouponIssueApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 기존_발급_회원은_일시중지와_종료후에도_기존_쿠폰을_받는다() throws Exception {
+        Long campaignId = activeCampaignWithLimit(1);
+        signupAndLogin("issued-after-lifecycle@example.com");
+        Long issuedMemberId = memberId("issued-after-lifecycle@example.com");
+        Long couponId = couponIssueService.claim(issuedMemberId, campaignId).id();
+
+        pause(campaignId);
+        assertThat(couponIssueService.claim(issuedMemberId, campaignId).id()).isEqualTo(couponId);
+        end(campaignId);
+        assertThat(couponIssueService.claim(issuedMemberId, campaignId).id()).isEqualTo(couponId);
+    }
+
+    @Test
     void 예약_확정에_실패하면_예약을_반납해_다른_회원이_발급할_수_있다() throws Exception {
         Long campaignId = activeCampaignWithLimit(1);
         signupAndLogin("reservation-failure-first@example.com");
         signupAndLogin("reservation-failure-second@example.com");
         Long firstMemberId = memberId("reservation-failure-first@example.com");
         Long secondMemberId = memberId("reservation-failure-second@example.com");
+        CouponIssuanceReservation reservation = new CouponIssuanceReservation(campaignId, firstMemberId, "release-token");
+        doReturn(CouponIssuanceGateResult.reserved(reservation))
+                .when(issuanceGate).reserve(eq(campaignId), eq(firstMemberId), anyInt(), anyInt(), any(), any());
+        doNothing().when(issuanceGate).release(same(reservation), any());
         doThrow(new IllegalStateException("확정 실패"))
                 .when(issueTransactionService).confirmLimitedIssue(anyLong(), anyLong(), any());
 
         assertThatThrownBy(() -> couponIssueService.claim(firstMemberId, campaignId))
                 .isInstanceOf(IllegalStateException.class);
-        verify(issuanceGate).release(any(), any());
+        verify(issuanceGate, times(1)).release(same(reservation), any());
+        verify(issuanceGate, never()).complete(any(), any());
 
         reset(issueTransactionService);
         assertThat(couponIssueService.claim(secondMemberId, campaignId).campaignId()).isEqualTo(campaignId);
         assertThat(memberCouponCount(campaignId)).isEqualTo(1);
+    }
+
+    @Test
+    void 예약_확정_성공시_같은_토큰을_한번만_완료한다() throws Exception {
+        Long campaignId = activeCampaignWithLimit(1);
+        signupAndLogin("reservation-complete@example.com");
+        Long memberId = memberId("reservation-complete@example.com");
+        CouponIssuanceReservation reservation = new CouponIssuanceReservation(campaignId, memberId, "complete-token");
+        doReturn(CouponIssuanceGateResult.reserved(reservation))
+                .when(issuanceGate).reserve(anyLong(), anyLong(), anyInt(), anyInt(), any(), any());
+        doNothing().when(issuanceGate).complete(same(reservation), any());
+
+        assertThat(couponIssueService.claim(memberId, campaignId).campaignId()).isEqualTo(campaignId);
+
+        verify(issuanceGate, times(1)).complete(same(reservation), any());
+        verify(issuanceGate, never()).release(any(), any());
+    }
+
+    @Test
+    void 비관적락_폴백은_락후_기존_쿠폰을_재조회한다() throws Exception {
+        Long campaignId = activeCampaignWithLimit(1);
+        signupAndLogin("fallback-existing@example.com");
+        Long memberId = memberId("fallback-existing@example.com");
+        Long couponId = couponIssueService.claim(memberId, campaignId).id();
+        clearInvocations(campaignRepository, memberCouponRepository);
+
+        assertThat(issueTransactionService.issueWithPessimisticLock(memberId, campaignId, java.time.Instant.now()).getId())
+                .isEqualTo(couponId);
+
+        InOrder ordering = inOrder(campaignRepository, memberCouponRepository);
+        ordering.verify(campaignRepository).findByIdForIssuance(campaignId);
+        ordering.verify(memberCouponRepository).findByCampaignIdAndMemberId(campaignId, memberId);
     }
 
     @Test

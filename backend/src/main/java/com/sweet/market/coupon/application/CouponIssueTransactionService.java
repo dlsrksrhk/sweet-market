@@ -53,11 +53,10 @@ public class CouponIssueTransactionService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public MemberCoupon issueWithPessimisticLock(Long memberId, Long campaignId, Instant issuedAt) {
-        MemberCoupon existing = memberCouponRepository.findByCampaignIdAndMemberId(campaignId, memberId).orElse(null);
-        if (existing != null) return existing;
-
         CouponCampaign campaign = campaignRepository.findByIdForIssuance(campaignId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COUPON_CAMPAIGN_NOT_FOUND));
+        MemberCoupon existing = memberCouponRepository.findByCampaignIdAndMemberId(campaignId, memberId).orElse(null);
+        if (existing != null) return existing;
         requireClaimable(campaign, issuedAt);
         try {
             campaign.recordIssue();
