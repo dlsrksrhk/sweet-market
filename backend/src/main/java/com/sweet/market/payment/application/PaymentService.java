@@ -44,10 +44,6 @@ public class PaymentService {
     public PaymentResponse approve(Long memberId, Long orderId) {
         try {
             return paymentApprovalTransactionService.approve(memberId, orderId);
-        } catch (DomainException exception) {
-            couponRedemptionService.releaseForFailedApproval(orderId);
-            inventoryService.releaseAfterFailedPaymentApproval(orderId);
-            throw new BusinessException(ErrorCode.PAYMENT_APPROVE_NOT_ALLOWED, exception);
         } catch (PaymentGatewayException exception) {
             couponRedemptionService.releaseForFailedApproval(orderId);
             inventoryService.releaseAfterFailedPaymentApproval(orderId);

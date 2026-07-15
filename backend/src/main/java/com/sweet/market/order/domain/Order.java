@@ -147,6 +147,10 @@ public class Order {
         this.status = OrderStatus.PAID;
     }
 
+    public boolean canApprovePayment() {
+        return status == OrderStatus.CREATED;
+    }
+
     public void cancelPaidOrder() {
         if (status == OrderStatus.CANCELED) {
             return;

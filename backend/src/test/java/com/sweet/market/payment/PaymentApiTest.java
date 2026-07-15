@@ -204,6 +204,7 @@ class PaymentApiTest extends IntegrationTestSupport {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("PAYMENT_APPROVE_NOT_ALLOWED"));
 
+        verifyNoInteractions(paymentGateway);
         assertThat(jdbcTemplate.queryForObject(
                 "select status from coupon_reservations where order_id = ?", String.class, orderId
         )).isNotEqualTo("CONSUMED");
@@ -232,6 +233,61 @@ class PaymentApiTest extends IntegrationTestSupport {
                 .isEqualTo("CONSUMED");
         assertThat(jdbcTemplate.queryForObject("select status from member_coupons where id = ?", String.class, couponId))
                 .isEqualTo("USED");
+    }
+
+    @Test
+    void 취소된_쿠폰_주문은_외부_결제_호출없이_승인을_거절하고_예약과_쿠폰을_유지한다() throws Exception {
+        String sellerToken = signupAndLogin("coupon-canceled-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("coupon-canceled-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, 10_000L);
+        Long couponId = issueFixedAmountCoupon("coupon-canceled-buyer@example.com", 1_000L);
+        Long orderId = createCouponOrder(buyerToken, productId, couponId);
+
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk());
+        String reservationStatusBeforeApproval = jdbcTemplate.queryForObject(
+                "select status from coupon_reservations where order_id = ?", String.class, orderId
+        );
+        String couponStatusBeforeApproval = jdbcTemplate.queryForObject(
+                "select status from member_coupons where id = ?", String.class, couponId
+        );
+        mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PAYMENT_APPROVE_NOT_ALLOWED"));
+
+        verifyNoInteractions(paymentGateway);
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from coupon_reservations where order_id = ?", String.class, orderId
+        )).isEqualTo(reservationStatusBeforeApproval);
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from member_coupons where id = ?", String.class, couponId
+        )).isEqualTo(couponStatusBeforeApproval);
+    }
+
+    @Test
+    void 쿠폰_결제는_한번만_승인되고_재승인해도_소비_상태와_결제_건수가_변하지_않는다() throws Exception {
+        String sellerToken = signupAndLogin("coupon-repeat-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("coupon-repeat-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, 10_000L);
+        Long couponId = issueFixedAmountCoupon("coupon-repeat-buyer@example.com", 1_000L);
+        Long orderId = createCouponOrder(buyerToken, productId, couponId);
+        approvePayment(buyerToken, orderId);
+
+        mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PAYMENT_APPROVE_NOT_ALLOWED"));
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from coupon_reservations where order_id = ?", String.class, orderId
+        )).isEqualTo("CONSUMED");
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from member_coupons where id = ?", String.class, couponId
+        )).isEqualTo("USED");
+        assertThat(jdbcTemplate.queryForObject("select count(*) from payments where order_id = ?", Long.class, orderId))
+                .isEqualTo(1L);
     }
 
     @Test

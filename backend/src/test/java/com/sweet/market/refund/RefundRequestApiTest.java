@@ -70,6 +70,25 @@ class RefundRequestApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 환불_승인_후에도_소비된_쿠폰_예약과_쿠폰_상태를_유지한다() throws Exception {
+        String sellerToken = signupAndLogin("coupon-refund-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("coupon-refund-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken, "쿠폰 환불 상품");
+        Long couponId = issueFixedAmountCoupon("coupon-refund-buyer@example.com", 1_000L);
+        Long orderId = createDeliveredCouponOrder(buyerToken, productId, couponId);
+        Long refundRequestId = createRefundRequest(buyerToken, orderId);
+
+        approveRefundRequest(sellerToken, refundRequestId);
+
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from coupon_reservations where order_id = ?", String.class, orderId
+        )).isEqualTo("CONSUMED");
+        assertThat(jdbcTemplate.queryForObject(
+                "select status from member_coupons where id = ?", String.class, couponId
+        )).isEqualTo("USED");
+    }
+
+    @Test
     void 구매자는_배송완료_주문에_환불을_요청할_수_있다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
@@ -1027,8 +1046,35 @@ class RefundRequestApiTest extends IntegrationTestSupport {
         return objectMapper.readTree(response).path("data").path("id").asLong();
     }
 
+    private Long createCouponOrder(String accessToken, Long productId, Long couponId) throws Exception {
+        String response = mockMvc.perform(post("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productId\":%d,\"memberCouponId\":%d}".formatted(productId, couponId)))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
     private Long createDeliveredOrder(String accessToken, Long productId) throws Exception {
         Long orderId = createOrder(accessToken, productId);
+
+        completeDelivery(accessToken, orderId);
+
+        return orderId;
+    }
+
+    private Long createDeliveredCouponOrder(String accessToken, Long productId, Long couponId) throws Exception {
+        Long orderId = createCouponOrder(accessToken, productId, couponId);
+
+        completeDelivery(accessToken, orderId);
+
+        return orderId;
+    }
+
+    private void completeDelivery(String accessToken, Long orderId) throws Exception {
 
         mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
@@ -1039,7 +1085,29 @@ class RefundRequestApiTest extends IntegrationTestSupport {
         mockMvc.perform(post("/api/deliveries/{orderId}/complete", orderId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
                 .andExpect(status().isOk());
+    }
 
-        return orderId;
+    private Long issueFixedAmountCoupon(String buyerEmail, long discountAmount) {
+        Long campaignId = jdbcTemplate.queryForObject("""
+                insert into coupon_campaigns (
+                    version, owner_type, scope, discount_type, discount_value, max_discount_amount,
+                    minimum_purchase_amount, stackable, title, issue_starts_at, issue_ends_at,
+                    validity_type, validity_days, lifecycle_status, issued_count, created_at, updated_at
+                ) values (
+                    0, 'PLATFORM', 'ALL_PRODUCTS', 'FIXED_AMOUNT', ?, null,
+                    0, true, '환불 결제 쿠폰', current_timestamp - interval '1 day', current_timestamp + interval '1 day',
+                    'DAYS_FROM_ISSUANCE', 7, 'ENDED', 0, current_timestamp, current_timestamp
+                ) returning id
+                """, Long.class, discountAmount);
+        Long buyerId = jdbcTemplate.queryForObject("select id from members where email = ?", Long.class, buyerEmail);
+        return jdbcTemplate.queryForObject("""
+                insert into member_coupons (
+                    member_id, coupon_campaign_id, issued_at, valid_until, discount_type, discount_value,
+                    max_discount_amount, minimum_purchase_amount, scope, stackable, status
+                ) values (
+                    ?, ?, current_timestamp, current_timestamp + interval '7 days', 'FIXED_AMOUNT', ?,
+                    null, 0, 'ALL_PRODUCTS', true, 'ISSUED'
+                ) returning id
+                """, Long.class, buyerId, campaignId, discountAmount);
     }
 }
