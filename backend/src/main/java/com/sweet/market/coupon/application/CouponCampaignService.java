@@ -117,6 +117,6 @@ public class CouponCampaignService {
     private PageRequest page(CouponCampaignSearchRequest request) { return PageRequest.of(request.resolvedPage(), request.resolvedSize()); }
     private Instant toInstant(LocalDateTime value) { return value == null ? null : value.atZone(KST).toInstant(); }
     private Instant now() { return clock.instant(); }
-    private BusinessException map(DomainException exception) { CouponDomainError error = (CouponDomainError) exception.error(); return switch (error) { case LIFECYCLE_TRANSITION_NOT_ALLOWED, UPDATE_NOT_ALLOWED -> new BusinessException(ErrorCode.COUPON_LIFECYCLE_NOT_ALLOWED, exception); default -> new BusinessException(ErrorCode.VALIDATION_ERROR, exception); }; }
+    private BusinessException map(DomainException exception) { CouponDomainError error = (CouponDomainError) exception.error(); return switch (error) { case LIFECYCLE_TRANSITION_NOT_ALLOWED, UPDATE_NOT_ALLOWED -> new BusinessException(ErrorCode.COUPON_LIFECYCLE_NOT_ALLOWED, exception); case ISSUE_LIMIT_EXCEEDED -> new BusinessException(ErrorCode.COUPON_ISSUE_LIMIT_EXCEEDED, exception); default -> new BusinessException(ErrorCode.VALIDATION_ERROR, exception); }; }
     @FunctionalInterface private interface Transition { void apply(CouponCampaign campaign); }
 }
