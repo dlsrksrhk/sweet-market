@@ -44,7 +44,10 @@ class CouponRedemptionMigrationTest {
             assertThat(columnExists(connection, "coupon_reservations", "released_at")).isTrue();
             assertThat(columnExists(connection, "orders", "member_coupon_id")).isTrue();
             assertThat(columnExists(connection, "orders", "coupon_discount_amount")).isTrue();
+            assertThat(constraintExists(connection, "uq_coupon_reservations_order")).isTrue();
             assertThat(constraintExists(connection, "chk_coupon_reservations_status")).isTrue();
+            assertThat(constraintExists(connection, "fk_coupon_reservations_member_coupon")).isTrue();
+            assertThat(constraintExists(connection, "fk_coupon_reservations_order")).isTrue();
             assertThat(indexExists(connection, "coupon_reservations", "uq_coupon_reservations_active_member_coupon")).isTrue();
             assertThat(indexExists(connection, "coupon_reservations", "idx_coupon_reservations_reserved_expires_at")).isTrue();
         }
