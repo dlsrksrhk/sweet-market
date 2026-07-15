@@ -35,3 +35,10 @@ npm run build
 Result: TypeScript checks and Vite production build succeeded. Vite reported its existing >500 kB bundle-size warning.
 
 `git diff --check` also completed without whitespace errors.
+
+## Final follow-up
+
+- The `IN_PROGRESS` regression now creates the competing durable coupon through `confirmLimitedIssue`, the same limited-confirmation transaction used in production. It asserts exactly one member-coupon row and `issued_count = 1`, proving the waiting claim does not create a second coupon or consume capacity twice.
+- Restored `.superpowers/sdd/task-2-report.md` through `task-6-report.md` to their `c4b1cda` base contents. The M27 report remains uniquely named as this file.
+
+Verification: `./gradlew.bat test --tests com.sweet.market.coupon.CouponIssueApiTest` completed with `BUILD SUCCESSFUL` using the same Corretto 21 and Docker-backed Testcontainers environment.

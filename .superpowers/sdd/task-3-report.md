@@ -1,61 +1,56 @@
-# Task 3 Report: First-Come Coupon Claim Integration
+# Task 3 완료 보고서
 
-## Status
+## 구현 범위
 
-- Completed the claim-service integration for limited campaigns.
-- Kept checkout and redemption code out of scope.
+- 구매자 쿠폰 발급 API를 추가했습니다.
+  - `POST /api/coupon-campaigns/{campaignId}/claim`
+  - 동일 회원·캠페인 중복 발급은 유니크 제약(`uq_member_coupons_campaign_member`) 충돌만 식별해 기존 발급 쿠폰을 재조회하여 반환합니다.
+  - 중복 저장 시도는 별도 Spring 빈의 `REQUIRES_NEW` 트랜잭션에서 수행하므로, 충돌 롤백이 호출 서비스의 재조회 경로를 오염시키지 않습니다.
+  - 미래, 일시중지, 종료 캠페인은 발급을 거부합니다.
+- 구매자 쿠폰 탐색 및 지갑 API를 추가했습니다.
+  - `GET /api/coupon-campaigns/available`
+  - `GET /api/me/coupons`
+  - 두 API는 `page`/`size` 페이지네이션을 지원합니다.
+  - 탐색 쿼리는 현재 활성 발급 기간만 SQL에서 제한하고, 현재 회원의 `claimed` 상태를 단일 존재 조건으로 계산합니다.
+  - 지갑 쿼리는 회원 조건을 SQL에서 적용하고 `issuedAt`, `id` 내림차순으로 정렬합니다.
+  - 지갑 상태는 한 번 읽은 `Clock` 값으로 `ISSUED`, `USED`, `EXPIRED`, `UNAVAILABLE`를 계산하며, `UNAVAILABLE`일 때만 캠페인 유효 상태를 `unavailabilityReason`으로 반환합니다.
+- 장바구니·주문·결제 동작은 수정하지 않았습니다.
 
-## Implemented scope
+## 테스트
 
-- Added the conditional `issued_count` increment query and the campaign pessimistic-write-lock query.
-- Added `REQUIRES_NEW` confirmation that increments durable capacity before saving the coupon. A unique-key failure rolls back that increment in the same transaction.
-- Added Redis-unavailable fallback that rereads the existing coupon and serializes issuance with the campaign lock.
-- Retained the existing-coupon-first check, so an already-issued buyer succeeds even after capacity is exhausted or the campaign is paused/ended.
-- Limited claims reserve in Redis, confirm in the database, then complete the same reservation token. Confirmation failures release that token exactly once; release failures are suppressed onto the original failure. A completion failure is not converted into a database fallback because the durable coupon is already committed.
-- Only `CouponIssuanceGateUnavailableException` around reservation selects the locked database fallback. A successful gate response never does.
-- Added focused integration coverage for concurrent capacity, existing buyer after sellout, confirmation compensation, and Redis-unavailable fallback.
-
-## TDD and verification evidence
-
-### RED
-
-Added the limited issuance integration tests before the claim-service integration. The focused Gradle test compiled but could not execute because Testcontainers could not initialize Docker; the prior claim path has no reservation or durable conditional-count behavior.
-
-### Green/static verification
-
-The documented `C:\java\jdk-21` location was not installed. Used the detected JDK 21 instead:
+새 통합 테스트를 먼저 추가한 뒤 구매자 엔드포인트 부재로 실패하는 것을 확인했습니다. 이후 구현 후 아래 명령을 다시 실행했습니다.
 
 ```powershell
+cd backend
 $env:JAVA_HOME='C:\Users\kdh\.jdks\corretto-21.0.7'
 $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
-cd backend
-.\gradlew.bat compileJava compileTestJava test --tests 'com.sweet.market.coupon.domain.CouponCampaignTest'
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+.\gradlew.bat test --tests 'com.sweet.market.coupon.CouponIssueApiTest' --tests 'com.sweet.market.coupon.CouponWalletApiTest' --rerun-tasks
 ```
 
-Result: `BUILD SUCCESSFUL`.
+결과: `BUILD SUCCESSFUL` (6개 테스트 통과)
 
-`git diff --check` completed without whitespace errors.
+검증 항목:
 
-### Focused integration test
+- 중복 발급의 동일 쿠폰 반환 및 단일 행 유지
+- 공통 만료일/발급일 기준 유효기간 계산
+- 미래/일시중지/종료 발급 거부
+- 탐색 목록의 회원별 발급 상태와 지갑 격리
+- `USED`, `EXPIRED`, `UNAVAILABLE` 상태 및 일시중지 사유
+
+## 참고 사항
+
+프로젝트 안내에 적힌 `C:\java\jdk-21` 경로는 현재 환경에 없어서, 설치된 JDK 21인 `C:\Users\kdh\.jdks\corretto-21.0.7`로 테스트를 실행했습니다.
+
+## 리뷰 보완 (2026-07-14)
+
+- `CouponIssueApiTest`에 두 발급 요청이 사전 중복 조회를 마친 뒤 동시에 별도 트랜잭션의 저장을 시도하도록 동기화한 통합 테스트를 추가했습니다. 실제 PostgreSQL 유니크 제약 충돌 뒤 두 요청이 같은 쿠폰을 받고 단일 행만 남는지 검증합니다.
+- `CouponWalletApiTest`는 동일한 `issuedAt`을 가진 두 쿠폰의 `id` 내림차순 타이브레이커와 `size=2` 페이지 경계를 확인하도록 강화했습니다. 두 페이지에 걸쳐 `ISSUED`, `USED`, `EXPIRED`, `UNAVAILABLE` 및 `PAUSED` 사유를 모두 검증합니다.
 
 ```powershell
-.\gradlew.bat test --tests 'com.sweet.market.coupon.CouponIssueApiTest'
+cd backend
+$env:JAVA_HOME='C:\Users\kdh\.jdks\corretto-21.0.7'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+.\gradlew.bat test --tests 'com.sweet.market.coupon.CouponIssueApiTest' --tests 'com.sweet.market.coupon.CouponWalletApiTest' --rerun-tasks
 ```
-
-Result: blocked before test execution. The shared Testcontainers setup throws `IllegalStateException` from `DockerClientProviderStrategy` because Docker Desktop's Linux engine named pipe is unavailable. All eight tests therefore fail during container initialization; this is not a behavioral pass/fail result.
-
-## Self-review
-
-- The conditional update carries both lifecycle/time predicates and `issued_count < issue_limit`, making the database the final capacity authority for the Redis route.
-- `clearAutomatically` on the update detaches the campaign. The confirmation transaction reloads it before constructing `MemberCoupon`, so lazy coupon-target access remains valid.
-- Capacity failures map to `COUPON_ISSUE_LIMIT_EXCEEDED` (HTTP 409); lifecycle failures retain the lifecycle error mapping.
-
-## Concern
-
-- Start Docker Desktop (Linux containers) and rerun `CouponIssueApiTest` before merging to obtain the required live Redis/PostgreSQL concurrency proof.
-
-## Review follow-up
-
-- Changed the database fallback transaction to acquire `PESSIMISTIC_WRITE` on the campaign before rereading the member coupon. A Redis confirmation that commits while the fallback waits can now be observed as the already-issued coupon instead of consuming capacity or returning a conflict.
-- Added Korean-named coverage for that lock-then-reread ordering, exact same-object one-time reservation release and completion, and retries by an existing buyer after pause and end.
-- Re-ran `compileJava compileTestJava` plus `CouponCampaignTest`: passed. The 11-test `CouponIssueApiTest` remains blocked before execution by the unavailable Docker/Testcontainers engine.

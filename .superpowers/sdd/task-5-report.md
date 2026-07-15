@@ -1,30 +1,38 @@
-# Task 5 Report: Buyer And Operator Coupon Screens
+# M26 Task 5 실행 보고서
 
 ## 변경 사항
 
-- 쿠폰 캠페인 API 타입에 발급 한도·발급 수·잔여 수와 구매자용 마감 상태를 반영했습니다.
-- 초안 폼에 선택형 발급 한도 입력을 추가했습니다. 빈 값은 `undefined`로 유지되어 JSON 요청에서 제외되고, 초안 외 상태에서는 기존 폼 정책에 따라 비활성화됩니다.
-- 상점 목록·상세와 관리자 표에 `발급 무제한` 또는 `발급 수 / 한도 · 잔여 수`를 표시했습니다.
-- 구매자 쿠폰 카드에서 `발급 완료`를 최우선으로 표시하고, 미발급 마감 캠페인은 `선착순 마감` 버튼을 비활성화했습니다.
+- `CouponQueryOptimizationTest`를 추가했습니다.
+  - 선택상품 캠페인 25건을 시드해 사용가능 캠페인 첫 페이지가 대상 컬렉션을 초기화하지 않고 카드별 발급 조회 없이 20건을 반환하는지 검증했습니다.
+  - 동일하게 쿠폰지갑 25건을 시드해 캠페인별 N+1 없이 첫 페이지 20건을 반환하는지 검증했습니다.
+  - 쿠폰 발급 뒤 직접 주문과 장바구니 체크아웃이 M25 프로모션 가격 스냅샷만 저장하는지 검증했습니다.
+- Hibernate 통계로 두 목록의 `collectionFetchCount == 0`, 준비 SQL 문 수 `<= 2`를 확인했습니다.
+- 재사용 가능한 SQL assertion은 필요하지 않아 `QueryOptimizationTestSupport`는 변경하지 않았습니다.
+
+## PostgreSQL 실행계획 증적
+
+Docker Desktop에서 `postgres:17-alpine` 격리 컨테이너를 생성했습니다. 105,000개 캠페인, 105,000개 회원 쿠폰, 5,000개 대상 회원 쿠폰을 시드한 다음 `EXPLAIN (ANALYZE, BUFFERS)`를 수행했습니다.
+
+| 경로 | 관측 결과 | 결론 |
+| --- | --- | --- |
+| 사용가능 캠페인 20건 | `coupon_campaigns_pkey` 역방향 스캔, 발급 `EXISTS`는 `idx_member_coupons_member_status_valid_until_id`를 한 번 Bitmap Scan하여 해시 집합화, 1.248 ms | 페이지별 쿼리이며 카드별 쿼리가 없습니다. |
+| 지갑 ISSUED 20건 | `idx_member_coupons_member_status_valid_until_id`가 회원/상태/만료 조건에 Bitmap Index Scan으로 사용, 14.985 ms | 회원 지갑 범위가 인덱스로 축소됩니다. |
+| 소유자·기간 관리 목록 20건 | `idx_coupon_campaigns_owner_lifecycle_issue_period` Index Scan, 0.665 ms | 소유자/기간 복합 인덱스가 사용됩니다. |
+| 대상 | 세 목록 계획에 `coupon_campaign_targets`가 없음; 대상 인덱스 `idx_coupon_campaign_targets_product_campaign`은 상세/대상 경로를 위해 유지 | 목록은 대상 컬렉션을 fetch하지 않습니다. |
+
+위 관측으로 추가 인덱스는 불필요했습니다.
 
 ## 검증
 
-| 항목 | 결과 |
+| 명령 | 결과 |
 | --- | --- |
-| `npm run build` | 통과 — TypeScript 검사와 Vite 프로덕션 빌드가 성공했습니다. 기존 500 kB 초과 청크 경고만 출력되었습니다. |
-| `git diff --check` | 통과 — 공백 오류가 없습니다. |
-| 자동 UI 테스트 | 미구성 — `web/package.json`에는 `dev`, `build`, `preview`만 있고 테스트 러너가 없습니다. |
-| 브라우저 QA | 미실행 — 이 워크트리에 로컬 백엔드 인증 세션과 두 구매자 테스트 계정이 준비되어 있지 않습니다. |
+| `./gradlew.bat test --tests 'com.sweet.market.coupon.*' --tests 'com.sweet.market.promotion.*' --tests 'com.sweet.market.cart.*' --tests 'com.sweet.market.order.*' --tests 'com.sweet.market.payment.*' --rerun-tasks` | `BUILD SUCCESSFUL`, 169 tests / 22 classes, failure 0, error 0, skipped 0, 1m 06s |
+| `./gradlew.bat test --rerun-tasks` | `BUILD SUCCESSFUL`, 597 tests / 86 classes, failure 0, error 0, skipped 0, 2m 57s |
+| `npm run build` | 종료코드 0 |
 
-## 브라우저 QA 체크리스트
+`npm run build`는 518.00 kB 생산 JavaScript 청크 경고를 출력했습니다. 기존 번들 크기 경고이며 Task 5 변경으로 새로 생긴 실패는 아닙니다.
 
-- [ ] 빈 발급 한도를 저장하면 요청에서 한도 필드가 빠지고, 각 소유자 화면에 `발급 무제한`이 표시됩니다.
-- [ ] 한도가 3인 초안은 `발급 0 / 3 · 잔여 3`을 표시합니다.
-- [ ] 매진된 구매자 쿠폰은 `선착순 마감`을 표시하고 버튼이 비활성화됩니다.
-- [ ] 이미 발급받은 매진 쿠폰은 마감 상태보다 `발급 완료`를 우선 표시합니다.
+## 남은 범위
 
-## 자체 검토
-
-- `issueLimit`은 빈 입력일 때 `undefined`로 직렬화되어 선택형 API 계약을 보존합니다.
-- 구매자 버튼 상태는 `claimed || soldOut || claimPending` 순으로 비활성화하며, 라벨도 `claimed`를 먼저 평가합니다.
-- 백엔드·체크아웃 코드에는 변경을 가하지 않았습니다.
+- M27에서 발급 용량/재고와 동시성 정책을 추가합니다.
+- M28에서 쿠폰을 주문 가격에 적용하고 사용·취소·환불 수명주기를 처리합니다.

@@ -246,7 +246,7 @@ class CouponIssueApiTest extends IntegrationTestSupport {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Future<?> durableIssue = executor.submit(() -> {
             Thread.sleep(100);
-            issueTransactionService.issue(memberId, campaignId, java.time.Instant.now());
+            issueTransactionService.confirmLimitedIssue(memberId, campaignId, java.time.Instant.now());
             return null;
         });
         doReturn(CouponIssuanceGateResult.of(ReservationType.IN_PROGRESS))
@@ -258,6 +258,8 @@ class CouponIssueApiTest extends IntegrationTestSupport {
             durableIssue.get(5, TimeUnit.SECONDS);
             executor.shutdownNow();
         }
+        assertThat(memberCouponCount(campaignId)).isEqualTo(1);
+        assertThat(issuedCount(campaignId)).isEqualTo(1);
     }
 
     @Test
