@@ -7,6 +7,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,7 +17,25 @@ import com.sweet.market.coupon.domain.CouponCampaignOwnerType;
 import com.sweet.market.coupon.query.AvailableCouponCampaignRow;
 import com.sweet.market.coupon.query.CouponCampaignSummaryRow;
 
+import jakarta.persistence.LockModeType;
+
 public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, Long> {
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update CouponCampaign campaign
+               set campaign.issuedCount = campaign.issuedCount + 1,
+                   campaign.version = campaign.version + 1
+             where campaign.id = :campaignId
+               and campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.SCHEDULED
+               and campaign.issueStartsAt <= :now and campaign.issueEndsAt > :now
+               and campaign.issuedCount < campaign.issueLimit
+            """)
+    int incrementLimitedIssuedCount(@Param("campaignId") Long campaignId, @Param("now") Instant now);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select campaign from CouponCampaign campaign where campaign.id = :campaignId")
+    Optional<CouponCampaign> findByIdForIssuance(@Param("campaignId") Long campaignId);
 
     Optional<CouponCampaign> findByIdAndStoreId(Long id, Long storeId);
 
@@ -32,7 +52,8 @@ public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, 
                 campaign.id, campaign.ownerType, store.id, store.publicName, campaign.scope, campaign.discountType,
                 campaign.discountValue, campaign.maxDiscountAmount, campaign.minimumPurchaseAmount, campaign.stackable,
                 campaign.title, campaign.label, campaign.issueStartsAt, campaign.issueEndsAt, campaign.validityType,
-                campaign.commonExpiresAt, campaign.validityDays, campaign.lifecycleStatus, count(target.id))
+                campaign.commonExpiresAt, campaign.validityDays, campaign.issueLimit, campaign.issuedCount,
+                campaign.lifecycleStatus, count(target.id))
             from CouponCampaign campaign left join campaign.store store left join campaign.targets target
             where campaign.ownerType = :ownerType and (:storeId is null or campaign.store.id = :storeId)
               and campaign.issueEndsAt >= :periodFrom and campaign.issueStartsAt <= :periodTo
@@ -44,7 +65,8 @@ public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, 
             group by campaign.id, campaign.ownerType, store.id, store.publicName, campaign.scope, campaign.discountType,
                 campaign.discountValue, campaign.maxDiscountAmount, campaign.minimumPurchaseAmount, campaign.stackable,
                 campaign.title, campaign.label, campaign.issueStartsAt, campaign.issueEndsAt, campaign.validityType,
-                campaign.commonExpiresAt, campaign.validityDays, campaign.lifecycleStatus
+                campaign.commonExpiresAt, campaign.validityDays, campaign.issueLimit, campaign.issuedCount,
+                campaign.lifecycleStatus
             order by campaign.id desc
             """, countQuery = """
             select count(campaign) from CouponCampaign campaign
@@ -69,7 +91,7 @@ public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, 
                 campaign.discountValue, campaign.maxDiscountAmount, campaign.minimumPurchaseAmount,
                 campaign.stackable, campaign.title, campaign.label, campaign.issueStartsAt,
                 campaign.issueEndsAt, campaign.validityType, campaign.commonExpiresAt,
-                campaign.validityDays, campaign.lifecycleStatus, campaign.store.id, store.publicName,
+                campaign.validityDays, campaign.issueLimit, campaign.issuedCount, campaign.lifecycleStatus, campaign.store.id, store.publicName,
                 case when exists (select 1 from MemberCoupon coupon
                     where coupon.campaign.id = campaign.id and coupon.member.id = :memberId)
                     then true else false end)

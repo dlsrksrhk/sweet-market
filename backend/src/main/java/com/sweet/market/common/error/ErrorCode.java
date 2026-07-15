@@ -66,6 +66,7 @@ public enum ErrorCode {
     PROMOTION_LIFECYCLE_NOT_ALLOWED(HttpStatus.CONFLICT, "현재 프로모션 상태에서는 처리할 수 없습니다."),
     COUPON_CAMPAIGN_NOT_FOUND(HttpStatus.NOT_FOUND, "쿠폰 캠페인을 찾을 수 없습니다."),
     COUPON_LIFECYCLE_NOT_ALLOWED(HttpStatus.CONFLICT, "현재 쿠폰 캠페인 상태에서는 처리할 수 없습니다."),
+    COUPON_ISSUE_LIMIT_EXCEEDED(HttpStatus.CONFLICT, "쿠폰 발급 한도를 초과했습니다."),
     CATALOG_CURSOR_INVALID(HttpStatus.BAD_REQUEST, "상품 목록 커서가 올바르지 않습니다."),
     CATALOG_CURSOR_STALE(HttpStatus.BAD_REQUEST, "상품 목록 커서가 만료되었습니다.");
 

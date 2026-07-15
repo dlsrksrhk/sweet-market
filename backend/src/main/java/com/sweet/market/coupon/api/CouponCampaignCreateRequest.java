@@ -21,7 +21,7 @@ public record CouponCampaignCreateRequest(
         @NotBlank @Size(max = 100) String title, @Size(max = 200) String label,
         @NotNull LocalDateTime issueStartsAt, @NotNull LocalDateTime issueEndsAt,
         @NotNull CouponValidityType validityType, LocalDateTime commonExpiresAt,
-        @Positive Integer validityDays, List<@Positive Long> productIds
+        @Positive Integer validityDays, @Positive Integer issueLimit, List<@Positive Long> productIds
 ) {
     @AssertTrue(message = "정액 할인에는 최대 할인 금액을 입력할 수 없습니다.")
     public boolean isMaximumDiscountPolicyValid() {

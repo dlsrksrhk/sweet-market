@@ -14,6 +14,7 @@ public record CouponCampaignSummaryRow(
         CouponScope scope, CouponDiscountType discountType, long discountValue, Long maxDiscountAmount,
         long minimumPurchaseAmount, boolean stackable, String title, String label,
         Instant issueStartsAt, Instant issueEndsAt, CouponValidityType validityType,
-        Instant commonExpiresAt, Integer validityDays, CouponLifecycleStatus lifecycleStatus, long targetCount
+        Instant commonExpiresAt, Integer validityDays, Integer issueLimit, int issuedCount,
+        CouponLifecycleStatus lifecycleStatus, long targetCount
 ) {
 }

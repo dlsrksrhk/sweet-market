@@ -16,15 +16,16 @@ public record AvailableCouponCampaignResponse(
         long discountValue, Long maxDiscountAmount, long minimumPurchaseAmount, boolean stackable,
         String title, String label, LocalDateTime issueStartsAt, LocalDateTime issueEndsAt,
         CouponValidityType validityType, LocalDateTime commonExpiresAt, Integer validityDays,
-        CouponEffectiveStatus effectiveStatus, boolean claimed
+        CouponEffectiveStatus effectiveStatus, boolean claimed, boolean soldOut
 ) {
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     public static AvailableCouponCampaignResponse from(AvailableCouponCampaignRow row) {
+        boolean soldOut = row.issueLimit() != null && row.issuedCount() >= row.issueLimit();
         return new AvailableCouponCampaignResponse(row.id(), row.ownerType(), store(row.storeId(), row.storeName()), row.scope(), row.discountType(),
                 row.discountValue(), row.maxDiscountAmount(), row.minimumPurchaseAmount(), row.stackable(),
                 row.title(), row.label(), local(row.issueStartsAt()), local(row.issueEndsAt()), row.validityType(),
-                local(row.commonExpiresAt()), row.validityDays(), CouponEffectiveStatus.ACTIVE, row.claimed());
+                local(row.commonExpiresAt()), row.validityDays(), CouponEffectiveStatus.ACTIVE, row.claimed(), soldOut);
     }
 
     private static LocalDateTime local(Instant value) { return value == null ? null : LocalDateTime.ofInstant(value, KST); }

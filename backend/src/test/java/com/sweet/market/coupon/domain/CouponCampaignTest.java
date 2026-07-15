@@ -20,6 +20,41 @@ class CouponCampaignTest {
     private static final Instant ISSUE_ENDS_AT = Instant.parse("2026-07-20T00:00:00Z");
 
     @Test
+    void 발급한도는_양수이거나_무제한이어야_한다() {
+        assertThatThrownBy(() -> 캠페인(0))
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(CouponDomainError.INVALID_ISSUE_LIMIT);
+        assertThat(캠페인(null).getIssueLimit()).isNull();
+        assertThat(캠페인(3).remainingIssueCount()).isEqualTo(3);
+    }
+
+    @Test
+    void 발급한도는_초안에서만_변경할_수_있다() {
+        CouponCampaign campaign = 캠페인(3);
+        campaign.schedule(Instant.parse("2026-07-15T00:00:00Z"));
+
+        assertThatThrownBy(() -> campaign.changeIssueLimit(5))
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(CouponDomainError.UPDATE_NOT_ALLOWED);
+    }
+
+    @Test
+    void 발급한도를_초과하면_발급횟수를_증가시킬_수_없다() {
+        CouponCampaign campaign = 캠페인(1);
+        campaign.recordIssue();
+
+        assertThat(campaign.getIssuedCount()).isEqualTo(1);
+        assertThat(campaign.remainingIssueCount()).isZero();
+        assertThatThrownBy(campaign::recordIssue)
+                .isInstanceOf(DomainException.class)
+                .extracting(exception -> ((DomainException) exception).error())
+                .isEqualTo(CouponDomainError.ISSUE_LIMIT_EXCEEDED);
+        assertThat(campaign.getIssuedCount()).isEqualTo(1);
+    }
+
+    @Test
     void 발급일_기준_유효기간_쿠폰은_발급시각으로_만료시각을_고정한다() {
         Member member = 회원();
         CouponCampaign daysCampaign = 발급일_기준_캠페인();
@@ -281,6 +316,14 @@ class CouponCampaignTest {
                 7,
                 List.of()
         );
+    }
+
+    private CouponCampaign 캠페인(Integer issueLimit) {
+        return CouponCampaign.create(
+                CouponCampaignOwnerType.PLATFORM, null, CouponScope.ALL_PRODUCTS,
+                CouponDiscountType.FIXED_AMOUNT, 1_000L, null, 0L, true,
+                "발급 한도 쿠폰", null, ISSUE_STARTS_AT, ISSUE_ENDS_AT,
+                CouponValidityType.DAYS_FROM_ISSUANCE, null, 7, issueLimit, List.of());
     }
 
     private Member 회원() {

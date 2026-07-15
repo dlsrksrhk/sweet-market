@@ -1,6 +1,7 @@
 package com.sweet.market.coupon;
 
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -21,6 +22,28 @@ import com.sweet.market.support.IntegrationTestSupport;
 class CouponCampaignApiTest extends IntegrationTestSupport {
 
     @Test
+    void 발급한도와_발급현황을_캠페인_생성_응답으로_확인한다() throws Exception {
+        String token = signupAndLogin("coupon-limit@example.com");
+        Long storeId = createBusinessStore("coupon-limit@example.com", "ACTIVE");
+
+        createStoreCampaign(token, storeId, "ALL_PRODUCTS", "[]", 2)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.issueLimit").value(2))
+                .andExpect(jsonPath("$.data.issuedCount").value(0))
+                .andExpect(jsonPath("$.data.remainingIssueCount").value(2));
+    }
+
+    @Test
+    void 발급한도는_0으로_생성할_수_없다() throws Exception {
+        String token = signupAndLogin("coupon-limit-invalid@example.com");
+        Long storeId = createBusinessStore("coupon-limit-invalid@example.com", "ACTIVE");
+
+        createStoreCampaign(token, storeId, "ALL_PRODUCTS", "[]", 0)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
     void 사업자_상점_소유자는_선택상품과_전체상품_쿠폰을_생성한다() throws Exception {
         String token = signupAndLogin("coupon-owner@example.com");
         Long storeId = createBusinessStore("coupon-owner@example.com", "ACTIVE");
@@ -33,7 +56,10 @@ class CouponCampaignApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.targets", hasSize(1)));
         createStoreCampaign(token, storeId, "ALL_PRODUCTS", "[]")
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.targetCount").value(0));
+                .andExpect(jsonPath("$.data.targetCount").value(0))
+                .andExpect(jsonPath("$.data.issueLimit").value(nullValue()))
+                .andExpect(jsonPath("$.data.issuedCount").value(0))
+                .andExpect(jsonPath("$.data.remainingIssueCount").value(nullValue()));
     }
 
     @Test
@@ -110,17 +136,23 @@ class CouponCampaignApiTest extends IntegrationTestSupport {
     private ResultActions createStoreCampaign(String token, Long storeId, String scope, String productIds) throws Exception {
         return mockMvc.perform(post("/api/stores/{storeId}/coupon-campaigns", storeId).header(HttpHeaders.AUTHORIZATION, "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(requestJson(scope, productIds)));
     }
+    private ResultActions createStoreCampaign(String token, Long storeId, String scope, String productIds, Integer issueLimit) throws Exception {
+        return mockMvc.perform(post("/api/stores/{storeId}/coupon-campaigns", storeId).header(HttpHeaders.AUTHORIZATION, "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(requestJson(scope, productIds, issueLimit)));
+    }
     private ResultActions createPlatformCampaign(String token, String scope, String productIds) throws Exception {
         return mockMvc.perform(post("/api/admin/coupon-campaigns").header(HttpHeaders.AUTHORIZATION, "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(requestJson(scope, productIds)));
     }
     private String requestJson(String scope, String productIds) {
+        return requestJson(scope, productIds, null);
+    }
+    private String requestJson(String scope, String productIds, Integer issueLimit) {
         LocalDateTime start = LocalDateTime.now(ZoneId.of("Asia/Seoul")).plusDays(2).withSecond(0).withNano(0);
         return """
                 { "scope": "%s", "discountType": "FIXED_AMOUNT", "discountValue": 1000,
                   "minimumPurchaseAmount": 0, "stackable": true, "title": "쿠폰 할인", "label": "기간 한정",
                   "issueStartsAt": "%s", "issueEndsAt": "%s", "validityType": "DAYS_FROM_ISSUANCE",
-                  "validityDays": 7, "productIds": %s }
-                """.formatted(scope, start, start.plusDays(1), productIds);
+                  "validityDays": 7, "issueLimit": %s, "productIds": %s }
+                """.formatted(scope, start, start.plusDays(1), issueLimit == null ? "null" : issueLimit, productIds);
     }
     private String signupAndLogin(String email) throws Exception {
         mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON).content(json(new SignupRequest(email, "password123", "판매자")))).andExpect(status().isCreated());

@@ -48,6 +48,10 @@ class CouponMigrationTest {
             assertThat(columnExists(connection, "member_coupons", "minimum_purchase_amount")).isTrue();
             assertThat(columnExists(connection, "member_coupons", "scope")).isTrue();
             assertThat(columnExists(connection, "member_coupons", "stackable")).isTrue();
+            assertThat(columnExists(connection, "coupon_campaigns", "issue_limit")).isTrue();
+            assertThat(columnExists(connection, "coupon_campaigns", "issued_count")).isTrue();
+            assertThat(constraintExists(connection, "chk_coupon_campaigns_issue_limit")).isTrue();
+            assertThat(constraintExists(connection, "chk_coupon_campaigns_issued_count")).isTrue();
         }
     }
 

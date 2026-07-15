@@ -99,6 +99,12 @@ public class CouponCampaign {
     @Column(name = "validity_days")
     private Integer validityDays;
 
+    @Column(name = "issue_limit")
+    private Integer issueLimit;
+
+    @Column(name = "issued_count", nullable = false)
+    private int issuedCount;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "lifecycle_status", nullable = false, length = 20)
     private CouponLifecycleStatus lifecycleStatus;
@@ -127,7 +133,8 @@ public class CouponCampaign {
             Instant issueEndsAt,
             CouponValidityType validityType,
             Instant commonExpiresAt,
-            Integer validityDays
+            Integer validityDays,
+            Integer issueLimit
     ) {
         this.ownerType = ownerType;
         this.store = store;
@@ -144,6 +151,7 @@ public class CouponCampaign {
         this.validityType = validityType;
         this.commonExpiresAt = commonExpiresAt;
         this.validityDays = validityDays;
+        this.issueLimit = issueLimit;
         this.lifecycleStatus = CouponLifecycleStatus.DRAFT;
     }
 
@@ -165,11 +173,36 @@ public class CouponCampaign {
             Integer validityDays,
             List<Product> targets
     ) {
+        return create(ownerType, store, scope, discountType, discountValue, maxDiscountAmount,
+                minimumPurchaseAmount, stackable, title, label, issueStartsAt, issueEndsAt, validityType,
+                commonExpiresAt, validityDays, null, targets);
+    }
+
+    public static CouponCampaign create(
+            CouponCampaignOwnerType ownerType,
+            Store store,
+            CouponScope scope,
+            CouponDiscountType discountType,
+            long discountValue,
+            Long maxDiscountAmount,
+            long minimumPurchaseAmount,
+            boolean stackable,
+            String title,
+            String label,
+            Instant issueStartsAt,
+            Instant issueEndsAt,
+            CouponValidityType validityType,
+            Instant commonExpiresAt,
+            Integer validityDays,
+            Integer issueLimit,
+            List<Product> targets
+    ) {
         validate(ownerType, store, scope, discountType, discountValue, maxDiscountAmount, minimumPurchaseAmount,
                 issueStartsAt, issueEndsAt, validityType, commonExpiresAt, validityDays, targets);
+        validateIssueLimit(issueLimit);
         CouponCampaign campaign = new CouponCampaign(ownerType, store, scope, discountType, discountValue,
                 maxDiscountAmount, minimumPurchaseAmount, stackable, title, label, issueStartsAt, issueEndsAt,
-                validityType, commonExpiresAt, validityDays);
+                validityType, commonExpiresAt, validityDays, issueLimit);
         campaign.replaceTargets(scope, targets);
         return campaign;
     }
@@ -232,11 +265,35 @@ public class CouponCampaign {
             List<Product> targets,
             Instant now
     ) {
+        update(scope, discountType, discountValue, maxDiscountAmount, minimumPurchaseAmount, stackable, title,
+                label, issueStartsAt, issueEndsAt, validityType, commonExpiresAt, validityDays, issueLimit, targets, now);
+    }
+
+    public void update(
+            CouponScope scope,
+            CouponDiscountType discountType,
+            long discountValue,
+            Long maxDiscountAmount,
+            long minimumPurchaseAmount,
+            boolean stackable,
+            String title,
+            String label,
+            Instant issueStartsAt,
+            Instant issueEndsAt,
+            CouponValidityType validityType,
+            Instant commonExpiresAt,
+            Integer validityDays,
+            Integer issueLimit,
+            List<Product> targets,
+            Instant now
+    ) {
         if (!canUpdate(now)) {
             throw new DomainException(CouponDomainError.UPDATE_NOT_ALLOWED);
         }
         validate(ownerType, store, scope, discountType, discountValue, maxDiscountAmount, minimumPurchaseAmount,
                 issueStartsAt, issueEndsAt, validityType, commonExpiresAt, validityDays, targets);
+        validateIssueLimit(issueLimit);
+        changeIssueLimit(issueLimit);
         this.scope = scope;
         this.discountType = discountType;
         this.discountValue = discountValue;
@@ -251,6 +308,25 @@ public class CouponCampaign {
         this.commonExpiresAt = commonExpiresAt;
         this.validityDays = validityDays;
         replaceTargets(scope, targets);
+    }
+
+    public Integer remainingIssueCount() {
+        return issueLimit == null ? null : issueLimit - issuedCount;
+    }
+
+    public void changeIssueLimit(Integer nextIssueLimit) {
+        validateIssueLimit(nextIssueLimit);
+        if (!Objects.equals(issueLimit, nextIssueLimit) && lifecycleStatus != CouponLifecycleStatus.DRAFT) {
+            throw new DomainException(CouponDomainError.UPDATE_NOT_ALLOWED);
+        }
+        issueLimit = nextIssueLimit;
+    }
+
+    public void recordIssue() {
+        if (issueLimit != null && issuedCount >= issueLimit) {
+            throw new DomainException(CouponDomainError.ISSUE_LIMIT_EXCEEDED);
+        }
+        issuedCount++;
     }
 
     public Instant resolveValidUntil(Instant issuedAt) {
@@ -345,6 +421,12 @@ public class CouponCampaign {
                 || (ownerType == CouponCampaignOwnerType.PLATFORM && store != null)
                 || (ownerType == CouponCampaignOwnerType.STORE && store == null)) {
             throw new DomainException(CouponDomainError.OWNER_STORE_INVALID);
+        }
+    }
+
+    private static void validateIssueLimit(Integer issueLimit) {
+        if (issueLimit != null && issueLimit <= 0) {
+            throw new DomainException(CouponDomainError.INVALID_ISSUE_LIMIT);
         }
     }
 

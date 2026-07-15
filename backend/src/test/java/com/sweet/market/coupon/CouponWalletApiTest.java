@@ -4,6 +4,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.nullValue;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -36,6 +37,50 @@ class CouponWalletApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.content[0].campaignId").value(campaignId));
         mockMvc.perform(get("/api/me/coupons").header(HttpHeaders.AUTHORIZATION, "Bearer " + secondToken))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.content").isEmpty());
+    }
+
+    @Test
+    void 소진된_캠페인은_목록에_남고_회원별_발급여부와_마감상태를_반환한다() throws Exception {
+        String issuedBuyer = signupAndLogin("sold-out-issued@example.com");
+        String waitingBuyer = signupAndLogin("sold-out-waiting@example.com");
+        Long campaignId = activeCampaignWithLimit(1);
+
+        claim(issuedBuyer, campaignId);
+
+        mockMvc.perform(get("/api/coupon-campaigns/available").header(HttpHeaders.AUTHORIZATION, "Bearer " + issuedBuyer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(campaignId))
+                .andExpect(jsonPath("$.data.content[0].claimed").value(true))
+                .andExpect(jsonPath("$.data.content[0].soldOut").value(true));
+        mockMvc.perform(get("/api/coupon-campaigns/available").header(HttpHeaders.AUTHORIZATION, "Bearer " + waitingBuyer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(campaignId))
+                .andExpect(jsonPath("$.data.content[0].claimed").value(false))
+                .andExpect(jsonPath("$.data.content[0].soldOut").value(true));
+    }
+
+    @Test
+    void 운영자_목록은_발급한도와_발급수와_잔여수를_반환한다() throws Exception {
+        Long campaignId = draftCampaignWithLimit(3);
+
+        mockMvc.perform(get("/api/admin/coupon-campaigns").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(campaignId))
+                .andExpect(jsonPath("$.data.content[0].issueLimit").value(3))
+                .andExpect(jsonPath("$.data.content[0].issuedCount").value(0))
+                .andExpect(jsonPath("$.data.content[0].remainingIssueCount").value(3));
+    }
+
+    @Test
+    void 운영자_목록의_무제한_캠페인은_발급한도와_잔여수를_null로_반환한다() throws Exception {
+        Long campaignId = draftCampaign(null);
+
+        mockMvc.perform(get("/api/admin/coupon-campaigns").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].id").value(campaignId))
+                .andExpect(jsonPath("$.data.content[0].issueLimit").value(nullValue()))
+                .andExpect(jsonPath("$.data.content[0].issuedCount").value(0))
+                .andExpect(jsonPath("$.data.content[0].remainingIssueCount").value(nullValue()));
     }
 
     @Test
@@ -97,7 +142,11 @@ class CouponWalletApiTest extends IntegrationTestSupport {
 
     private void claim(String token, Long campaignId) throws Exception { mockMvc.perform(post("/api/coupon-campaigns/{campaignId}/claim", campaignId).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)).andExpect(status().isOk()); }
     private void setIssuedAt(Long campaignId, String issuedAt) { jdbcTemplate.update("update member_coupons set issued_at = cast(? as timestamp with time zone) where coupon_campaign_id = ?", issuedAt, campaignId); }
-    private Long activeCampaign() throws Exception { LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul")).withSecond(0).withNano(0); String adminToken = adminToken(); String body = "{ \"scope\": \"ALL_PRODUCTS\", \"discountType\": \"FIXED_AMOUNT\", \"discountValue\": 1000, \"minimumPurchaseAmount\": 0, \"stackable\": true, \"title\": \"지갑 쿠폰\", \"issueStartsAt\": \"%s\", \"issueEndsAt\": \"%s\", \"validityType\": \"DAYS_FROM_ISSUANCE\", \"validityDays\": 7, \"productIds\": [] }".formatted(now.minusDays(1), now.plusDays(2)); String response = mockMvc.perform(post("/api/admin/coupon-campaigns").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(); Long id = objectMapper.readTree(response).path("data").path("id").asLong(); mockMvc.perform(post("/api/admin/coupon-campaigns/{campaignId}/schedule", id).header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken)).andExpect(status().isOk()); return id; }
+    private Long activeCampaign() throws Exception { return activeCampaign(null); }
+    private Long activeCampaignWithLimit(int issueLimit) throws Exception { return activeCampaign(issueLimit); }
+    private Long activeCampaign(Integer issueLimit) throws Exception { Long id = draftCampaign(issueLimit); mockMvc.perform(post("/api/admin/coupon-campaigns/{campaignId}/schedule", id).header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())).andExpect(status().isOk()); return id; }
+    private Long draftCampaignWithLimit(int issueLimit) throws Exception { return draftCampaign(issueLimit); }
+    private Long draftCampaign(Integer issueLimit) throws Exception { LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul")).withSecond(0).withNano(0); String body = "{ \"scope\": \"ALL_PRODUCTS\", \"discountType\": \"FIXED_AMOUNT\", \"discountValue\": 1000, \"minimumPurchaseAmount\": 0, \"stackable\": true, \"title\": \"지갑 쿠폰\", \"issueStartsAt\": \"%s\", \"issueEndsAt\": \"%s\", \"validityType\": \"DAYS_FROM_ISSUANCE\", \"validityDays\": 7, \"issueLimit\": %s, \"productIds\": [] }".formatted(now.minusDays(1), now.plusDays(2), issueLimit == null ? "null" : issueLimit); String response = mockMvc.perform(post("/api/admin/coupon-campaigns").header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString(); return objectMapper.readTree(response).path("data").path("id").asLong(); }
     private void pause(Long campaignId) throws Exception { mockMvc.perform(post("/api/admin/coupon-campaigns/{campaignId}/pause", campaignId).header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())).andExpect(status().isOk()); }
     private String adminToken() throws Exception { if (jdbcTemplate.queryForObject("select count(*) from members where email = ?", Integer.class, "coupon-wallet-admin@example.com") == 0) signupAndLogin("coupon-wallet-admin@example.com"); jdbcTemplate.update("update members set role = 'ADMIN' where email = ?", "coupon-wallet-admin@example.com"); return login("coupon-wallet-admin@example.com"); }
     private String signupAndLogin(String email) throws Exception { mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON).content(json(new SignupRequest(email, "password123", "회원")))).andExpect(status().isCreated()); return login(email); }
