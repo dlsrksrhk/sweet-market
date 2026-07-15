@@ -77,10 +77,19 @@ public class CouponRedemptionService {
         if (coupon.getDiscountType() == CouponDiscountType.FIXED_AMOUNT) {
             return Math.min(coupon.getDiscountValue(), base);
         }
-        long percentage = (base / 100) * coupon.getDiscountValue()
-                + ((base % 100) * coupon.getDiscountValue()) / 100;
+        long percentage = percentageDiscount(base, coupon.getDiscountValue());
         long capped = coupon.getMaxDiscountAmount() == null ? percentage
                 : Math.min(percentage, coupon.getMaxDiscountAmount());
-        return Math.min(capped, base);
+        return Math.max(0L, Math.min(capped, base));
+    }
+
+    private long percentageDiscount(long base, long rate) {
+        if (base <= 0 || rate <= 0) {
+            return 0L;
+        }
+        if (rate >= 100) {
+            return base;
+        }
+        return (base / 100) * rate + ((base % 100) * rate) / 100;
     }
 }

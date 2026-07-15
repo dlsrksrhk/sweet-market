@@ -47,6 +47,36 @@ class CouponRedemptionServiceTest {
     }
 
     @Test
+    void 정률_쿠폰은_나누어떨어지지_않는_기준금액도_소수점_이하를_버린다() {
+        MemberCoupon coupon = coupon(CouponDiscountType.PERCENTAGE, 15, null, 0L, true, CouponScope.ALL_PRODUCTS, Set.of());
+
+        CouponDiscountQuote quote = service.quote(coupon, product(101L), PromotionPrice.withoutPromotion(10_001L), now);
+
+        assertThat(quote.discountAmount()).isEqualTo(1_500L);
+        assertThat(quote.finalPrice()).isEqualTo(8_501L);
+    }
+
+    @Test
+    void 정률_쿠폰은_Long_MAX_VALUE_경계에서도_할인액과_최종금액을_안전하게_계산한다() {
+        MemberCoupon coupon = coupon(CouponDiscountType.PERCENTAGE, Long.MAX_VALUE, null, 0L, true, CouponScope.ALL_PRODUCTS, Set.of());
+
+        CouponDiscountQuote quote = service.quote(coupon, product(101L), PromotionPrice.withoutPromotion(Long.MAX_VALUE), now);
+
+        assertThat(quote.discountAmount()).isEqualTo(Long.MAX_VALUE);
+        assertThat(quote.finalPrice()).isZero();
+    }
+
+    @Test
+    void 정률_쿠폰은_100퍼센트_이상이어도_최대할인금액을_적용한다() {
+        MemberCoupon coupon = coupon(CouponDiscountType.PERCENTAGE, 100, 2_000L, 0L, true, CouponScope.ALL_PRODUCTS, Set.of());
+
+        CouponDiscountQuote quote = service.quote(coupon, product(101L), PromotionPrice.withoutPromotion(10_000L), now);
+
+        assertThat(quote.discountAmount()).isEqualTo(2_000L);
+        assertThat(quote.finalPrice()).isEqualTo(8_000L);
+    }
+
+    @Test
     void 정액_쿠폰은_기준금액까지만_할인해_0원_주문을_만든다() {
         MemberCoupon coupon = coupon(CouponDiscountType.FIXED_AMOUNT, 20_000L, null, 0L, true, CouponScope.ALL_PRODUCTS, Set.of());
 
