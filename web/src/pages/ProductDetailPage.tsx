@@ -55,7 +55,7 @@ export function ProductDetailPage() {
     [ownedStoresQuery.data],
   );
   const eligibleCouponsQuery = useQuery({
-    queryKey: couponQueryKeys.eligible(parsedProductId ?? 0),
+    queryKey: couponQueryKeys.eligible(member?.id ?? 0, parsedProductId ?? 0),
     queryFn: () => getEligibleCoupons(parsedProductId ?? 0),
     enabled: !authLoading && member !== null && product !== undefined && !ownedStoreIds.has(product.storeId),
   });

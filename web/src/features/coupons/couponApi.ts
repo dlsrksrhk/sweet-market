@@ -83,7 +83,7 @@ export const couponQueryKeys = {
   all: ['coupons'] as const,
   available: (input: CouponListInput) => [...couponQueryKeys.all, 'available', input.source ?? null, input.storeId ?? null, input.page, input.size] as const,
   wallet: (input: CouponListInput & { status?: MemberCouponStatus }) => [...couponQueryKeys.all, 'wallet', input.status ?? null, input.page, input.size] as const,
-  eligible: (productId: number) => [...couponQueryKeys.all, 'eligible', productId] as const,
+  eligible: (memberId: number, productId: number) => [...couponQueryKeys.all, 'eligible', memberId, productId] as const,
   store: (storeId: number) => [...couponQueryKeys.all, 'store', storeId] as const,
   storeList: (storeId: number, input: CouponCampaignSearchInput) => [...couponQueryKeys.store(storeId), 'list', input.status ?? null, input.periodFrom ?? null, input.periodTo ?? null, input.page, input.size] as const,
   storeDetail: (storeId: number, campaignId: number) => [...couponQueryKeys.store(storeId), 'detail', campaignId] as const,

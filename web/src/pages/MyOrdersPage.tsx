@@ -3,6 +3,7 @@ import { type FormEvent, useRef, useState } from 'react';
 import { completeDelivery, startDelivery } from '../features/deliveries/deliveryApi';
 import { useAuth } from '../features/auth/AuthProvider';
 import { cancelOrder, confirmOrder, createRefundRequest, getMyOrders, type OrderSummary } from '../features/orders/orderApi';
+import { couponQueryKeys } from '../features/coupons/couponApi';
 import { approvePayment } from '../features/payments/paymentApi';
 import { createReview } from '../features/reviews/reviewApi';
 import { type ApiError } from '../shared/api/http';
@@ -421,6 +422,7 @@ async function invalidateOrderResources(queryClient: QueryClient, productId: num
     queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
     queryClient.invalidateQueries({ queryKey: ['products'] }),
     queryClient.invalidateQueries({ queryKey: ['products', productId] }),
+    queryClient.invalidateQueries({ queryKey: couponQueryKeys.all }),
   ]);
 }
 
