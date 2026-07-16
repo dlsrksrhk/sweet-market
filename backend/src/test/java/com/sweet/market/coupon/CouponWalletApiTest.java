@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
@@ -116,7 +118,11 @@ class CouponWalletApiTest extends IntegrationTestSupport {
         setIssuedAt(expiredCampaignId, "2026-07-14T09:00:00Z");
         setIssuedAt(unavailableCampaignId, "2026-07-14T08:00:00Z");
         jdbcTemplate.update("update member_coupons set status = 'USED' where coupon_campaign_id = ?", usedCampaignId);
-        jdbcTemplate.update("update member_coupons set valid_until = current_timestamp - interval '1 second' where coupon_campaign_id = ?", expiredCampaignId);
+        jdbcTemplate.update(
+                "update member_coupons set valid_until = ? where coupon_campaign_id = ?",
+                Timestamp.from(Instant.now().minusSeconds(1)),
+                expiredCampaignId
+        );
         pause(unavailableCampaignId);
 
         mockMvc.perform(get("/api/me/coupons?page=0&size=2").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))

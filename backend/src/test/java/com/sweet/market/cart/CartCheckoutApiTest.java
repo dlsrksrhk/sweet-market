@@ -20,6 +20,9 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.sql.Timestamp;
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -180,7 +183,11 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
         Long promotionId = createStoreWidePromotion(productId, 500_000L);
         addCart(buyerToken, productId);
         Long cartItemId = findCartItemId(buyerId, productId);
-        jdbcTemplate.update("update promotion_campaigns set end_at = current_timestamp - interval '1 second' where id = ?", promotionId);
+        jdbcTemplate.update(
+                "update promotion_campaigns set end_at = ? where id = ?",
+                Timestamp.from(Instant.now().minusSeconds(1)),
+                promotionId
+        );
 
         String response = mockMvc.perform(post("/api/me/cart/checkout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)

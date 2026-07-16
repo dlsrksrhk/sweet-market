@@ -8,6 +8,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
@@ -65,7 +67,11 @@ class CouponEligibilityApiTest extends IntegrationTestSupport {
         claim(buyerToken, expiredCampaign);
         claim(buyerToken, reservedCampaign);
         jdbcTemplate.update("update member_coupons set status = 'USED' where coupon_campaign_id = ?", usedCampaign);
-        jdbcTemplate.update("update member_coupons set valid_until = current_timestamp - interval '1 second' where coupon_campaign_id = ?", expiredCampaign);
+        jdbcTemplate.update(
+                "update member_coupons set valid_until = ? where coupon_campaign_id = ?",
+                Timestamp.from(Instant.now().minusSeconds(1)),
+                expiredCampaign
+        );
         Long orderId = createOrder(buyerToken, productId);
         Long reservedCouponId = jdbcTemplate.queryForObject("select id from member_coupons where coupon_campaign_id = ?", Long.class, reservedCampaign);
         jdbcTemplate.update("""
