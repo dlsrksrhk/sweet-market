@@ -1,5 +1,8 @@
 package com.sweet.market.productview.application;
 
+import com.sweet.market.common.error.BusinessException;
+import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.productview.domain.ProductViewEvent;
 import com.sweet.market.productview.repository.ProductViewDeduplicationRepository;
@@ -35,18 +38,18 @@ public class ProductViewRecordingService {
 
     @Transactional
     public void record(Long productId, String rawVisitor, Instant now) {
-        productRepository.findBuyerVisibleDetailById(productId).ifPresent(product -> {
-            String visitorHash = hash(rawVisitor);
-            int updated = productViewDeduplicationRepository.advanceLastCountedAt(
-                    productId,
-                    visitorHash,
-                    now,
-                    now.minus(DEDUPLICATION_WINDOW)
-            );
-            if (updated == 1) {
-                productViewEventRepository.save(ProductViewEvent.create(product, visitorHash, now));
-            }
-        });
+        Product product = productRepository.findBuyerVisibleDetailById(productId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+        String visitorHash = hash(rawVisitor);
+        int updated = productViewDeduplicationRepository.advanceLastCountedAt(
+                productId,
+                visitorHash,
+                now,
+                now.minus(DEDUPLICATION_WINDOW)
+        );
+        if (updated == 1) {
+            productViewEventRepository.save(ProductViewEvent.create(product, visitorHash, now));
+        }
     }
 
     private String hash(String rawVisitor) {

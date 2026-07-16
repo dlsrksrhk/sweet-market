@@ -36,15 +36,18 @@ public class ProductViewController {
             HttpServletResponse response
     ) {
         String visitor = findVisitor(request);
+        Cookie visitorCookie = null;
         if (visitor == null) {
             visitor = UUID.randomUUID().toString();
-            Cookie cookie = new Cookie(VISITOR_COOKIE_NAME, visitor);
-            cookie.setPath("/");
-            cookie.setHttpOnly(true);
-            cookie.setMaxAge(VISITOR_COOKIE_MAX_AGE_SECONDS);
-            response.addCookie(cookie);
+            visitorCookie = new Cookie(VISITOR_COOKIE_NAME, visitor);
+            visitorCookie.setPath("/");
+            visitorCookie.setHttpOnly(true);
+            visitorCookie.setMaxAge(VISITOR_COOKIE_MAX_AGE_SECONDS);
         }
         productViewRecordingService.record(productId, visitor, Instant.now());
+        if (visitorCookie != null) {
+            response.addCookie(visitorCookie);
+        }
     }
 
     private String findVisitor(HttpServletRequest request) {

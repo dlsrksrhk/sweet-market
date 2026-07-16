@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class ProductViewApiTest extends IntegrationTestSupport {
@@ -35,6 +36,27 @@ class ProductViewApiTest extends IntegrationTestSupport {
                 .andExpect(header().string("Set-Cookie", containsString("Max-Age=604800")));
 
         assertThat(viewCount(productId)).isEqualTo(1);
+    }
+
+    @Test
+    void 방문자_쿠키는_HttpOnly_속성을_포함한다() throws Exception {
+        Long productId = createBuyerVisibleProduct("view-cookie-http-only@example.com", "view-cookie-http-only");
+
+        mockMvc.perform(post("/api/products/{productId}/views", productId))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("Set-Cookie", containsString("HttpOnly")));
+    }
+
+    @Test
+    void 숨김_상품_조회는_기존_공개_오류를_반환하고_이벤트를_기록하지_않는다() throws Exception {
+        Long productId = createBuyerVisibleProduct("view-hidden@example.com", "view-hidden");
+        jdbcTemplate.update("update products set status = 'HIDDEN' where id = ?", productId);
+
+        mockMvc.perform(post("/api/products/{productId}/views", productId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
+
+        assertThat(viewCount(productId)).isZero();
     }
 
     @Test
