@@ -4,19 +4,15 @@ import com.sweet.market.cart.api.CartCheckoutResponse;
 import com.sweet.market.cart.api.CartResponse;
 import com.sweet.market.cart.domain.CartItem;
 import com.sweet.market.cart.repository.CartItemRepository;
-import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
-import com.sweet.market.order.api.OrderSummaryResponse;
-import com.sweet.market.order.domain.Order;
-import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
-import com.sweet.market.product.domain.ProductDomainError;
 import com.sweet.market.product.repository.ProductRepository;
-import com.sweet.market.promotion.application.PromotionPricingService;
+import com.sweet.market.purchase.application.CartPurchaseCommand;
+import com.sweet.market.purchase.application.PurchaseReservationService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -24,9 +20,7 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 @Service
 public class CartService {
@@ -34,26 +28,23 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final MemberRepository memberRepository;
-    private final OrderRepository orderRepository;
     private final InventoryService inventoryService;
-    private final PromotionPricingService promotionPricingService;
+    private final PurchaseReservationService purchaseReservationService;
     private final TransactionTemplate insertTransaction;
 
     public CartService(
             CartItemRepository cartItemRepository,
             ProductRepository productRepository,
             MemberRepository memberRepository,
-            OrderRepository orderRepository,
             InventoryService inventoryService,
-            PromotionPricingService promotionPricingService,
+            PurchaseReservationService purchaseReservationService,
             PlatformTransactionManager transactionManager
     ) {
         this.cartItemRepository = cartItemRepository;
         this.productRepository = productRepository;
         this.memberRepository = memberRepository;
-        this.orderRepository = orderRepository;
         this.inventoryService = inventoryService;
-        this.promotionPricingService = promotionPricingService;
+        this.purchaseReservationService = purchaseReservationService;
         this.insertTransaction = new TransactionTemplate(transactionManager);
         this.insertTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -94,38 +85,8 @@ public class CartService {
         return new CartResponse(productId, false);
     }
 
-    @Transactional
-    public CartCheckoutResponse checkout(Long buyerId, List<Long> cartItemIds) {
-        if (cartItemIds == null || cartItemIds.isEmpty()) {
-            throw new BusinessException(ErrorCode.CART_CHECKOUT_EMPTY);
-        }
-
-        Set<Long> uniqueIds = new HashSet<>(cartItemIds);
-        if (uniqueIds.size() != cartItemIds.size()) {
-            throw new BusinessException(ErrorCode.CART_CHECKOUT_INVALID_ITEMS);
-        }
-
-        List<CartItem> cartItems = cartItemRepository.findAllWithBuyerProductSellerImagesByIdIn(cartItemIds);
-        if (cartItems.size() != cartItemIds.size()) {
-            throw new BusinessException(ErrorCode.CART_CHECKOUT_INVALID_ITEMS);
-        }
-
-        if (cartItems.stream().anyMatch(cartItem -> !cartItem.getBuyer().getId().equals(buyerId))) {
-            throw new BusinessException(ErrorCode.CART_CHECKOUT_INVALID_ITEMS);
-        }
-
-        if (cartItems.stream().anyMatch(cartItem -> isCheckoutNotAllowed(buyerId, cartItem))) {
-            throw new BusinessException(ErrorCode.CART_CHECKOUT_NOT_ALLOWED);
-        }
-
-        List<Order> orders = cartItems.stream()
-                .map(this::createAndSave)
-                .toList();
-        cartItemRepository.deleteAll(cartItems);
-
-        return new CartCheckoutResponse(orders.stream()
-                .map(OrderSummaryResponse::from)
-                .toList());
+    public CartCheckoutResponse checkout(Long buyerId, List<Long> cartItemIds, String idempotencyKey) {
+        return purchaseReservationService.purchaseCart(new CartPurchaseCommand(buyerId, cartItemIds), idempotencyKey);
     }
 
     private void validateCartable(Long buyerId, Product product) {
@@ -137,36 +98,4 @@ public class CartService {
         }
     }
 
-    private boolean isCheckoutNotAllowed(Long buyerId, CartItem cartItem) {
-        Product product = cartItem.getProduct();
-        return product.isOwnedBy(buyerId)
-                || !product.isPurchasable()
-                || !inventoryService.isAvailableForOrder(product);
-    }
-
-    private Order saveAndReserve(Order order) {
-        Order savedOrder = orderRepository.save(order);
-        try {
-            inventoryService.reserveForOrder(savedOrder);
-        } catch (BusinessException exception) {
-            if (exception.errorCode() == ErrorCode.PRODUCT_NOT_ON_SALE) {
-                throw new BusinessException(ErrorCode.CART_CHECKOUT_NOT_ALLOWED, exception);
-            }
-            throw exception;
-        }
-        return savedOrder;
-    }
-
-    private Order createAndSave(CartItem cartItem) {
-        try {
-            return saveAndReserve(Order.create(
-                    cartItem.getBuyer(), cartItem.getProduct(), promotionPricingService.quote(cartItem.getProduct())
-            ));
-        } catch (DomainException exception) {
-            if (exception.error() == ProductDomainError.NOT_ON_SALE) {
-                throw new BusinessException(ErrorCode.CART_CHECKOUT_NOT_ALLOWED, exception);
-            }
-            throw exception;
-        }
-    }
 }

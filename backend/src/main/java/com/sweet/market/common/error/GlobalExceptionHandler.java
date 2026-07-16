@@ -1,5 +1,7 @@
 package com.sweet.market.common.error;
 
+import com.sweet.market.purchase.api.CartCheckoutFailureException;
+import com.sweet.market.purchase.api.CartCheckoutFailureResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -19,6 +21,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(errorCode.status())
                 .body(ErrorResponse.of(errorCode));
+    }
+
+    @ExceptionHandler(CartCheckoutFailureException.class)
+    public ResponseEntity<CartCheckoutFailureResponse> handleCartCheckoutFailure(
+            CartCheckoutFailureException exception
+    ) {
+        return ResponseEntity.status(ErrorCode.CART_CHECKOUT_NOT_ALLOWED.status())
+                .body(new CartCheckoutFailureResponse(
+                        ErrorCode.CART_CHECKOUT_NOT_ALLOWED.name(),
+                        ErrorCode.CART_CHECKOUT_NOT_ALLOWED.message(),
+                        exception.failure()
+                ));
     }
 
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)

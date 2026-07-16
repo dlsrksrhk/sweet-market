@@ -6,10 +6,9 @@ import com.sweet.market.cart.repository.CartItemRepository;
 import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
-import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
-import com.sweet.market.promotion.application.PromotionPricingService;
+import com.sweet.market.purchase.application.PurchaseReservationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -30,17 +29,15 @@ class CartServiceTest {
         CartItemRepository cartItemRepository = mock(CartItemRepository.class);
         ProductRepository productRepository = mock(ProductRepository.class);
         MemberRepository memberRepository = mock(MemberRepository.class);
-        OrderRepository orderRepository = mock(OrderRepository.class);
         InventoryService inventoryService = mock(InventoryService.class);
-        PromotionPricingService promotionPricingService = mock(PromotionPricingService.class);
+        PurchaseReservationService purchaseReservationService = mock(PurchaseReservationService.class);
         PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
         CartService cartService = new CartService(
                 cartItemRepository,
                 productRepository,
                 memberRepository,
-                orderRepository,
                 inventoryService,
-                promotionPricingService,
+                purchaseReservationService,
                 transactionManager
         );
         Member buyer = member(1L, "buyer@example.com", "buyer");

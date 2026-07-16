@@ -22,6 +22,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -56,6 +58,7 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherBuyerToken)
+                        .header("Idempotency-Key", "existing-cart-stock-buyer")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -83,6 +86,7 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
 
         String response = mockMvc.perform(post("/api/me/cart/checkout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -119,6 +123,7 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/me/cart/checkout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -159,6 +164,7 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/me/cart/checkout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -191,6 +197,7 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
 
         String response = mockMvc.perform(post("/api/me/cart/checkout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -222,6 +229,7 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/me/cart/checkout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -244,6 +252,7 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/me/cart/checkout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -271,6 +280,7 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/me/cart/checkout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherBuyerToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -297,6 +307,7 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/me/cart/checkout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -309,6 +320,100 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
         assertThat(countOrders()).isZero();
         assertThat(countCartItems()).isEqualTo(1);
         assertThat(findProductStatus(productId)).isEqualTo("ON_SALE");
+    }
+
+    @Test
+    void 같은_장바구니_키는_성공결과를_재사용한다() throws Exception {
+        String sellerToken = signupAndLogin("cart-retry-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("cart-retry-buyer@example.com", "password123", "buyer");
+        Long buyerId = findMemberIdByEmail("cart-retry-buyer@example.com");
+        Long firstProductId = createProduct(sellerToken, "First Product", "first.jpg");
+        Long secondProductId = createProduct(sellerToken, "Second Product", "second.jpg");
+        addCart(buyerToken, firstProductId);
+        addCart(buyerToken, secondProductId);
+        Long firstCartItemId = findCartItemId(buyerId, firstProductId);
+        Long secondCartItemId = findCartItemId(buyerId, secondProductId);
+
+        String first = checkout(buyerToken, List.of(firstCartItemId, secondCartItemId), "cart-retry-1");
+        String second = checkout(buyerToken, List.of(firstCartItemId, secondCartItemId), "cart-retry-1");
+
+        assertThat(objectMapper.readTree(second)).isEqualTo(objectMapper.readTree(first));
+        assertThat(countOrders()).isEqualTo(2);
+    }
+
+    @Test
+    void 경쟁으로_장바구니_항목이_품절되면_문제상품을_반환하고_전체를_롤백한다() throws Exception {
+        String sellerToken = signupAndLogin("cart-race-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("cart-race-buyer@example.com", "password123", "buyer");
+        String otherBuyerToken = signupAndLogin("cart-race-other@example.com", "password123", "other");
+        Long buyerId = findMemberIdByEmail("cart-race-buyer@example.com");
+        Long availableProductId = createProduct(sellerToken, "Available Product", "available.jpg");
+        Long stockProductId = createStockProduct("cart-race-seller@example.com", 1);
+        addCart(buyerToken, availableProductId);
+        addCart(buyerToken, stockProductId);
+        Long availableCartItemId = findCartItemId(buyerId, availableProductId);
+        Long stockCartItemId = findCartItemId(buyerId, stockProductId);
+
+        mockMvc.perform(post("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherBuyerToken)
+                        .header("Idempotency-Key", "cart-race-other-buyer")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productId\":%d}".formatted(stockProductId)))
+                .andExpect(status().isCreated());
+
+        String failure = checkoutFailure(
+                buyerToken,
+                List.of(availableCartItemId, stockCartItemId),
+                "cart-race-1"
+        );
+
+        JsonNode item = objectMapper.readTree(failure).path("data").path("items").get(0);
+        assertThat(item.path("cartItemId").asLong()).isEqualTo(stockCartItemId);
+        assertThat(item.path("productId").asLong()).isEqualTo(stockProductId);
+        assertThat(item.path("reason").asText()).isEqualTo("SOLD_OUT");
+        assertThat(item.has("quantity")).isFalse();
+        assertThat(countOrdersFor(buyerId)).isZero();
+        assertThat(countCartItemsFor(buyerId)).isEqualTo(2);
+        assertThat(findProductStatus(availableProductId)).isEqualTo("ON_SALE");
+        assertInventory(stockProductId, 1, 1);
+    }
+
+    @Test
+    void 같은_장바구니_키는_문제상품_실패결과를_재사용한다() throws Exception {
+        String sellerToken = signupAndLogin("cart-failure-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("cart-failure-buyer@example.com", "password123", "buyer");
+        Long buyerId = findMemberIdByEmail("cart-failure-buyer@example.com");
+        Long productId = createProduct(sellerToken, "Unavailable Product", "unavailable.jpg");
+        addCart(buyerToken, productId);
+        Long cartItemId = findCartItemId(buyerId, productId);
+
+        mockMvc.perform(delete("/api/products/{productId}", productId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
+                .andExpect(status().isOk());
+
+        String first = checkoutFailure(buyerToken, List.of(cartItemId), "cart-failure-retry-1");
+        String second = checkoutFailure(buyerToken, List.of(cartItemId), "cart-failure-retry-1");
+
+        assertThat(objectMapper.readTree(second)).isEqualTo(objectMapper.readTree(first));
+        assertThat(objectMapper.readTree(first).path("data").path("items").get(0).path("cartItemId").asLong())
+                .isEqualTo(cartItemId);
+        assertThat(objectMapper.readTree(first).path("data").path("items").get(0).path("productId").asLong())
+                .isEqualTo(productId);
+        assertThat(objectMapper.readTree(first).path("data").path("items").get(0).path("reason").asText())
+                .isEqualTo("UNAVAILABLE");
+        assertThat(objectMapper.readTree(first).path("data").path("items").get(0).has("quantity")).isFalse();
+    }
+
+    @Test
+    void 장바구니_체크아웃은_멱등성_키가_필요하다() throws Exception {
+        String buyerToken = signupAndLogin("cart-idempotency-buyer@example.com", "password123", "buyer");
+
+        mockMvc.perform(post("/api/me/cart/checkout")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cartItemIds\":[1]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
     @Test
@@ -469,6 +574,26 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk());
     }
 
+    private String checkout(String accessToken, List<Long> cartItemIds, String idempotencyKey) throws Exception {
+        return mockMvc.perform(post("/api/me/cart/checkout")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header("Idempotency-Key", idempotencyKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cartItemIds\":%s}".formatted(cartItemIds)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+    }
+
+    private String checkoutFailure(String accessToken, List<Long> cartItemIds, String idempotencyKey) throws Exception {
+        return mockMvc.perform(post("/api/me/cart/checkout")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header("Idempotency-Key", idempotencyKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cartItemIds\":%s}".formatted(cartItemIds)))
+                .andExpect(status().isConflict())
+                .andReturn().getResponse().getContentAsString();
+    }
+
     private Long findMemberIdByEmail(String email) {
         return jdbcTemplate.queryForObject(
                 "SELECT id FROM members WHERE email = ?",
@@ -493,6 +618,24 @@ class CartCheckoutApiTest extends IntegrationTestSupport {
 
     private long countCartItems() {
         Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM cart_items", Long.class);
+        return count == null ? 0 : count;
+    }
+
+    private long countOrdersFor(Long buyerId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM orders WHERE buyer_id = ?",
+                Long.class,
+                buyerId
+        );
+        return count == null ? 0 : count;
+    }
+
+    private long countCartItemsFor(Long buyerId) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM cart_items WHERE buyer_id = ?",
+                Long.class,
+                buyerId
+        );
         return count == null ? 0 : count;
     }
 

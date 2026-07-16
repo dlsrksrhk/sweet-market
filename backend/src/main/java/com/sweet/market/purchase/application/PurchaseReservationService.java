@@ -7,6 +7,9 @@ import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.common.error.ErrorResponse;
+import com.sweet.market.cart.api.CartCheckoutResponse;
+import com.sweet.market.cart.domain.CartItem;
+import com.sweet.market.cart.repository.CartItemRepository;
 import com.sweet.market.coupon.application.CouponRedemptionService;
 import com.sweet.market.coupon.application.CouponReservationQuote;
 import com.sweet.market.member.domain.Member;
@@ -21,11 +24,18 @@ import com.sweet.market.product.domain.ProductDomainError;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.promotion.application.PromotionPrice;
 import com.sweet.market.promotion.application.PromotionPricingService;
+import com.sweet.market.purchase.api.CartCheckoutFailure;
+import com.sweet.market.purchase.api.CartCheckoutFailureException;
+import com.sweet.market.purchase.api.CartCheckoutFailureItem;
+import com.sweet.market.purchase.api.CartCheckoutFailureResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -33,6 +43,7 @@ import java.util.UUID;
 public class PurchaseReservationService {
 
     private final PurchaseRequestService requestService;
+    private final CartItemRepository cartItemRepository;
     private final MemberRepository memberRepository;
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
@@ -45,6 +56,7 @@ public class PurchaseReservationService {
 
     public PurchaseReservationService(
             PurchaseRequestService requestService,
+            CartItemRepository cartItemRepository,
             MemberRepository memberRepository,
             ProductRepository productRepository,
             OrderRepository orderRepository,
@@ -56,6 +68,7 @@ public class PurchaseReservationService {
             PlatformTransactionManager transactionManager
     ) {
         this.requestService = requestService;
+        this.cartItemRepository = cartItemRepository;
         this.memberRepository = memberRepository;
         this.productRepository = productRepository;
         this.orderRepository = orderRepository;
@@ -97,6 +110,40 @@ public class PurchaseReservationService {
         }
     }
 
+    public CartCheckoutResponse purchaseCart(CartPurchaseCommand command, String idempotencyKey) {
+        PurchaseRequestService.Claim claim = requestService.claim(
+                command.buyerId(), idempotencyKey, cartFingerprint(command.cartItemIds()), Instant.now()
+        );
+        if (claim instanceof PurchaseRequestService.Claim.Replay replay) {
+            return replayCart(replay);
+        }
+
+        UUID executionToken = ((PurchaseRequestService.Claim.New) claim).executionToken();
+        try {
+            CartCheckoutResponse response = transactionTemplate.execute(status -> reserveCart(command));
+            requestService.completeSuccess(
+                    command.buyerId(), idempotencyKey, executionToken, 200,
+                    objectMapper.valueToTree(ApiResponse.ok(response)), Instant.now()
+            );
+            return response;
+        } catch (CartCheckoutFailureException exception) {
+            CartCheckoutFailureResponse response = cartFailureResponse(exception.failure());
+            requestService.completeBusinessFailure(
+                    command.buyerId(), idempotencyKey, executionToken, 409,
+                    objectMapper.valueToTree(response), Instant.now()
+            );
+            throw exception;
+        } catch (BusinessException exception) {
+            requestService.completeBusinessFailure(
+                    command.buyerId(), idempotencyKey, executionToken,
+                    exception.errorCode().status().value(),
+                    objectMapper.valueToTree(ErrorResponse.of(exception.errorCode())),
+                    Instant.now()
+            );
+            throw exception;
+        }
+    }
+
     private OrderResponse replay(PurchaseRequestService.Claim.Replay replay) {
         if (replay.httpStatus() == 201) {
             return objectMapper.convertValue(replay.payload().path("data"), OrderResponse.class);
@@ -104,6 +151,97 @@ public class PurchaseReservationService {
 
         JsonNode code = replay.payload().path("code");
         throw new BusinessException(ErrorCode.valueOf(code.asText()));
+    }
+
+    private CartCheckoutResponse replayCart(PurchaseRequestService.Claim.Replay replay) {
+        if (replay.httpStatus() == 200) {
+            return objectMapper.convertValue(replay.payload().path("data"), CartCheckoutResponse.class);
+        }
+        if ("CART_CHECKOUT_NOT_ALLOWED".equals(replay.payload().path("code").asText())) {
+            CartCheckoutFailure failure = objectMapper.convertValue(
+                    replay.payload().path("data"), CartCheckoutFailure.class
+            );
+            throw new CartCheckoutFailureException(failure);
+        }
+
+        throw new BusinessException(ErrorCode.valueOf(replay.payload().path("code").asText()));
+    }
+
+    private CartCheckoutResponse reserveCart(CartPurchaseCommand command) {
+        List<Long> cartItemIds = command.cartItemIds();
+        validateCartItemIds(cartItemIds);
+        List<CartItem> cartItems = cartItemRepository.findAllWithBuyerProductSellerImagesByIdIn(cartItemIds);
+        validateCartItems(command.buyerId(), cartItemIds, cartItems);
+
+        List<CartItem> orderedCartItems = cartItems.stream()
+                .sorted(Comparator.comparing(cartItem -> cartItem.getProduct().getId()))
+                .toList();
+        List<Long> orderIds = orderedCartItems.stream()
+                .map(this::createAndReserveCartOrder)
+                .map(Order::getId)
+                .toList();
+
+        cartItemRepository.deleteAllByIdInBatch(orderedCartItems.stream().map(CartItem::getId).toList());
+        return new CartCheckoutResponse(orderIds.stream()
+                .map(orderId -> orderRepository.findWithBuyerAndProductById(orderId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND)))
+                .map(com.sweet.market.order.api.OrderSummaryResponse::from)
+                .toList());
+    }
+
+    private void validateCartItemIds(List<Long> cartItemIds) {
+        if (cartItemIds == null || cartItemIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.CART_CHECKOUT_EMPTY);
+        }
+        if (new HashSet<>(cartItemIds).size() != cartItemIds.size()) {
+            throw new BusinessException(ErrorCode.CART_CHECKOUT_INVALID_ITEMS);
+        }
+    }
+
+    private void validateCartItems(Long buyerId, List<Long> cartItemIds, List<CartItem> cartItems) {
+        if (cartItems.size() != cartItemIds.size()
+                || cartItems.stream().anyMatch(cartItem -> !cartItem.getBuyer().getId().equals(buyerId))) {
+            throw new BusinessException(ErrorCode.CART_CHECKOUT_INVALID_ITEMS);
+        }
+    }
+
+    private Order createAndReserveCartOrder(CartItem cartItem) {
+        try {
+            Product product = productRepository.findWithStoreForUpdate(cartItem.getProduct().getId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_UNAVAILABLE));
+            PromotionPrice price = promotionPricingService.quote(product);
+            Order order = orderRepository.saveAndFlush(Order.create(cartItem.getBuyer(), product, price));
+            productReservationService.reserve(order);
+            return order;
+        } catch (BusinessException | DomainException exception) {
+            throw cartCheckoutFailure(cartItem, exception);
+        }
+    }
+
+    private CartCheckoutFailureException cartCheckoutFailure(CartItem cartItem, RuntimeException exception) {
+        CartCheckoutFailureItem.Reason reason = exception instanceof BusinessException businessException
+                && businessException.errorCode() == ErrorCode.PRODUCT_SOLD_OUT
+                ? CartCheckoutFailureItem.Reason.SOLD_OUT
+                : CartCheckoutFailureItem.Reason.UNAVAILABLE;
+        return new CartCheckoutFailureException(new CartCheckoutFailure(List.of(new CartCheckoutFailureItem(
+                cartItem.getId(),
+                cartItem.getProduct().getId(),
+                cartItem.getProduct().getTitle(),
+                reason
+        ))));
+    }
+
+    private String cartFingerprint(List<Long> cartItemIds) {
+        return "cart:" + cartItemIds.stream().sorted().map(String::valueOf).reduce((left, right) -> left + "," + right)
+                .orElse("");
+    }
+
+    private CartCheckoutFailureResponse cartFailureResponse(CartCheckoutFailure failure) {
+        return new CartCheckoutFailureResponse(
+                ErrorCode.CART_CHECKOUT_NOT_ALLOWED.name(),
+                ErrorCode.CART_CHECKOUT_NOT_ALLOWED.message(),
+                failure
+        );
     }
 
     private OrderResponse reserveDirect(DirectPurchaseCommand command) {

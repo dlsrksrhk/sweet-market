@@ -9,10 +9,12 @@ import com.sweet.market.seller.report.SellerProductStatusCountProjection;
 import com.sweet.market.store.operations.StoreCatalogProductResponse;
 import com.sweet.market.store.operations.StoreCatalogSummaryResponse;
 import com.sweet.market.store.storefront.StorefrontProductResponse;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -22,6 +24,11 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"store", "store.ownerMember"})
+    @Query("select product from Product product where product.id = :productId")
+    Optional<Product> findWithStoreForUpdate(@Param("productId") Long productId);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
