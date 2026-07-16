@@ -34,6 +34,7 @@ export function ProductDetailPage() {
   const [wishlistState, setWishlistState] = useState<WishlistResponse | null>(null);
   const [cartState, setCartState] = useState<CartResponse | null>(null);
   const [selectedMemberCouponId, setSelectedMemberCouponId] = useState<number | null>(null);
+  const [orderIdempotencyKey, setOrderIdempotencyKey] = useState<string | null>(null);
 
   const { data: product, error, isLoading } = useQuery({
     queryKey: ['products', parsedProductId],
@@ -69,8 +70,10 @@ export function ProductDetailPage() {
     },
   });
   const orderMutation = useMutation({
-    mutationFn: (memberCouponId: number | null) => createOrder(parsedProductId ?? 0, memberCouponId),
+    mutationFn: ({ memberCouponId, idempotencyKey }: { memberCouponId: number | null; idempotencyKey: string }) =>
+      createOrder(parsedProductId ?? 0, memberCouponId, idempotencyKey),
     onSuccess: async () => {
+      setOrderIdempotencyKey(null);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
@@ -78,6 +81,11 @@ export function ProductDetailPage() {
         queryClient.invalidateQueries({ queryKey: couponQueryKeys.all }),
       ]);
       navigate('/me/orders');
+    },
+    onError: (error) => {
+      if (!isOrderRequestInProgress(error)) {
+        setOrderIdempotencyKey(null);
+      }
     },
   });
 
@@ -185,7 +193,10 @@ export function ProductDetailPage() {
                 <select
                   value={selectedMemberCouponId ?? ''}
                   disabled={orderMutation.isPending || eligibleCouponsQuery.isLoading}
-                  onChange={(event) => setSelectedMemberCouponId(event.target.value === '' ? null : Number(event.target.value))}
+                  onChange={(event) => {
+                    setSelectedMemberCouponId(event.target.value === '' ? null : Number(event.target.value));
+                    setOrderIdempotencyKey(null);
+                  }}
                 >
                   <option value="">쿠폰 사용 안 함</option>
                   {eligibleCoupons.map((coupon) => (
@@ -206,7 +217,11 @@ export function ProductDetailPage() {
                 type="button"
                 className="text-button"
                 disabled={orderMutation.isPending || (shouldLoadEligibleCoupons && (eligibleCouponsQuery.isLoading || eligibleCouponsQuery.isError))}
-                onClick={() => orderMutation.mutate(selectedCoupon?.id ?? null)}
+                onClick={() => {
+                  const idempotencyKey = orderIdempotencyKey ?? crypto.randomUUID();
+                  setOrderIdempotencyKey(idempotencyKey);
+                  orderMutation.mutate({ memberCouponId: selectedCoupon?.id ?? null, idempotencyKey });
+                }}
               >
                 {orderMutation.isPending ? '주문 중' : '주문하기'}
               </button>
@@ -267,4 +282,8 @@ function toErrorMessage(error: unknown, fallbackMessage = '주문을 생성하�
   const fieldMessage = apiError.fieldErrors?.[0]?.message;
 
   return fieldMessage ?? apiError.message ?? fallbackMessage;
+}
+
+function isOrderRequestInProgress(error: unknown) {
+  return (error as Partial<ApiError>).code === 'ORDER_REQUEST_IN_PROGRESS';
 }

@@ -48,9 +48,10 @@ export type Order = OrderSummary & {
   canceledAt: string | null;
 };
 
-export function createOrder(productId: number, memberCouponId: number | null = null) {
+export function createOrder(productId: number, memberCouponId: number | null, idempotencyKey: string) {
   return api<Order>('/api/orders', {
     method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify({ productId, memberCouponId }),
   });
 }

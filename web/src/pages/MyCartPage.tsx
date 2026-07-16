@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { checkoutCart, getMyCart, removeCart, type CartItem } from '../features/cart/cartApi';
+import { checkoutCart, getMyCart, removeCart, type CartCheckoutFailureItem, type CartItem } from '../features/cart/cartApi';
 import { toProductImageSrc } from '../features/products/productApi';
 import { BuyerPrice } from '../features/promotions/BuyerPrice';
 import { type ApiError } from '../shared/api/http';
@@ -13,6 +13,8 @@ export function MyCartPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [checkoutIdempotencyKey, setCheckoutIdempotencyKey] = useState<string | null>(null);
+  const [checkoutFailureItems, setCheckoutFailureItems] = useState<Map<number, CartCheckoutFailureItem>>(new Map());
   const { data, error, isLoading } = useQuery({
     queryKey: ['my-cart'],
     queryFn: getMyCart,
@@ -53,14 +55,25 @@ export function MyCartPage() {
   });
 
   const checkoutMutation = useMutation({
-    mutationFn: (cartItemIds: number[]) => checkoutCart(cartItemIds),
+    mutationFn: ({ cartItemIds, idempotencyKey }: { cartItemIds: number[]; idempotencyKey: string }) =>
+      checkoutCart(cartItemIds, idempotencyKey),
     onSuccess: async () => {
+      setCheckoutIdempotencyKey(null);
+      setCheckoutFailureItems(new Map());
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['my-cart'] }),
         queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
         queryClient.invalidateQueries({ queryKey: ['products'] }),
       ]);
       navigate('/me/orders');
+    },
+    onError: (error) => {
+      if (isOrderRequestInProgress(error)) {
+        return;
+      }
+
+      setCheckoutIdempotencyKey(null);
+      setCheckoutFailureItems(new Map(getCartCheckoutFailureItems(error).map((item) => [item.cartItemId, item])));
     },
   });
 
@@ -73,13 +86,24 @@ export function MyCartPage() {
   }
 
   function toggleItem(cartItemId: number) {
+    setCheckoutIdempotencyKey(null);
+    setCheckoutFailureItems(new Map());
     setSelectedIds((current) =>
       current.includes(cartItemId) ? current.filter((id) => id !== cartItemId) : [...current, cartItemId],
     );
   }
 
   function toggleAllSelectable() {
+    setCheckoutIdempotencyKey(null);
+    setCheckoutFailureItems(new Map());
     setSelectedIds(allSelectableSelected ? [] : selectableIds);
+  }
+
+  function checkoutSelectedItems() {
+    const idempotencyKey = checkoutIdempotencyKey ?? crypto.randomUUID();
+    setCheckoutIdempotencyKey(idempotencyKey);
+    setCheckoutFailureItems(new Map());
+    checkoutMutation.mutate({ cartItemIds: validSelectedIds, idempotencyKey });
   }
 
   return (
@@ -108,7 +132,7 @@ export function MyCartPage() {
               type="button"
               className="text-button"
               disabled={validSelectedIds.length === 0 || checkoutMutation.isPending}
-              onClick={() => checkoutMutation.mutate(validSelectedIds)}
+              onClick={checkoutSelectedItems}
             >
               {checkoutMutation.isPending ? '주문 생성 중' : '선택 상품 주문하기'}
             </button>
@@ -120,6 +144,7 @@ export function MyCartPage() {
                 key={item.cartItemId}
                 checked={selectedIds.includes(item.cartItemId)}
                 removePending={removeMutation.isPending}
+                checkoutFailureItem={checkoutFailureItems.get(item.cartItemId)}
                 onToggle={() => toggleItem(item.cartItemId)}
                 onRemove={() => removeMutation.mutate(item)}
               />
@@ -135,11 +160,12 @@ type CartCardProps = {
   item: CartItem;
   checked: boolean;
   removePending: boolean;
+  checkoutFailureItem: CartCheckoutFailureItem | undefined;
   onToggle: () => void;
   onRemove: () => void;
 };
 
-function CartCard({ item, checked, removePending, onToggle, onRemove }: CartCardProps) {
+function CartCard({ item, checked, removePending, checkoutFailureItem, onToggle, onRemove }: CartCardProps) {
   const thumbnailSrc = toProductImageSrc(item.thumbnailUrl);
   const mainContent = (
     <>
@@ -156,6 +182,11 @@ function CartCard({ item, checked, removePending, onToggle, onRemove }: CartCard
         <BuyerPrice price={item} />
         <span>{item.sellerNickname}</span>
         {!item.checkoutAvailable ? <span className="muted-text">{formatUnavailableReason(item.unavailableReason)}</span> : null}
+        {checkoutFailureItem ? (
+          <span className="error-text">
+            {checkoutFailureItem.reason === 'SOLD_OUT' ? '방금 품절되었습니다.' : '현재 구매할 수 없습니다.'}
+          </span>
+        ) : null}
       </div>
     </>
   );
@@ -201,4 +232,29 @@ function toErrorMessage(error: unknown) {
   const fieldMessage = apiError.fieldErrors?.[0]?.message;
 
   return fieldMessage ?? apiError.message ?? '장바구니 주문을 처리하지 못했습니다.';
+}
+
+function isOrderRequestInProgress(error: unknown) {
+  return (error as Partial<ApiError>).code === 'ORDER_REQUEST_IN_PROGRESS';
+}
+
+function getCartCheckoutFailureItems(error: unknown): CartCheckoutFailureItem[] {
+  const data = (error as ApiError & { data?: unknown }).data;
+  if (!data || typeof data !== 'object' || !Array.isArray((data as { items?: unknown }).items)) {
+    return [];
+  }
+
+  return (data as { items: unknown[] }).items.filter(isCartCheckoutFailureItem);
+}
+
+function isCartCheckoutFailureItem(value: unknown): value is CartCheckoutFailureItem {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const item = value as Partial<CartCheckoutFailureItem>;
+  return typeof item.cartItemId === 'number'
+    && typeof item.productId === 'number'
+    && typeof item.productTitle === 'string'
+    && (item.reason === 'SOLD_OUT' || item.reason === 'UNAVAILABLE');
 }
