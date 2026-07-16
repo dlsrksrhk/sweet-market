@@ -9,6 +9,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.sql.Timestamp;
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
@@ -46,9 +49,9 @@ class CartApiTest extends IntegrationTestSupport {
 
         jdbcTemplate.update("""
                 update promotion_campaigns
-                set lifecycle_status = 'DRAFT', end_at = current_timestamp - interval '1 second'
+                set lifecycle_status = 'DRAFT', end_at = ?
                 where id = ?
-                """, promotionId);
+                """, Timestamp.from(Instant.now().minusSeconds(5)), promotionId);
 
         mockMvc.perform(get("/api/me/cart").header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
                 .andExpect(status().isOk())

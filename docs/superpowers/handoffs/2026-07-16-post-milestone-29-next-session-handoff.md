@@ -27,6 +27,7 @@ M29-focused verification passed:
 
 - Backend focused suite: 76 tests, 0 failures.
 - `StorefrontQueryOptimizationTest`: passed after the 20 → 22 fixture-expectation correction.
+- Full backend suite: 703 tests, 0 failures (`--rerun-tasks`, JDK 21).
 - Web: `npm run build` passed (the existing Vite chunk-size warning remains).
 - Manual API QA: a repeated direct-purchase request with the same key replayed the original `201 CREATED` order response.
 
@@ -40,7 +41,6 @@ $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 .\gradlew.bat --no-daemon test
 ```
 
-The full suite should be rerun in a normal terminal/CI session after this correction; the desktop tool's 120-second command window ended before it could capture a complete full-suite result.
 
 Start local services when needed:
 
