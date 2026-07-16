@@ -13,7 +13,7 @@ public class DiscoveryInvalidationListener {
         this.activeEventCache = activeEventCache;
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void invalidate(DiscoveryInvalidationEvent event) {
         activeEventCache.invalidate();
     }

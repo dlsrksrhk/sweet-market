@@ -134,7 +134,6 @@ public class InventoryService {
         inventoryAdjustmentRepository.save(findInventory(order.getProduct()).commitShipment(order));
     }
 
-    @Transactional
     public InventoryAdjustmentResponse adjust(
             Long memberId,
             Long storeId,
