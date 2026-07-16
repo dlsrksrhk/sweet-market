@@ -82,6 +82,7 @@ export type CouponListInput = { page: number; size: number; source?: 'PLATFORM' 
 export const couponQueryKeys = {
   all: ['coupons'] as const,
   available: (input: CouponListInput) => [...couponQueryKeys.all, 'available', input.source ?? null, input.storeId ?? null, input.page, input.size] as const,
+  claimState: (memberId: number, campaignId: number) => [...couponQueryKeys.all, 'claim-state', memberId, campaignId] as const,
   wallet: (input: CouponListInput & { status?: MemberCouponStatus }) => [...couponQueryKeys.all, 'wallet', input.status ?? null, input.page, input.size] as const,
   eligible: (memberId: number, productId: number) => [...couponQueryKeys.all, 'eligible', memberId, productId] as const,
   store: (storeId: number) => [...couponQueryKeys.all, 'store', storeId] as const,
@@ -103,6 +104,7 @@ function campaignQuery(input: CouponCampaignSearchInput) {
 function listQuery(input: CouponListInput & { status?: MemberCouponStatus }) { const query = new URLSearchParams({ page: String(input.page), size: String(input.size) }); if (input.status) query.set('status', input.status); if (input.source) query.set('source', input.source); if (input.storeId) query.set('storeId', String(input.storeId)); return query.toString(); }
 
 export function getAvailableCouponCampaigns(input: CouponListInput) { return api<Page<AvailableCouponCampaign>>(`/api/coupon-campaigns/available?${listQuery(input)}`); }
+export function getCouponCampaignClaimState(campaignId: number) { return api<AvailableCouponCampaign | null>(`/api/coupon-campaigns/${campaignId}/claim-state`); }
 export function claimCouponCampaign(campaignId: number) { return api<MemberCoupon>(`/api/coupon-campaigns/${campaignId}/claim`, { method: 'POST' }); }
 export function getMyCoupons(input: CouponListInput & { status?: MemberCouponStatus }) { return api<Page<MemberCoupon>>(`/api/me/coupons?${listQuery(input)}`); }
 export function getEligibleCoupons(productId: number) { return api<EligibleMemberCoupon[]>(`/api/me/coupons/eligible?productId=${productId}`); }

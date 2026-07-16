@@ -3657,3 +3657,245 @@ a.wishlist-card-main:hover h2 {
   color: #6b7280;
   display: inline-flex;
 }
+
+/* Buyer discovery */
+.discovery-section {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.discovery-heading h2 {
+  margin: 4px 0 0;
+}
+
+.active-event-strip {
+  display: grid;
+  grid-auto-columns: minmax(250px, 1fr);
+  grid-auto-flow: column;
+  gap: 16px;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scroll-snap-type: x proximity;
+}
+
+.active-event-card,
+.event-detail-panel {
+  overflow: hidden;
+  border: 1px solid #dfe6ee;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgb(20 38 58 / 7%);
+}
+
+.active-event-card {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  min-height: 134px;
+  scroll-snap-align: start;
+}
+
+.active-event-card img,
+.active-event-image-fallback {
+  width: 100%;
+  height: 100%;
+  min-height: 134px;
+  object-fit: cover;
+  background: #e9eef4;
+}
+
+.active-event-image-fallback,
+.event-detail-image-fallback {
+  display: grid;
+  place-items: center;
+  color: #637282;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.active-event-card > div:last-child {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  padding: 15px;
+}
+
+.active-event-card h3,
+.active-event-card p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.active-event-card h3 {
+  font-size: 17px;
+}
+
+.active-event-card p,
+.active-event-card small {
+  color: #637282;
+  font-size: 13px;
+}
+
+.discovery-event-type {
+  color: #0f7b78;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.popular-product-grid,
+.event-product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  min-width: 0;
+}
+
+.discovery-skeleton {
+  pointer-events: none;
+}
+
+.discovery-skeleton > *,
+.discovery-skeleton span,
+.discovery-skeleton strong,
+.discovery-skeleton small,
+.discovery-skeleton p {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #edf1f5 25%, #f7f9fb 37%, #edf1f5 63%);
+  background-size: 400% 100%;
+  animation: discovery-shimmer 1.4s ease infinite;
+}
+
+.active-event-card.discovery-skeleton > div:first-child {
+  min-height: 134px;
+}
+
+.active-event-card.discovery-skeleton > div:last-child {
+  grid-template-rows: 14px 22px 14px;
+}
+
+.popular-product-skeleton {
+  display: grid;
+  gap: 12px;
+  min-height: 330px;
+  padding: 14px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.popular-product-skeleton > div {
+  min-height: 190px;
+}
+
+.popular-product-skeleton > span {
+  width: 38%;
+  min-height: 14px;
+}
+
+.popular-product-skeleton > strong {
+  min-height: 22px;
+}
+
+.popular-product-skeleton > small {
+  width: 60%;
+  min-height: 16px;
+}
+
+.event-detail-page {
+  min-width: 0;
+}
+
+.event-detail-content,
+.event-product-section {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+
+.event-detail-panel {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.1fr);
+  min-width: 0;
+}
+
+.event-detail-panel > img,
+.event-detail-image-fallback {
+  width: 100%;
+  min-height: 300px;
+  height: 100%;
+  object-fit: cover;
+  background: #e9eef4;
+}
+
+.event-detail-copy {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 36px;
+}
+
+.event-detail-copy h1,
+.event-detail-copy p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.event-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.event-detail-skeleton {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.1fr);
+  min-height: 300px;
+}
+
+.event-detail-skeleton > div:first-child {
+  min-height: 300px;
+}
+
+.event-detail-skeleton > span,
+.event-detail-skeleton > strong,
+.event-detail-skeleton > p {
+  height: 22px;
+  margin: 36px 36px 0;
+}
+
+@keyframes discovery-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+
+@media (max-width: 900px) {
+  .popular-product-grid,
+  .event-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .active-event-strip {
+    grid-auto-columns: minmax(270px, 86%);
+  }
+
+  .event-detail-panel,
+  .event-detail-skeleton {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .event-detail-panel > img,
+  .event-detail-image-fallback,
+  .event-detail-skeleton > div:first-child {
+    min-height: 210px;
+  }
+
+  .event-detail-copy {
+    padding: 24px;
+  }
+}

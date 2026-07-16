@@ -3,6 +3,7 @@ package com.sweet.market.inventory.application;
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.discovery.cache.DiscoveryInvalidationEvent;
 import com.sweet.market.inventory.domain.Inventory;
 import com.sweet.market.inventory.domain.InventoryAdjustment;
 import com.sweet.market.inventory.domain.InventoryChangeType;
@@ -17,6 +18,8 @@ import com.sweet.market.store.application.StoreAccessService;
 import org.hibernate.StaleObjectStateException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -30,6 +33,24 @@ public class InventoryService {
     private final StoreAccessService storeAccessService;
     private final InventoryAdjustmentTransactionService inventoryAdjustmentTransactionService;
     private final OrderRepository orderRepository;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Autowired
+    public InventoryService(
+            InventoryRepository inventoryRepository,
+            InventoryAdjustmentRepository inventoryAdjustmentRepository,
+            StoreAccessService storeAccessService,
+            InventoryAdjustmentTransactionService inventoryAdjustmentTransactionService,
+            OrderRepository orderRepository,
+            ApplicationEventPublisher eventPublisher
+    ) {
+        this.inventoryRepository = inventoryRepository;
+        this.inventoryAdjustmentRepository = inventoryAdjustmentRepository;
+        this.storeAccessService = storeAccessService;
+        this.inventoryAdjustmentTransactionService = inventoryAdjustmentTransactionService;
+        this.orderRepository = orderRepository;
+        this.eventPublisher = eventPublisher;
+    }
 
     public InventoryService(
             InventoryRepository inventoryRepository,
@@ -38,11 +59,8 @@ public class InventoryService {
             InventoryAdjustmentTransactionService inventoryAdjustmentTransactionService,
             OrderRepository orderRepository
     ) {
-        this.inventoryRepository = inventoryRepository;
-        this.inventoryAdjustmentRepository = inventoryAdjustmentRepository;
-        this.storeAccessService = storeAccessService;
-        this.inventoryAdjustmentTransactionService = inventoryAdjustmentTransactionService;
-        this.orderRepository = orderRepository;
+        this(inventoryRepository, inventoryAdjustmentRepository, storeAccessService, inventoryAdjustmentTransactionService,
+                orderRepository, event -> { });
     }
 
     public void initialize(Product product, int initialTotalQuantity, Long memberId) {
@@ -78,6 +96,7 @@ public class InventoryService {
             throw new BusinessException(errorCode, exception);
         }
         inventoryAdjustmentRepository.save(adjustment);
+        eventPublisher.publishEvent(new DiscoveryInvalidationEvent());
     }
 
     @Transactional
@@ -88,6 +107,7 @@ public class InventoryService {
             return;
         }
         inventoryAdjustmentRepository.save(findInventory(order.getProduct()).release(order));
+        eventPublisher.publishEvent(new DiscoveryInvalidationEvent());
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -121,7 +141,9 @@ public class InventoryService {
             InventoryAdjustmentRequest request
     ) {
         try {
-            return inventoryAdjustmentTransactionService.adjust(memberId, storeId, productId, request);
+            InventoryAdjustmentResponse response = inventoryAdjustmentTransactionService.adjust(memberId, storeId, productId, request);
+            eventPublisher.publishEvent(new DiscoveryInvalidationEvent());
+            return response;
         } catch (ObjectOptimisticLockingFailureException | StaleObjectStateException exception) {
             throw new BusinessException(ErrorCode.INVENTORY_ADJUSTMENT_CONFLICT, exception);
         }

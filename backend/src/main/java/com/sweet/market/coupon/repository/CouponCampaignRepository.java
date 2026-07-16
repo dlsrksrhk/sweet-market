@@ -106,4 +106,23 @@ public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, 
             @Param("memberId") Long memberId, @Param("now") Instant now,
             @Param("source") CouponCampaignOwnerType source, @Param("storeId") Long storeId, Pageable pageable
     );
+
+    @Query("""
+            select new com.sweet.market.coupon.query.AvailableCouponCampaignRow(
+                campaign.id, campaign.ownerType, campaign.scope, campaign.discountType,
+                campaign.discountValue, campaign.maxDiscountAmount, campaign.minimumPurchaseAmount,
+                campaign.stackable, campaign.title, campaign.label, campaign.issueStartsAt,
+                campaign.issueEndsAt, campaign.validityType, campaign.commonExpiresAt,
+                campaign.validityDays, campaign.issueLimit, campaign.issuedCount, campaign.lifecycleStatus, campaign.store.id, store.publicName,
+                case when exists (select 1 from MemberCoupon coupon
+                    where coupon.campaign.id = campaign.id and coupon.member.id = :memberId)
+                    then true else false end)
+            from CouponCampaign campaign left join campaign.store store
+            where campaign.id = :campaignId
+              and campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.SCHEDULED
+              and campaign.issueStartsAt <= :now and campaign.issueEndsAt > :now
+            """)
+    Optional<AvailableCouponCampaignRow> findAvailableByIdForMember(
+            @Param("memberId") Long memberId, @Param("campaignId") Long campaignId, @Param("now") Instant now
+    );
 }

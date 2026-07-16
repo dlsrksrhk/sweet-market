@@ -3,6 +3,7 @@ package com.sweet.market.store.application;
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.discovery.cache.DiscoveryInvalidationEvent;
 import com.sweet.market.store.api.BusinessStoreApplicationRequest;
 import com.sweet.market.store.api.StorePrivateResponse;
 import com.sweet.market.store.api.StoreProfileUpdateRequest;
@@ -13,6 +14,7 @@ import com.sweet.market.store.domain.StoreType;
 import com.sweet.market.store.repository.StoreRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -21,15 +23,18 @@ public class StoreGovernanceService {
     private final StoreRepository storeRepository;
     private final StoreAccessService storeAccessService;
     private final BusinessStoreApplicationPersistenceService businessStoreApplicationPersistenceService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public StoreGovernanceService(
             StoreRepository storeRepository,
             StoreAccessService storeAccessService,
-            BusinessStoreApplicationPersistenceService businessStoreApplicationPersistenceService
+            BusinessStoreApplicationPersistenceService businessStoreApplicationPersistenceService,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.storeRepository = storeRepository;
         this.storeAccessService = storeAccessService;
         this.businessStoreApplicationPersistenceService = businessStoreApplicationPersistenceService;
+        this.eventPublisher = eventPublisher;
     }
 
     public StorePrivateResponse applyBusiness(Long memberId, BusinessStoreApplicationRequest request) {
@@ -57,7 +62,9 @@ public class StoreGovernanceService {
         } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED, exception);
         }
-        return StorePrivateResponse.from(store);
+        StorePrivateResponse response = StorePrivateResponse.from(store);
+        invalidateDiscovery();
+        return response;
     }
 
     @Transactional
@@ -75,7 +82,9 @@ public class StoreGovernanceService {
                 throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED, exception);
             }
         }
-        return StorePrivateResponse.from(store);
+        StorePrivateResponse response = StorePrivateResponse.from(store);
+        invalidateDiscovery();
+        return response;
     }
 
     @Transactional
@@ -86,7 +95,9 @@ public class StoreGovernanceService {
         } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED, exception);
         }
-        return StorePrivateResponse.from(store);
+        StorePrivateResponse response = StorePrivateResponse.from(store);
+        invalidateDiscovery();
+        return response;
     }
 
     @Transactional
@@ -100,7 +111,9 @@ public class StoreGovernanceService {
             }
             throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED, exception);
         }
-        return StorePrivateResponse.from(store);
+        StorePrivateResponse response = StorePrivateResponse.from(store);
+        invalidateDiscovery();
+        return response;
     }
 
     @Transactional
@@ -111,7 +124,9 @@ public class StoreGovernanceService {
         } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED, exception);
         }
-        return StorePrivateResponse.from(store);
+        StorePrivateResponse response = StorePrivateResponse.from(store);
+        invalidateDiscovery();
+        return response;
     }
 
     @Transactional
@@ -122,7 +137,9 @@ public class StoreGovernanceService {
         } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.STORE_CHANGE_NOT_ALLOWED, exception);
         }
-        return StorePrivateResponse.from(store);
+        StorePrivateResponse response = StorePrivateResponse.from(store);
+        invalidateDiscovery();
+        return response;
     }
 
     private Store requireBusiness(Long storeId) {
@@ -136,5 +153,9 @@ public class StoreGovernanceService {
         if (store.getType() != StoreType.BUSINESS) {
             throw new BusinessException(ErrorCode.STORE_INVALID_TYPE);
         }
+    }
+
+    private void invalidateDiscovery() {
+        eventPublisher.publishEvent(new DiscoveryInvalidationEvent());
     }
 }

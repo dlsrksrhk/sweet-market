@@ -34,4 +34,11 @@ public class CouponDiscoveryQueryService {
                         PageRequest.of(request.resolvedPage(), request.resolvedSize()))
                 .map(AvailableCouponCampaignResponse::from);
     }
+
+    @Transactional(readOnly = true)
+    public AvailableCouponCampaignResponse findClaimState(Long memberId, Long campaignId) {
+        return campaignRepository.findAvailableByIdForMember(memberId, campaignId, clock.instant())
+                .map(AvailableCouponCampaignResponse::from)
+                .orElse(null);
+    }
 }

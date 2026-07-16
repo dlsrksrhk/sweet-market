@@ -44,7 +44,7 @@ class StoreFreshDatabaseStartupTest {
 
     @Test
     void 빈_PostgreSQL에서도_Flyway와_JPA_업데이트로_애플리케이션이_시작된다() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("13");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("14");
         assertThat(tableExists("stores")).isTrue();
         assertThat(tableExists("members")).isTrue();
         assertThat(tableExists("products")).isTrue();
@@ -52,6 +52,8 @@ class StoreFreshDatabaseStartupTest {
         assertThat(tableExists("promotion_campaigns")).isTrue();
         assertThat(tableExists("promotion_targets")).isTrue();
         assertThat(tableExists("purchase_requests")).isTrue();
+        assertThat(tableExists("product_view_events")).isTrue();
+        assertThat(tableExists("product_view_deduplications")).isTrue();
         assertThat(columnExists("coupon_campaigns", "issue_limit")).isTrue();
         assertThat(columnIsNotNull("coupon_campaigns", "issued_count")).isTrue();
         assertThat(checkConstraintDefinition("chk_coupon_campaigns_issue_limit"))
@@ -71,6 +73,7 @@ class StoreFreshDatabaseStartupTest {
         assertThat(indexExists("idx_orders_seller_id")).isTrue();
         assertThat(indexExists("idx_purchase_requests_expiry")).isTrue();
         assertThat(indexExists("idx_purchase_requests_processing_lease")).isTrue();
+        assertThat(indexExists("idx_product_view_events_product_viewed_at")).isTrue();
         assertThat(checkConstraintDefinition("chk_purchase_requests_status"))
                 .contains("PROCESSING", "COMPLETED");
         assertThat(foreignKeyExists("products", "store_id", "stores", "id")).isTrue();

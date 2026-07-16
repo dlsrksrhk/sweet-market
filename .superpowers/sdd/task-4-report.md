@@ -1,51 +1,40 @@
-# M26 Task 4 Report — Coupon campaign interfaces
+# Task 4 report: cleanup, metrics, and load evidence
 
-## Implemented scope
+## Scope completed
 
-- Added coupon client contracts, request helpers, and scoped React Query keys in `web/src/features/coupons/couponApi.ts`.
-- Added the authenticated buyer coupon wallet at `/me/coupons`:
-  - Available campaigns and wallet results load independently.
-  - Claiming disables the active request, displays the returned issuance result, and invalidates coupon queries.
-  - Wallet views filter the server-returned `ISSUED`, `USED`, `EXPIRED`, and `UNAVAILABLE` statuses; unavailable coupons show the server-returned reason.
-- Added the store-owner workspace at `/me/store/coupons` and campaign editor at `/me/store/coupons/:storeId/:campaignId`.
-  - Both enforce the active BUSINESS + OWNER store rule in the UI and show the existing access-guidance pattern otherwise.
-  - Target selection reuses the owner catalog query.
-  - Forms show maximum discount only for percentage discounts and exactly one validity field at a time.
-- Added the administrator platform campaign page at `/admin/coupons`.
-  - It provides cross-store product search, create/edit support, and lifecycle actions in the existing operational-table visual language.
-- Added Shell, My Store, route guards, and responsive coupon metadata styling.
+- Added `ProductViewRetentionCleanupService` with an injected `Clock` constructor for deterministic cleanup. It deletes product-view events and deduplication records strictly older than seven days in one transaction.
+- Added `ProductViewRetentionScheduler`, scheduled once daily by the configurable `product.view-retention-cleanup.cron` property.
+- Added the Korean-named integration regression test. It proves that entries one second older than the cutoff are deleted and entries at the seven-day cutoff are retained.
+- Added `DiscoveryMetrics` timer instrumentation for catalog, event summaries, popularity, and event detail (`discovery.read.duration`, `endpoint` tag).
+- Bound Caffeine active-event cache statistics to Micrometer under cache name `discovery.active-events`.
+- Added the `local-experiment` profile. Its `DataSource` post-processor counts JDBC executions from both Hibernate and `NamedParameterJdbcTemplate` as `discovery.jdbc.statements` without affecting the default profile.
+- Added the reproducible k6 scenario and evidence report. The workload is one minute at 20 VUs for warm-up, then five minutes at 100 VUs; the decision is home/catalog 70% and detail 30%. The report starts `local` fixtures, derives `PRODUCT_ID` from the public catalog response, and supports `cache-off` as an executable comparison profile.
 
-## Verification
+## TDD evidence
 
-Command run from `web`:
+1. Added `칠일을_지난_조회이벤트와_중복제거_행을_삭제한다` before the cleanup service existed.
+2. Ran the focused test; compilation failed because `ProductViewRetentionCleanupService` was absent.
+3. Added the minimal repository delete methods and cleanup service/scheduler.
+4. Re-ran the focused test successfully. The test uses real PostgreSQL repositories and a fixed `Clock`.
 
-```powershell
-npm run build
-```
+## Verification evidence
 
-Result: exit code 0. TypeScript checks and Vite production build completed successfully. Vite emitted its pre-existing-size style warning for the single JavaScript chunk (517.62 kB); this is a warning, not a build failure.
+| Check | Result |
+| --- | --- |
+| `backend\gradlew.bat test --tests 'com.sweet.market.productview.*' --rerun-tasks` | `BUILD SUCCESSFUL` (2026-07-16) |
+| `backend\gradlew.bat test --tests 'com.sweet.market.productview.ProductViewRetentionCleanupServiceTest' --rerun-tasks` with `SPRING_PROFILES_ACTIVE=local-experiment` | `BUILD SUCCESSFUL` (2026-07-16) |
+| Isolated Discovery API event-order test | `BUILD SUCCESSFUL` (2026-07-16) |
+| `docker run ... grafana/k6:latest inspect performance/m30-catalog-reads.js` | Parsed: warm-up 20 VUs/1m and measured 100 VUs/5m |
+| `git diff --check` | Clean before commit |
 
-## Contract note
+## Known concern
 
-The backend wallet response currently returns the raw discount fields and status but does not return the brief's illustrative `source`, `storeName`, or `discountText` fields. The UI does not derive eligibility, coupon status, or discount outcome: it renders server status/reason and formats the server's raw monetary/percentage fields for display. Adding origin/store labels would require an API response extension outside Task 4's web-only scope.
+The local machine has no `k6` executable on `PATH`; Docker k6 was used for the required parse validation. No load numbers or SQL plans were fabricated. `docs/superpowers/reports/2026-07-16-milestone-30-catalog-read-performance.md` records the fixture inputs, commands, and result fields to populate from an actual run.
 
-## Preserved scope
+## Review follow-up evidence
 
-Checkout and order interfaces were not changed. The pre-existing untracked `web/m26-baseline-npm-install.log` was not modified or included in the commit.
-
-## Review follow-up
-
-- Wallet status is now sent as an API query parameter and enforced by the backend query before paging, including the total count.
-- Platform-coupon editing now fetches product choices, preserves the campaign's loaded target products in the checkbox list, and supports searching for additional targets.
-- Only the coupon campaign whose claim request is in flight shows the pending state and is disabled.
-
-## Follow-up verification
-
-- `npm run build` completed successfully on 2026-07-14.
-- `backend\gradlew.bat test --tests com.sweet.market.coupon.CouponWalletApiTest` completed successfully on 2026-07-14.
-
-## Re-review follow-up
-
-- The coupon form now resets only when its initial campaign data changes. Product-search query rerenders preserve every in-progress form field and selected target product ID; choosing a different administrator campaign remounts the form with that campaign's data.
-- The buyer wallet now keeps a set of pending campaign IDs. Each in-flight campaign card remains disabled until its own request settles, while different campaign claims can proceed concurrently.
-- `npm run build` completed successfully on 2026-07-14 after these changes. Vite retained the existing single-chunk size warning only.
+- Added `cache-off` as a real Spring profile (`discovery.active-event-cache.enabled=false`) and a cache test proving that disabled mode invokes the loader on every read.
+- The report now starts `local,local-experiment`, then obtains `PRODUCT_ID` from `GET /api/catalog/products?size=1` and stops if no buyer-visible product exists. It documents both cache-off and default cache-on server commands.
+- `DiscoveryApiTest` now invalidates the singleton cache before each fixture setup. The retention test also clears its two product-view tables before setup because Hibernate's test schema does not create the deduplication foreign-key cascade.
+- Fresh command: `backend\gradlew.bat test --tests 'com.sweet.market.productview.*' --tests 'com.sweet.market.discovery.*' --rerun-tasks` → `BUILD SUCCESSFUL` (18 tests, 2026-07-16).
+- Fresh command: `docker run --rm -v "${PWD}:/work" -w /work grafana/k6:latest inspect performance/m30-catalog-reads.js` → parsed the 20-VU/1m warm-up and 100-VU/5m scenario (2026-07-16).

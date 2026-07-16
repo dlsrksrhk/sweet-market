@@ -1,42 +1,62 @@
-# Task 2 Report: Coupon campaign management APIs
+# Task 2 Report: Public Discovery Projections
 
-## Status
+## Implemented
 
-- Completed: store-owner and administrator coupon-campaign management APIs.
-- Commit message: `feat: manage coupon campaigns`.
-- Deliberately excluded: the pre-existing untracked `web/m26-baseline-npm-install.log`.
+- Added public `GET /api/discovery/events`, `GET /api/discovery/events/{eventType}/{eventId}`, and `GET /api/discovery/popular-products` endpoints.
+- Added `PROMOTION` and `COUPON` event projections with DTO-only JDBC union queries. Events require an active store when store-owned, an active buyer-visible product, and a representative image; summaries sort by end time, type, and ID.
+- Added the seven-day popularity projection with `wishlist_items.created_at >= :since` and `product_view_events.viewed_at >= :since`, score `wishlist_count * 5 + view_count`, descending product-ID ties, and an eight-card limit.
+- Reused `CatalogProductCardResponse` and the existing batched wishlist/cart repositories for authenticated viewers. Anonymous discovery does not request either personal-state lookup.
+- Permitted the public discovery GET routes in the existing security configuration.
 
-## Implemented scope
+## Tests
 
-- Added store APIs under `/api/stores/{storeId}/coupon-campaigns` for create, paged list, detail, update, schedule, pause, resume, and end.
-- Added administrator-only platform APIs under `/api/admin/coupon-campaigns` for the same operations. Spring Security already protects this route family with `ADMIN`.
-- Store commands require an active business-store owner through `requireActiveBusinessOwner`.
-- Store selected targets resolve with `findAllByStoreIdAndIdIn`; platform selected targets use bounded `findAllById` and may span stores. Duplicate, missing, and non-purchasable targets are rejected.
-- Converts all request `LocalDateTime` values from `Asia/Seoul` to `Instant`, and maps policy dates back to KST in responses.
-- Responses include owner type, nullable safe store summary, policy fields, lifecycle/effective statuses, target count, and selected-target detail.
-- Added paged status/period filtering and error codes `COUPON_CAMPAIGN_NOT_FOUND` (404) and `COUPON_LIFECYCLE_NOT_ALLOWED` (409).
+- Added API coverage for weighted ranking, product/store visibility, event visibility, event detail, and anonymous card flags.
+- Added an optimization test proving anonymous event reads execute one JDBC statement without collection fetches, member-coupon state, inventory-adjustment history, or paging count SQL.
+- Red phase observed: the new endpoints were initially unauthorized/absent from the public security contract; production changes were then added until the focused suite passed.
 
-## TDD evidence
-
-### RED
-
-Created `CouponCampaignApiTest` before the controller/service implementation. The first focused test run completed compilation but failed five endpoint assertions because the coupon-campaign endpoints did not exist (HTTP 404). This covered store owner selected/all-product creation, platform multi-store targets, store access denials, invalid targets/validity policy, and administrator-only commands.
-
-The documented `C:\java\jdk-21` directory was absent locally, so verification used the available JDK 21 installation at `C:\Users\kdh\.jdks\corretto-21.0.7`.
-
-### GREEN and final verification
+## Verification
 
 ```powershell
 cd backend
-$env:JAVA_HOME='C:\Users\kdh\.jdks\corretto-21.0.7'
+$env:JAVA_HOME='C:\java\jdk-21'
 $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
 $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
-.\gradlew.bat test --tests 'com.sweet.market.coupon.CouponCampaignApiTest' --rerun-tasks
+.\gradlew.bat test --tests 'com.sweet.market.discovery.*' --tests 'com.sweet.market.catalog.CatalogQueryOptimizationTest' --rerun-tasks
 ```
 
-Result: `BUILD SUCCESSFUL` (6 tests, 0 failures). `git diff --check` also completed without diff errors.
+Result: `BUILD SUCCESSFUL` (36s).
 
-## Concerns
+## Scope and concerns
 
-- Only the Task 2 focused API class was run; the full backend suite was not run.
-- Gradle emitted existing JVM/Mockito dynamic-agent warnings, but the focused test result was successful.
+- No caching or invalidation hooks were added; those remain Task 3 scope.
+- The pre-existing M30 plan document was left untracked and excluded from this task commit.
+
+## Review correction
+
+The reviewer identified four missing boundary regressions. Added focused API coverage for exclusion of wishlist/view rows older than seven days, product-ID descending ties at equal popularity scores, the eight-card popularity limit, and event ordering by end time, `PROMOTION` before `COUPON`, then ID. The equal-end-time event test exposed that lexical event-type sorting placed coupons first; the JDBC event ordering now uses an explicit promotion-first sort key.
+
+Exact verification command:
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+.\gradlew.bat test --tests 'com.sweet.market.discovery.*' --tests 'com.sweet.market.catalog.CatalogQueryOptimizationTest' --rerun-tasks
+```
+
+Exact result: `BUILD SUCCESSFUL in 37s` (`5 actionable tasks: 5 executed`).
+
+Final ordering regression correction: the event-order test now includes two `PROMOTION` events with the same end time and asserts their source IDs are ascending before the same-time `COUPON` event.
+
+Exact verification command:
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+.\gradlew.bat test --tests 'com.sweet.market.discovery.*' --tests 'com.sweet.market.catalog.CatalogQueryOptimizationTest' --rerun-tasks
+```
+
+Exact result: `BUILD SUCCESSFUL in 37s` (`5 actionable tasks: 5 executed`).
