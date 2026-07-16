@@ -1,14 +1,13 @@
 package com.sweet.market.coupon.domain;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.sweet.market.common.domain.error.DomainException;
+import com.sweet.market.member.domain.Member;
+import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 
-import org.junit.jupiter.api.Test;
-
-import com.sweet.market.common.domain.error.DomainException;
-import com.sweet.market.member.domain.Member;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CouponReservationTest {
 

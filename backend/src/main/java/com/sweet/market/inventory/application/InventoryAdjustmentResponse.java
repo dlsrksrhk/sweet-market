@@ -1,10 +1,10 @@
 package com.sweet.market.inventory.application;
 
-import java.time.LocalDateTime;
-
 import com.sweet.market.inventory.domain.InventoryAdjustment;
 import com.sweet.market.inventory.domain.InventoryAdjustmentReason;
 import com.sweet.market.inventory.domain.InventoryChangeType;
+
+import java.time.LocalDateTime;
 
 public record InventoryAdjustmentResponse(
         Long adjustmentId,

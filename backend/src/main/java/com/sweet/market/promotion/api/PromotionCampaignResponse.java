@@ -1,16 +1,12 @@
 package com.sweet.market.promotion.api;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.sweet.market.promotion.domain.*;
+
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
-
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.sweet.market.promotion.domain.PromotionCampaign;
-import com.sweet.market.promotion.domain.PromotionDiscountType;
-import com.sweet.market.promotion.domain.PromotionEffectiveStatus;
-import com.sweet.market.promotion.domain.PromotionLifecycleStatus;
-import com.sweet.market.promotion.domain.PromotionScope;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record PromotionCampaignResponse(

@@ -1,16 +1,14 @@
 package com.sweet.market.catalog.api;
 
+import com.sweet.market.auth.security.AuthenticatedMember;
+import com.sweet.market.catalog.query.CatalogSearchQueryService;
+import com.sweet.market.common.api.ApiResponse;
+import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.sweet.market.auth.security.AuthenticatedMember;
-import com.sweet.market.catalog.query.CatalogSearchQueryService;
-import com.sweet.market.common.api.ApiResponse;
-
-import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/catalog")

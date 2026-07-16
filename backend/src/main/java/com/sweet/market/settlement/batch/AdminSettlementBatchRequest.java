@@ -1,11 +1,11 @@
 package com.sweet.market.settlement.batch;
 
-import java.time.LocalDateTime;
-
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+
+import java.time.LocalDateTime;
 
 public record AdminSettlementBatchRequest(
         @NotNull LocalDateTime confirmedBefore,

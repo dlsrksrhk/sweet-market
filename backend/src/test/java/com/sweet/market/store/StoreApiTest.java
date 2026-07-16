@@ -1,14 +1,22 @@
 package com.sweet.market.store;
 
-import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.sweet.market.auth.api.LoginRequest;
+import com.sweet.market.common.error.BusinessException;
+import com.sweet.market.member.domain.Member;
+import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.store.application.StoreAccessService;
+import com.sweet.market.store.domain.Store;
+import com.sweet.market.store.domain.StoreMembership;
+import com.sweet.market.store.repository.StoreMembershipRepository;
+import com.sweet.market.store.repository.StoreRepository;
+import com.sweet.market.support.IntegrationTestSupport;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,24 +25,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.crypto.password.PasswordEncoder;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.sweet.market.auth.api.LoginRequest;
-import com.sweet.market.common.error.BusinessException;
-import com.sweet.market.member.domain.Member;
-import com.sweet.market.member.repository.MemberRepository;
-import com.sweet.market.store.domain.Store;
-import com.sweet.market.store.domain.StoreMembership;
-import com.sweet.market.store.repository.StoreMembershipRepository;
-import com.sweet.market.store.repository.StoreRepository;
-import com.sweet.market.store.application.StoreAccessService;
-import com.sweet.market.support.IntegrationTestSupport;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class StoreApiTest extends IntegrationTestSupport {
 
@@ -216,8 +211,8 @@ class StoreApiTest extends IntegrationTestSupport {
                 storeAccessService.requireCatalogOperator(manager.getId(), fixture.store().getId())
         ).doesNotThrowAnyException();
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
-                storeAccessService.requireCatalogOperator(outsider.getId(), fixture.store().getId())
-        ).isInstanceOf(BusinessException.class)
+                        storeAccessService.requireCatalogOperator(outsider.getId(), fixture.store().getId())
+                ).isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).errorCode().name())
                 .isEqualTo("STORE_ACCESS_DENIED");
     }

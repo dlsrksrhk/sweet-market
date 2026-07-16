@@ -1,11 +1,10 @@
 package com.sweet.market.coupon.scheduler;
 
-import java.time.Instant;
-
+import com.sweet.market.coupon.application.CouponRedemptionService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import com.sweet.market.coupon.application.CouponRedemptionService;
+import java.time.Instant;
 
 @Component
 public class CouponReservationExpiryScheduler {

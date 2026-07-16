@@ -1,22 +1,5 @@
 package com.sweet.market.product.admin;
 
-import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.util.List;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.security.crypto.password.PasswordEncoder;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
@@ -26,6 +9,19 @@ import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.support.IntegrationTestSupport;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.util.List;
+
+import static org.hamcrest.Matchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class AdminProductOperationsApiTest extends IntegrationTestSupport {
 

@@ -1,9 +1,5 @@
 package com.sweet.market.store.application;
 
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
@@ -14,6 +10,9 @@ import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreMembership;
 import com.sweet.market.store.repository.StoreMembershipRepository;
 import com.sweet.market.store.repository.StoreRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class BusinessStoreApplicationPersistenceService {

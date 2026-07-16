@@ -1,8 +1,5 @@
 package com.sweet.market.settlement.application;
 
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
@@ -11,6 +8,8 @@ import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.settlement.api.SettlementResponse;
 import com.sweet.market.settlement.domain.Settlement;
 import com.sweet.market.settlement.repository.SettlementRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SettlementService {

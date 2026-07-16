@@ -1,25 +1,5 @@
 package com.sweet.market.refund;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.not;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.lang.reflect.Method;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
@@ -34,8 +14,24 @@ import com.sweet.market.refund.repository.RefundRequestRepository;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.support.IntegrationTestSupport;
-
 import jakarta.persistence.LockModeType;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.lang.reflect.Method;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class RefundRequestApiTest extends IntegrationTestSupport {
 

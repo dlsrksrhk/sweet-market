@@ -1,11 +1,10 @@
 package com.sweet.market.catalog.api;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import org.junit.jupiter.api.Test;
-
 import com.sweet.market.catalog.domain.CatalogSort;
 import com.sweet.market.product.domain.ProductCategory;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class CatalogSearchRequestTest {
 

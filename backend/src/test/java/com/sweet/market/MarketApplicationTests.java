@@ -1,15 +1,15 @@
 package com.sweet.market;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import java.time.Duration;
-
 import com.sweet.market.auth.security.JwtProperties;
 import com.sweet.market.catalog.query.CatalogCursorProperties;
 import com.sweet.market.support.IntegrationTestSupport;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.time.Duration;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MarketApplicationTests extends IntegrationTestSupport {
 

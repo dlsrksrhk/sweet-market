@@ -1,11 +1,10 @@
 package com.sweet.market.coupon.api;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-
 import com.sweet.market.coupon.application.CouponDiscountQuote;
 import com.sweet.market.coupon.domain.MemberCoupon;
+
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 public record EligibleMemberCouponResponse(
         Long id, String title, long discountAmount, long finalPrice, LocalDateTime validUntil

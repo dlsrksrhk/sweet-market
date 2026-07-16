@@ -1,17 +1,15 @@
 package com.sweet.market.coupon.repository;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
-
+import com.sweet.market.coupon.domain.CouponReservation;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.sweet.market.coupon.domain.CouponReservation;
-
-import jakarta.persistence.LockModeType;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 
 public interface CouponReservationRepository extends JpaRepository<CouponReservation, Long> {
 

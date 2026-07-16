@@ -1,13 +1,10 @@
 package com.sweet.market.product;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.hamcrest.Matchers.startsWith;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
+import com.fasterxml.jackson.databind.JsonNode;
+import com.sweet.market.auth.api.LoginRequest;
+import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.support.IntegrationTestSupport;
+import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
@@ -16,12 +13,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.sweet.market.auth.api.LoginRequest;
-import com.sweet.market.auth.api.SignupRequest;
-import com.sweet.market.support.IntegrationTestSupport;
-
-import jakarta.persistence.EntityManagerFactory;
+import static org.hamcrest.Matchers.startsWith;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class ProductSellerApiTest extends IntegrationTestSupport {
 

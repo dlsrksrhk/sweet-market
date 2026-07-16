@@ -1,17 +1,5 @@
 package com.sweet.market.promotion.application;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.List;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.domain.Product;
@@ -23,6 +11,17 @@ import com.sweet.market.promotion.repository.PromotionCampaignRepository;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.support.IntegrationTestSupport;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class PromotionPricingServiceTest extends IntegrationTestSupport {
 

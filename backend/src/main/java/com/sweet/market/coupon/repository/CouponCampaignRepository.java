@@ -1,23 +1,17 @@
 package com.sweet.market.coupon.repository;
 
-import java.time.Instant;
-import java.util.Optional;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-
 import com.sweet.market.coupon.domain.CouponCampaign;
 import com.sweet.market.coupon.domain.CouponCampaignOwnerType;
 import com.sweet.market.coupon.query.AvailableCouponCampaignRow;
 import com.sweet.market.coupon.query.CouponCampaignSummaryRow;
-
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.*;
+import org.springframework.data.repository.query.Param;
+
+import java.time.Instant;
+import java.util.Optional;
 
 public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, Long> {
 

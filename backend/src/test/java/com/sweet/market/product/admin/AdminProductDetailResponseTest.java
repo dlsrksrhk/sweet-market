@@ -1,14 +1,13 @@
 package com.sweet.market.product.admin;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.util.List;
-
-import org.junit.jupiter.api.Test;
-
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductImage;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class AdminProductDetailResponseTest {
 

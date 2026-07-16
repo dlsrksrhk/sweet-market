@@ -1,13 +1,5 @@
 package com.sweet.market.product.domain;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import java.util.List;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
@@ -15,6 +7,13 @@ import com.sweet.market.order.domain.OrderDomainError;
 import com.sweet.market.refund.domain.RefundRequest;
 import com.sweet.market.settlement.domain.Settlement;
 import com.sweet.market.store.domain.Store;
+import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ProductTest {
 
@@ -439,12 +438,17 @@ class ProductTest {
         Member owner = Member.create("owner@example.com", "encoded-password", "owner");
         ReflectionTestUtils.setField(owner, "id", 1L);
         Order order = Order.create(Member.create("buyer@example.com", "encoded-password", "buyer"), Product.create(Store.createPersonal(owner, "상점", ""), "상품", "설명", 10_000L));
-        order.markPaid(); order.startShipping(); order.completeDelivery();
+        order.markPaid();
+        order.startShipping();
+        order.completeDelivery();
         RefundRequest refund = RefundRequest.request(order, order.getBuyer(), "환불 사유는 충분히 깁니다");
 
         assertThat(refund.isSellerOwnedBy(1L)).isTrue();
         Order settledOrder = Order.create(Member.create("buyer2@example.com", "encoded-password", "buyer2"), Product.create(Store.createPersonal(owner, "상점2", ""), "상품2", "설명", 10_000L));
-        settledOrder.markPaid(); settledOrder.startShipping(); settledOrder.completeDelivery(); settledOrder.confirm();
+        settledOrder.markPaid();
+        settledOrder.startShipping();
+        settledOrder.completeDelivery();
+        settledOrder.confirm();
         assertThat(Settlement.create(settledOrder).getSeller()).isSameAs(owner);
     }
 }

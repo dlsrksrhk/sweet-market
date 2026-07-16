@@ -1,26 +1,5 @@
 package com.sweet.market.settlement.batch;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import java.time.LocalDateTime;
-import java.util.Collection;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.batch.core.BatchStatus;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.JobExecution;
-import org.springframework.batch.core.JobParameters;
-import org.springframework.batch.core.JobParametersBuilder;
-import org.springframework.batch.core.StepExecution;
-import org.springframework.batch.item.Chunk;
-import org.springframework.batch.test.JobLauncherTestUtils;
-import org.springframework.batch.test.context.SpringBatchTest;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.payment.domain.Payment;
@@ -29,8 +8,22 @@ import com.sweet.market.refund.domain.RefundRequest;
 import com.sweet.market.settlement.domain.Settlement;
 import com.sweet.market.settlement.repository.SettlementRepository;
 import com.sweet.market.support.IntegrationTestSupport;
-
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.batch.core.*;
+import org.springframework.batch.item.Chunk;
+import org.springframework.batch.test.JobLauncherTestUtils;
+import org.springframework.batch.test.context.SpringBatchTest;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.time.LocalDateTime;
+import java.util.Collection;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBatchTest
 @TestPropertySource(properties = "spring.batch.job.enabled=false")

@@ -1,20 +1,5 @@
 package com.sweet.market.cart.application;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import java.util.Optional;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.support.SimpleTransactionStatus;
-
 import com.sweet.market.cart.api.CartResponse;
 import com.sweet.market.cart.domain.CartItem;
 import com.sweet.market.cart.repository.CartItemRepository;
@@ -25,6 +10,18 @@ import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.promotion.application.PromotionPricingService;
+import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 class CartServiceTest {
 

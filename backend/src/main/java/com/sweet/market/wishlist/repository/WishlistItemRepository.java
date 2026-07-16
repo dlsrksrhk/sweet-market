@@ -1,18 +1,17 @@
 package com.sweet.market.wishlist.repository;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-
+import com.sweet.market.product.domain.ProductStatus;
+import com.sweet.market.wishlist.api.WishlistItemResponse;
+import com.sweet.market.wishlist.domain.WishlistItem;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.sweet.market.product.domain.ProductStatus;
-import com.sweet.market.wishlist.api.WishlistItemResponse;
-import com.sweet.market.wishlist.domain.WishlistItem;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 
 public interface WishlistItemRepository extends JpaRepository<WishlistItem, Long> {
 
@@ -90,14 +89,14 @@ public interface WishlistItemRepository extends JpaRepository<WishlistItem, Long
             order by wi.createdAt desc, wi.id desc
             """,
             countQuery = """
-            select count(wi)
-            from WishlistItem wi
-            join wi.product p
-            join p.store store
-            where wi.buyer.id = :buyerId
-              and p.status in :visibleStatuses
-              and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
-            """)
+                    select count(wi)
+                    from WishlistItem wi
+                    join wi.product p
+                    join p.store store
+                    where wi.buyer.id = :buyerId
+                      and p.status in :visibleStatuses
+                      and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
+                    """)
     Page<WishlistItemResponse> findPageByBuyerIdAndProductStatusIn(
             @Param("buyerId") Long buyerId,
             @Param("visibleStatuses") List<ProductStatus> visibleStatuses,

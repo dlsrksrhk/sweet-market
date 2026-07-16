@@ -1,23 +1,17 @@
 package com.sweet.market.promotion.application;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.promotion.domain.PromotionCampaign;
 import com.sweet.market.promotion.domain.PromotionScope;
 import com.sweet.market.promotion.repository.PromotionCampaignRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.util.*;
 
 @Service
 public class PromotionPricingService {
@@ -88,8 +82,8 @@ public class PromotionPricingService {
         }
         return campaign.getScope() == PromotionScope.STORE_WIDE
                 || campaign.getTargets().stream()
-                        .map(target -> target.getProduct().getId())
-                        .anyMatch(product.getId()::equals);
+                .map(target -> target.getProduct().getId())
+                .anyMatch(product.getId()::equals);
     }
 
     private PromotionPrice priceFor(PromotionCampaign campaign, long listPrice) {

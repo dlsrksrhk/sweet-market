@@ -1,18 +1,17 @@
 package com.sweet.market.delivery.repository;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-
+import com.sweet.market.delivery.domain.Delivery;
+import com.sweet.market.delivery.domain.DeliveryStatus;
+import com.sweet.market.order.domain.OrderStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.sweet.market.delivery.domain.Delivery;
-import com.sweet.market.delivery.domain.DeliveryStatus;
-import com.sweet.market.order.domain.OrderStatus;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 
 public interface DeliveryRepository extends JpaRepository<Delivery, Long> {
 

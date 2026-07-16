@@ -1,14 +1,5 @@
 package com.sweet.market.coupon.query;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.util.List;
-import java.util.Optional;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
-
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.coupon.api.EligibleMemberCouponResponse;
@@ -19,6 +10,14 @@ import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.promotion.application.PromotionPrice;
 import com.sweet.market.promotion.application.PromotionPricingService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 public class CouponEligibilityQueryService {

@@ -1,10 +1,10 @@
 package com.sweet.market.wishlist.api;
 
-import java.time.LocalDateTime;
-
-import com.sweet.market.product.domain.ProductStatus;
-import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
+import com.sweet.market.product.domain.ProductSalesPolicy;
+import com.sweet.market.product.domain.ProductStatus;
+
+import java.time.LocalDateTime;
 
 public record WishlistItemResponse(
         Long wishlistItemId,

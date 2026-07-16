@@ -1,16 +1,5 @@
 package com.sweet.market.order.query;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.order.api.OrderResponse;
@@ -21,6 +10,16 @@ import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.refund.domain.RefundRequest;
 import com.sweet.market.refund.repository.RefundRequestRepository;
 import com.sweet.market.review.repository.ReviewRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class OrderQueryService {
@@ -51,8 +50,8 @@ public class OrderQueryService {
                 : reviewRepository.findReviewedOrderIds(orderIds);
         Map<Long, RefundRequest> refundRequestsByOrderId = shouldLoadRefundRequests(orders.getContent())
                 ? refundRequestRepository.findByOrderIdIn(orderIds)
-                        .stream()
-                        .collect(Collectors.toMap(refundRequest -> refundRequest.getOrder().getId(), Function.identity()))
+                .stream()
+                .collect(Collectors.toMap(refundRequest -> refundRequest.getOrder().getId(), Function.identity()))
                 : Map.of();
 
         return orders.map(order -> OrderSummaryResponse.from(

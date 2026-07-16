@@ -1,14 +1,13 @@
 package com.sweet.market.store.repository;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
-
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.support.IntegrationTestSupport;
+import org.junit.jupiter.api.Test;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StoreRepositoryTest extends IntegrationTestSupport {
 

@@ -1,22 +1,19 @@
 package com.sweet.market.coupon;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-
+import com.sweet.market.auth.api.LoginRequest;
+import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.support.IntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 
-import com.sweet.market.auth.api.LoginRequest;
-import com.sweet.market.auth.api.SignupRequest;
-import com.sweet.market.support.IntegrationTestSupport;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class CouponEligibilityApiTest extends IntegrationTestSupport {
 

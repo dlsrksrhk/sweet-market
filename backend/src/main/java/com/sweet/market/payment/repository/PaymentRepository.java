@@ -1,16 +1,14 @@
 package com.sweet.market.payment.repository;
 
-import java.util.Optional;
-
+import com.sweet.market.payment.domain.Payment;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.sweet.market.payment.domain.Payment;
-
-import jakarta.persistence.LockModeType;
+import java.util.Optional;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 

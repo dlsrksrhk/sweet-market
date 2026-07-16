@@ -1,21 +1,22 @@
 package com.sweet.market.payment;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.not;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
+import com.fasterxml.jackson.databind.JsonNode;
+import com.sweet.market.auth.api.LoginRequest;
+import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.inventory.application.InventoryService;
+import com.sweet.market.member.domain.Member;
+import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.order.repository.OrderRepository;
+import com.sweet.market.payment.application.PaymentFailureCompensationService;
+import com.sweet.market.payment.application.PaymentGateway;
+import com.sweet.market.payment.application.PaymentGatewayException;
+import com.sweet.market.payment.repository.PaymentRepository;
+import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductSalesPolicy;
+import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.store.domain.Store;
+import com.sweet.market.store.repository.StoreRepository;
+import com.sweet.market.support.IntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,23 +27,15 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.sweet.market.auth.api.LoginRequest;
-import com.sweet.market.auth.api.SignupRequest;
-import com.sweet.market.inventory.application.InventoryService;
-import com.sweet.market.member.domain.Member;
-import com.sweet.market.member.repository.MemberRepository;
-import com.sweet.market.order.repository.OrderRepository;
-import com.sweet.market.payment.application.PaymentGateway;
-import com.sweet.market.payment.application.PaymentGatewayException;
-import com.sweet.market.payment.application.PaymentFailureCompensationService;
-import com.sweet.market.payment.repository.PaymentRepository;
-import com.sweet.market.product.domain.Product;
-import com.sweet.market.product.domain.ProductSalesPolicy;
-import com.sweet.market.product.repository.ProductRepository;
-import com.sweet.market.store.domain.Store;
-import com.sweet.market.store.repository.StoreRepository;
-import com.sweet.market.support.IntegrationTestSupport;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class PaymentApiTest extends IntegrationTestSupport {
 

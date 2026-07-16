@@ -1,8 +1,8 @@
 package com.sweet.market.payment.api;
 
-import java.time.LocalDateTime;
-
 import com.sweet.market.payment.domain.Payment;
+
+import java.time.LocalDateTime;
 
 public record PaymentResponse(
         Long id,

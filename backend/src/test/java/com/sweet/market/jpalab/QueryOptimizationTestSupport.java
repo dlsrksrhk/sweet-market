@@ -1,13 +1,11 @@
 package com.sweet.market.jpalab;
 
+import com.sweet.market.support.IntegrationTestSupport;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.springframework.beans.factory.annotation.Autowired;
-
-import com.sweet.market.support.IntegrationTestSupport;
-
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
 
 public abstract class QueryOptimizationTestSupport extends IntegrationTestSupport {
 

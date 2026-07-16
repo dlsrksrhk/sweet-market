@@ -1,9 +1,14 @@
 package com.sweet.market.product.repository;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-
+import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
+import com.sweet.market.product.admin.AdminProductSummaryResponse;
+import com.sweet.market.product.api.ProductSummaryResponse;
+import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductStatus;
+import com.sweet.market.seller.report.SellerProductStatusCountProjection;
+import com.sweet.market.store.operations.StoreCatalogProductResponse;
+import com.sweet.market.store.operations.StoreCatalogSummaryResponse;
+import com.sweet.market.store.storefront.StorefrontProductResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -11,15 +16,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.sweet.market.product.admin.AdminProductSummaryResponse;
-import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
-import com.sweet.market.product.api.ProductSummaryResponse;
-import com.sweet.market.product.domain.Product;
-import com.sweet.market.product.domain.ProductStatus;
-import com.sweet.market.seller.report.SellerProductStatusCountProjection;
-import com.sweet.market.store.storefront.StorefrontProductResponse;
-import com.sweet.market.store.operations.StoreCatalogProductResponse;
-import com.sweet.market.store.operations.StoreCatalogSummaryResponse;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
@@ -164,22 +163,22 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             order by p.id desc
             """,
             countQuery = """
-            select count(p)
-            from Product p
-            join p.store store
-            left join Inventory inventory on inventory.product = p
-            where p.status <> com.sweet.market.product.domain.ProductStatus.HIDDEN
-              and case
-                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
-                         and inventory.totalQuantity - inventory.reservedQuantity > 0
-                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
-                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
-                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
-                    else p.status
-                  end = :status
-              and (store.type <> com.sweet.market.store.domain.StoreType.BUSINESS
-                   or store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE)
-            """)
+                    select count(p)
+                    from Product p
+                    join p.store store
+                    left join Inventory inventory on inventory.product = p
+                    where p.status <> com.sweet.market.product.domain.ProductStatus.HIDDEN
+                      and case
+                            when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                                 and inventory.totalQuantity - inventory.reservedQuantity > 0
+                                then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                            when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                                then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                            else p.status
+                          end = :status
+                      and (store.type <> com.sweet.market.store.domain.StoreType.BUSINESS
+                           or store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE)
+                    """)
     Page<ProductSummaryResponse> findPublicSummariesByStatusOrderByIdDesc(
             @Param("status") ProductStatus status,
             @Param("viewerId") Long viewerId,
@@ -274,22 +273,22 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
                   end = :status
             """,
             countQuery = """
-            select count(p)
-            from Product p
-            join p.store store
-            left join Inventory inventory on inventory.product = p
-            where store.id = :storeId
-              and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
-              and p.status <> com.sweet.market.product.domain.ProductStatus.HIDDEN
-              and case
-                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
-                         and inventory.totalQuantity - inventory.reservedQuantity > 0
-                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
-                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
-                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
-                    else p.status
-                  end = :status
-            """)
+                    select count(p)
+                    from Product p
+                    join p.store store
+                    left join Inventory inventory on inventory.product = p
+                    where store.id = :storeId
+                      and store.status = com.sweet.market.store.domain.StoreStatus.ACTIVE
+                      and p.status <> com.sweet.market.product.domain.ProductStatus.HIDDEN
+                      and case
+                            when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                                 and inventory.totalQuantity - inventory.reservedQuantity > 0
+                                then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                            when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                                then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                            else p.status
+                          end = :status
+                    """)
     Page<StorefrontProductResponse> findStorefrontProducts(
             @Param("storeId") Long storeId,
             @Param("status") ProductStatus status,
@@ -380,22 +379,22 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
               and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
             """,
             countQuery = """
-            select count(p)
-            from Product p
-            left join Inventory inventory on inventory.product = p
-            where p.store.id = :storeId
-              and (:status is null or case
-                    when p.status = com.sweet.market.product.domain.ProductStatus.HIDDEN
-                        then com.sweet.market.product.domain.ProductStatus.HIDDEN
-                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
-                         and inventory.totalQuantity - inventory.reservedQuantity > 0
-                        then com.sweet.market.product.domain.ProductStatus.ON_SALE
-                    when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
-                        then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
-                    else p.status
-                  end = :status)
-              and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
-            """)
+                    select count(p)
+                    from Product p
+                    left join Inventory inventory on inventory.product = p
+                    where p.store.id = :storeId
+                      and (:status is null or case
+                            when p.status = com.sweet.market.product.domain.ProductStatus.HIDDEN
+                                then com.sweet.market.product.domain.ProductStatus.HIDDEN
+                            when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                                 and inventory.totalQuantity - inventory.reservedQuantity > 0
+                                then com.sweet.market.product.domain.ProductStatus.ON_SALE
+                            when p.salesPolicy = com.sweet.market.product.domain.ProductSalesPolicy.STOCK_MANAGED
+                                then com.sweet.market.product.domain.ProductStatus.SOLD_OUT
+                            else p.status
+                          end = :status)
+                      and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
+                    """)
     Page<StoreCatalogProductResponse> searchStoreCatalog(
             @Param("storeId") Long storeId,
             @Param("status") ProductStatus status,
@@ -446,11 +445,11 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
             order by p.id desc
             """,
             countQuery = """
-            select count(p)
-            from Product p
-            join p.store store
-            where store.ownerMember.id = :sellerId
-            """)
+                    select count(p)
+                    from Product p
+                    join p.store store
+                    where store.ownerMember.id = :sellerId
+                    """)
     Page<ProductSummaryResponse> findSummariesBySellerIdOrderByIdDesc(@Param("sellerId") Long sellerId, Pageable pageable);
 
     @Query(value = """
@@ -494,14 +493,14 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
               and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
             """,
             countQuery = """
-            select count(p)
-            from Product p
-            join p.store store
-            join store.ownerMember s
-            where (:sellerId is null or s.id = :sellerId)
-              and (:status is null or p.status = :status)
-              and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
-            """)
+                    select count(p)
+                    from Product p
+                    join p.store store
+                    join store.ownerMember s
+                    where (:sellerId is null or s.id = :sellerId)
+                      and (:status is null or p.status = :status)
+                      and (coalesce(:keyword, '') = '' or lower(p.title) like lower(concat('%', coalesce(:keyword, ''), '%')))
+                    """)
     Page<AdminProductSummaryResponse> searchAdminProducts(
             @Param("sellerId") Long sellerId,
             @Param("status") ProductStatus status,

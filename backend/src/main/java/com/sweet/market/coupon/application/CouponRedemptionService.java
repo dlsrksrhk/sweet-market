@@ -1,24 +1,18 @@
 package com.sweet.market.coupon.application;
 
-import java.time.Instant;
-
-import org.springframework.stereotype.Service;
-import org.springframework.dao.DataIntegrityViolationException;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
-import com.sweet.market.coupon.domain.CouponDiscountType;
-import com.sweet.market.coupon.domain.CouponDomainError;
-import com.sweet.market.coupon.domain.CouponScope;
-import com.sweet.market.coupon.domain.MemberCoupon;
-import com.sweet.market.coupon.domain.MemberCouponStatus;
-import com.sweet.market.coupon.domain.CouponReservation;
+import com.sweet.market.coupon.domain.*;
 import com.sweet.market.coupon.repository.CouponReservationRepository;
 import com.sweet.market.coupon.repository.MemberCouponRepository;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.promotion.application.PromotionPrice;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
 
 @Service
 public class CouponRedemptionService {
@@ -48,7 +42,7 @@ public class CouponRedemptionService {
     }
 
     public CouponReservationQuote quoteForReservation(Long memberId, Long memberCouponId, Product product,
-                                                       PromotionPrice promotion, Instant now) {
+                                                      PromotionPrice promotion, Instant now) {
         MemberCoupon coupon = memberCouponRepository.findRedemptionTargetByIdForUpdate(memberCouponId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_COUPON_NOT_FOUND));
         if (!coupon.getMember().getId().equals(memberId)) {

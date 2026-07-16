@@ -1,16 +1,16 @@
 package com.sweet.market.store.migration;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
-
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
 class CouponRedemptionMigrationTest {

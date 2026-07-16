@@ -1,13 +1,5 @@
 package com.sweet.market.jpalab;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.util.List;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.cart.domain.CartItem;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
@@ -27,6 +19,13 @@ import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.store.storefront.StorefrontProductSort;
 import com.sweet.market.store.storefront.StorefrontQueryService;
 import com.sweet.market.wishlist.domain.WishlistItem;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class StorefrontQueryOptimizationTest extends QueryOptimizationTestSupport {
 

@@ -1,18 +1,5 @@
 package com.sweet.market.demo;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
-import org.springframework.context.annotation.Profile;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.delivery.domain.Delivery;
 import com.sweet.market.delivery.repository.DeliveryRepository;
 import com.sweet.market.member.domain.Member;
@@ -27,6 +14,18 @@ import com.sweet.market.settlement.domain.Settlement;
 import com.sweet.market.settlement.repository.SettlementRepository;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.repository.StoreRepository;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Profile;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Component
 @Profile({"local", "dev"})

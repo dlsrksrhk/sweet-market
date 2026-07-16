@@ -1,9 +1,9 @@
 package com.sweet.market.settlement.admin;
 
-import java.time.LocalDateTime;
-
 import com.sweet.market.order.domain.OrderStatus;
 import com.sweet.market.settlement.domain.SettlementStatus;
+
+import java.time.LocalDateTime;
 
 public record AdminSettlementDetailResponse(
         Long settlementId,

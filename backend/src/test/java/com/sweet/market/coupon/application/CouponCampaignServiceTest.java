@@ -1,15 +1,14 @@
 package com.sweet.market.coupon.application;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
-import org.springframework.test.util.ReflectionTestUtils;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.coupon.domain.CouponDomainError;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class CouponCampaignServiceTest {
 

@@ -1,27 +1,5 @@
 package com.sweet.market.order;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Pageable;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.delivery.domain.Delivery;
 import com.sweet.market.delivery.domain.DeliveryStatus;
 import com.sweet.market.delivery.repository.DeliveryRepository;
@@ -37,8 +15,24 @@ import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.support.IntegrationTestSupport;
-
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @TestPropertySource(properties = "market.order.auto-confirm.limit=1")
 @Transactional

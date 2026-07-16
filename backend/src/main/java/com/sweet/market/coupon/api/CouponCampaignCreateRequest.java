@@ -1,18 +1,12 @@
 package com.sweet.market.coupon.api;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
 import com.sweet.market.coupon.domain.CouponDiscountType;
 import com.sweet.market.coupon.domain.CouponScope;
 import com.sweet.market.coupon.domain.CouponValidityType;
+import jakarta.validation.constraints.*;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.PositiveOrZero;
-import jakarta.validation.constraints.Size;
-import jakarta.validation.constraints.AssertTrue;
+import java.time.LocalDateTime;
+import java.util.List;
 
 public record CouponCampaignCreateRequest(
         @NotNull CouponScope scope, @NotNull CouponDiscountType discountType,

@@ -1,28 +1,24 @@
 package com.sweet.market.order;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.not;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
+import com.fasterxml.jackson.databind.JsonNode;
+import com.sweet.market.auth.api.LoginRequest;
+import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.payment.application.PaymentGateway;
+import com.sweet.market.support.IntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.sweet.market.auth.api.LoginRequest;
-import com.sweet.market.auth.api.SignupRequest;
-import com.sweet.market.payment.application.PaymentGateway;
-import com.sweet.market.support.IntegrationTestSupport;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class OrderApiTest extends IntegrationTestSupport {
 
@@ -101,10 +97,10 @@ class OrderApiTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {
-                                  "productId": %d
-                                }
-                """.formatted(productId)))
+                                                {
+                                                  "productId": %d
+                                                }
+                                """.formatted(productId)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("PRODUCT_NOT_ON_SALE"))
                 .andExpect(jsonPath("$.message").value("판매 중인 상품만 주문할 수 있습니다."));

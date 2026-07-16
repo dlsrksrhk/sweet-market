@@ -1,15 +1,5 @@
 package com.sweet.market.store;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import com.sweet.market.auth.security.JwtProvider;
 import com.sweet.market.cart.domain.CartItem;
 import com.sweet.market.inventory.domain.Inventory;
@@ -23,8 +13,16 @@ import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.support.IntegrationTestSupport;
 import com.sweet.market.wishlist.domain.WishlistItem;
-
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class StorefrontApiTest extends IntegrationTestSupport {
 

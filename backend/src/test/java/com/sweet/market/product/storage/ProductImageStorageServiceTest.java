@@ -1,11 +1,7 @@
 package com.sweet.market.product.storage;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.nio.file.Path;
-import java.time.Duration;
-
+import com.sweet.market.common.error.BusinessException;
+import com.sweet.market.common.error.ErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -13,8 +9,11 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.util.unit.DataSize;
 
-import com.sweet.market.common.error.BusinessException;
-import com.sweet.market.common.error.ErrorCode;
+import java.nio.file.Path;
+import java.time.Duration;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ProductImageStorageServiceTest {
 

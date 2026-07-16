@@ -1,19 +1,18 @@
 package com.sweet.market.catalog.api;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
-
 import com.sweet.market.catalog.domain.CatalogAvailabilityFilter;
 import com.sweet.market.catalog.domain.CatalogSort;
 import com.sweet.market.product.domain.ProductCategory;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.store.domain.StoreType;
-
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 public record CatalogSearchRequest(
         @Pattern(regexp = ".*\\S.*", message = "keyword must not be blank")

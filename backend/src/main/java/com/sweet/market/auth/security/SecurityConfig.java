@@ -1,5 +1,8 @@
 package com.sweet.market.auth.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.common.error.ErrorResponse;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,10 +15,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sweet.market.common.error.ErrorCode;
-import com.sweet.market.common.error.ErrorResponse;
 
 @Configuration
 @EnableWebSecurity

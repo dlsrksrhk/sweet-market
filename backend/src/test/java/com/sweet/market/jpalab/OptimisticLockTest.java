@@ -1,23 +1,17 @@
 package com.sweet.market.jpalab;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.support.IntegrationTestSupport;
+import jakarta.persistence.*;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.EntityTransaction;
-import jakarta.persistence.OptimisticLockException;
-import jakarta.persistence.RollbackException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OptimisticLockTest extends IntegrationTestSupport {
 

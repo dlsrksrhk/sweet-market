@@ -1,15 +1,14 @@
 package com.sweet.market.product.api;
 
-import java.util.List;
-
 import com.sweet.market.product.domain.ProductCategory;
 import com.sweet.market.product.domain.ProductSalesPolicy;
-
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+
+import java.util.List;
 
 public record ProductUpdateRequest(
         @NotBlank

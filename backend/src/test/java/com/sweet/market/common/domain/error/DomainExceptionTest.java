@@ -1,11 +1,10 @@
 package com.sweet.market.common.domain.error;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import org.junit.jupiter.api.Test;
-
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class DomainExceptionTest {
 

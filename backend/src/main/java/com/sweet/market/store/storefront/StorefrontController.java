@@ -1,13 +1,5 @@
 package com.sweet.market.store.storefront;
 
-import org.springframework.data.domain.Page;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
 import com.sweet.market.auth.security.AuthenticatedMember;
 import com.sweet.market.catalog.api.CatalogSearchRequest;
 import com.sweet.market.catalog.api.CatalogSearchResponse;
@@ -16,11 +8,13 @@ import com.sweet.market.common.api.ApiResponse;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.product.domain.ProductStatus;
-
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.Valid;
-import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/stores")

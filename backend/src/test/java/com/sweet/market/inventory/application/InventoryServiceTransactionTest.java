@@ -1,30 +1,9 @@
 package com.sweet.market.inventory.application;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
-
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.springframework.transaction.support.TransactionTemplate;
-
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
-import com.sweet.market.common.domain.error.DomainException;
-import com.sweet.market.inventory.domain.Inventory;
-import com.sweet.market.inventory.domain.InventoryAdjustment;
-import com.sweet.market.inventory.domain.InventoryAdjustmentReason;
-import com.sweet.market.inventory.domain.InventoryChangeType;
-import com.sweet.market.inventory.domain.InventoryDomainError;
+import com.sweet.market.inventory.domain.*;
 import com.sweet.market.inventory.repository.InventoryAdjustmentRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
@@ -35,8 +14,23 @@ import com.sweet.market.store.domain.StoreMembership;
 import com.sweet.market.store.repository.StoreMembershipRepository;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.support.IntegrationTestSupport;
-
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 
 class InventoryServiceTransactionTest extends IntegrationTestSupport {
 

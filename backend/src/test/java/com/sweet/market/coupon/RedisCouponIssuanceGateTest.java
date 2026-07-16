@@ -1,19 +1,18 @@
 package com.sweet.market.coupon;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.time.Instant;
-import java.util.List;
-import java.util.stream.IntStream;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-
 import com.sweet.market.coupon.application.issuance.CouponIssuanceGate;
 import com.sweet.market.coupon.application.issuance.CouponIssuanceGateResult;
 import com.sweet.market.coupon.application.issuance.CouponIssuanceReservation;
 import com.sweet.market.coupon.application.issuance.ReservationType;
 import com.sweet.market.support.IntegrationTestSupport;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.stream.IntStream;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class RedisCouponIssuanceGateTest extends IntegrationTestSupport {
 

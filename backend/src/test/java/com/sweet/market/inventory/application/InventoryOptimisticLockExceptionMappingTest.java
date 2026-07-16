@@ -1,14 +1,13 @@
 package com.sweet.market.inventory.application;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
+import com.sweet.market.common.error.ErrorResponse;
+import com.sweet.market.common.error.GlobalExceptionHandler;
+import com.sweet.market.inventory.domain.Inventory;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
-import com.sweet.market.common.error.ErrorResponse;
-import com.sweet.market.common.error.GlobalExceptionHandler;
-import com.sweet.market.inventory.domain.Inventory;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class InventoryOptimisticLockExceptionMappingTest {
 

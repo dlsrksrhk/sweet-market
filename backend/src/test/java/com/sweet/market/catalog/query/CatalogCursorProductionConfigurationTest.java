@@ -1,12 +1,5 @@
 package com.sweet.market.catalog.query;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.time.Duration;
-import java.util.List;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.env.YamlPropertySourceLoader;
@@ -15,6 +8,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.PropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.FileSystemResource;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.time.Duration;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class CatalogCursorProductionConfigurationTest {
 

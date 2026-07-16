@@ -1,26 +1,21 @@
 package com.sweet.market.coupon;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-
+import com.sweet.market.auth.api.LoginRequest;
+import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.support.IntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
 
-import com.sweet.market.auth.api.LoginRequest;
-import com.sweet.market.auth.api.SignupRequest;
-import com.sweet.market.support.IntegrationTestSupport;
+import java.util.List;
+import java.util.concurrent.*;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class CouponRedemptionConcurrencyTest extends IntegrationTestSupport {
 

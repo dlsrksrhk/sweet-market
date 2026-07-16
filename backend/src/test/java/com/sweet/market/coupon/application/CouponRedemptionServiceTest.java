@@ -1,14 +1,5 @@
 package com.sweet.market.coupon.application;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.when;
-
-import java.time.Instant;
-import java.util.Set;
-
-import org.junit.jupiter.api.Test;
-
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.coupon.domain.CouponDiscountType;
@@ -17,6 +8,14 @@ import com.sweet.market.coupon.domain.MemberCoupon;
 import com.sweet.market.coupon.domain.MemberCouponStatus;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.promotion.application.PromotionPrice;
+import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
 
 class CouponRedemptionServiceTest {
 

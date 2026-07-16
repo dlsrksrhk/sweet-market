@@ -1,11 +1,10 @@
 package com.sweet.market.settlement.batch;
 
+import com.sweet.market.settlement.domain.Settlement;
+import com.sweet.market.settlement.repository.SettlementRepository;
 import org.springframework.batch.item.Chunk;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.stereotype.Component;
-
-import com.sweet.market.settlement.domain.Settlement;
-import com.sweet.market.settlement.repository.SettlementRepository;
 
 @Component
 public class SettlementItemWriter implements ItemWriter<Settlement> {

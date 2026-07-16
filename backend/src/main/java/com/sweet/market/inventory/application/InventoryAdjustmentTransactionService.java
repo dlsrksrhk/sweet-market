@@ -1,8 +1,5 @@
 package com.sweet.market.inventory.application;
 
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
@@ -14,6 +11,8 @@ import com.sweet.market.inventory.repository.InventoryRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.store.application.StoreAccessService;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class InventoryAdjustmentTransactionService {

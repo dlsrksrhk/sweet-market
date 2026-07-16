@@ -1,12 +1,5 @@
 package com.sweet.market.catalog.query;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.cart.repository.CartItemRepository;
 import com.sweet.market.catalog.api.CatalogProductCardResponse;
 import com.sweet.market.catalog.api.CatalogSearchRequest;
@@ -17,6 +10,12 @@ import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.wishlist.repository.WishlistItemRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @Service
 public class CatalogSearchQueryService {

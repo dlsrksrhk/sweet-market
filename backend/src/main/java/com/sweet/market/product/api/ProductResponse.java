@@ -1,13 +1,13 @@
 package com.sweet.market.product.api;
 
-import java.util.List;
-
 import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductCategory;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.promotion.application.PromotionPrice;
+
+import java.util.List;
 
 public record ProductResponse(
         Long id,

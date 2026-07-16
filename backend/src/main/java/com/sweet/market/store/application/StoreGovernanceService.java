@@ -1,9 +1,5 @@
 package com.sweet.market.store.application;
 
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
@@ -15,6 +11,9 @@ import com.sweet.market.store.domain.StoreDomainError;
 import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.domain.StoreType;
 import com.sweet.market.store.repository.StoreRepository;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class StoreGovernanceService {

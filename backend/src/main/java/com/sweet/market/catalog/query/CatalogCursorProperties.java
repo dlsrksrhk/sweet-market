@@ -1,9 +1,9 @@
 package com.sweet.market.catalog.query;
 
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-
-import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "catalog.cursor")
 public record CatalogCursorProperties(

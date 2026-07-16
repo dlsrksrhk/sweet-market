@@ -1,13 +1,5 @@
 package com.sweet.market.inventory.application;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import org.hibernate.StaleObjectStateException;
-import org.junit.jupiter.api.Test;
-import org.springframework.orm.ObjectOptimisticLockingFailureException;
-
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.inventory.domain.Inventory;
@@ -16,6 +8,13 @@ import com.sweet.market.inventory.repository.InventoryAdjustmentRepository;
 import com.sweet.market.inventory.repository.InventoryRepository;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.store.application.StoreAccessService;
+import org.hibernate.StaleObjectStateException;
+import org.junit.jupiter.api.Test;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class InventoryAdjustmentCommitConflictTest {
 

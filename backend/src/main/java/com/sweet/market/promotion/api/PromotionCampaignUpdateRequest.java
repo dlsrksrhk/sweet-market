@@ -1,16 +1,11 @@
 package com.sweet.market.promotion.api;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
 import com.sweet.market.promotion.domain.PromotionDiscountType;
 import com.sweet.market.promotion.domain.PromotionScope;
+import jakarta.validation.constraints.*;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.PositiveOrZero;
-import jakarta.validation.constraints.Size;
+import java.time.LocalDateTime;
+import java.util.List;
 
 public record PromotionCampaignUpdateRequest(
         @NotNull PromotionScope scope,

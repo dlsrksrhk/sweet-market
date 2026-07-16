@@ -1,8 +1,5 @@
 package com.sweet.market.payment.application;
 
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
@@ -13,6 +10,8 @@ import com.sweet.market.payment.api.PaymentResponse;
 import com.sweet.market.payment.domain.Payment;
 import com.sweet.market.payment.domain.PaymentStatus;
 import com.sweet.market.payment.repository.PaymentRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PaymentService {

@@ -1,30 +1,11 @@
 package com.sweet.market.coupon;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.time.Instant;
-import java.util.List;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.PageRequest;
-
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
 import com.sweet.market.coupon.api.AvailableCouponCampaignSearchRequest;
 import com.sweet.market.coupon.api.MemberCouponSearchRequest;
 import com.sweet.market.coupon.application.CouponIssueService;
-import com.sweet.market.coupon.domain.CouponCampaign;
-import com.sweet.market.coupon.domain.CouponCampaignOwnerType;
-import com.sweet.market.coupon.domain.CouponDiscountType;
-import com.sweet.market.coupon.domain.CouponScope;
-import com.sweet.market.coupon.domain.CouponValidityType;
-import com.sweet.market.coupon.domain.MemberCoupon;
+import com.sweet.market.coupon.domain.*;
 import com.sweet.market.coupon.query.CouponDiscoveryQueryService;
 import com.sweet.market.coupon.query.CouponWalletQueryService;
 import com.sweet.market.coupon.repository.CouponCampaignRepository;
@@ -34,6 +15,19 @@ import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class CouponQueryOptimizationTest extends QueryOptimizationTestSupport {
 

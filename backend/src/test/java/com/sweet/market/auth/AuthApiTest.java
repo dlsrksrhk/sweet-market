@@ -1,20 +1,17 @@
 package com.sweet.market.auth;
 
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.emptyString;
+import com.sweet.market.auth.api.LoginRequest;
+import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.support.IntegrationTestSupport;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.http.MediaType;
-
-import com.sweet.market.auth.api.LoginRequest;
-import com.sweet.market.auth.api.SignupRequest;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
-import com.sweet.market.support.IntegrationTestSupport;
 
 class AuthApiTest extends IntegrationTestSupport {
 
@@ -49,22 +46,22 @@ class AuthApiTest extends IntegrationTestSupport {
 
         Integer storeCount = jdbcTemplate.queryForObject(
                 """
-                SELECT COUNT(*)
-                FROM stores s
-                JOIN members m ON m.id = s.owner_member_id
-                WHERE m.email = ? AND s.type = 'PERSONAL' AND s.status = 'ACTIVE'
-                """,
+                        SELECT COUNT(*)
+                        FROM stores s
+                        JOIN members m ON m.id = s.owner_member_id
+                        WHERE m.email = ? AND s.type = 'PERSONAL' AND s.status = 'ACTIVE'
+                        """,
                 Integer.class,
                 EMAIL
         );
         Integer ownerMembershipCount = jdbcTemplate.queryForObject(
                 """
-                SELECT COUNT(*)
-                FROM store_memberships sm
-                JOIN stores s ON s.id = sm.store_id
-                JOIN members m ON m.id = sm.member_id
-                WHERE m.email = ? AND s.type = 'PERSONAL' AND sm.role = 'OWNER' AND sm.active = TRUE
-                """,
+                        SELECT COUNT(*)
+                        FROM store_memberships sm
+                        JOIN stores s ON s.id = sm.store_id
+                        JOIN members m ON m.id = sm.member_id
+                        WHERE m.email = ? AND s.type = 'PERSONAL' AND sm.role = 'OWNER' AND sm.active = TRUE
+                        """,
                 Integer.class,
                 EMAIL
         );

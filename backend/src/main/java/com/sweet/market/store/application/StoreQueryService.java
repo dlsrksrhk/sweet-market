@@ -1,12 +1,11 @@
 package com.sweet.market.store.application;
 
-import java.util.List;
-
+import com.sweet.market.store.api.StorePrivateResponse;
+import com.sweet.market.store.repository.StoreRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.sweet.market.store.api.StorePrivateResponse;
-import com.sweet.market.store.repository.StoreRepository;
+import java.util.List;
 
 @Service
 public class StoreQueryService {

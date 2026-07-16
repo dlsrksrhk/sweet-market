@@ -1,33 +1,5 @@
 package com.sweet.market.store;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Mockito.doAnswer;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.LongStream;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import com.sweet.market.auth.security.JwtProvider;
 import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.inventory.domain.Inventory;
@@ -43,8 +15,27 @@ import com.sweet.market.store.domain.StoreMembership;
 import com.sweet.market.store.repository.StoreMembershipRepository;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.support.IntegrationTestSupport;
-
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.util.Optional;
+import java.util.concurrent.*;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.doAnswer;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class StoreOperationsApiTest extends IntegrationTestSupport {
 
@@ -795,7 +786,7 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
             Member member
     ) throws Exception {
         return mockMvc.perform(delete("/api/store-operations/{storeId}/memberships/{membershipId}",
-                        store.getId(), membershipId)
+                store.getId(), membershipId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(member)));
     }
 
@@ -848,7 +839,7 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
             String content
     ) throws Exception {
         return mockMvc.perform(patch("/api/store-operations/{storeId}/products/{productId}/inventory",
-                        store.getId(), productId)
+                store.getId(), productId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(member))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(content));
@@ -860,7 +851,7 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
             Long productId
     ) throws Exception {
         return mockMvc.perform(get("/api/store-operations/{storeId}/products/{productId}/inventory/history",
-                        store.getId(), productId)
+                store.getId(), productId)
                 .header(HttpHeaders.AUTHORIZATION, bearer(member)));
     }
 
@@ -872,7 +863,7 @@ class StoreOperationsApiTest extends IntegrationTestSupport {
             int size
     ) throws Exception {
         return mockMvc.perform(get("/api/store-operations/{storeId}/products/{productId}/inventory/history",
-                        store.getId(), productId)
+                store.getId(), productId)
                 .queryParam("page", String.valueOf(page))
                 .queryParam("size", String.valueOf(size))
                 .header(HttpHeaders.AUTHORIZATION, bearer(member)));

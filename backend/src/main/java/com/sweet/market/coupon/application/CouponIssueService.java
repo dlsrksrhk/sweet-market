@@ -1,29 +1,24 @@
 package com.sweet.market.coupon.application;
 
-import java.sql.SQLException;
-import java.time.Clock;
-import java.time.Duration;
-import java.time.Instant;
-
-import org.hibernate.exception.ConstraintViolationException;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.stereotype.Service;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.coupon.api.MemberCouponResponse;
-import com.sweet.market.coupon.application.issuance.CouponIssuanceGate;
-import com.sweet.market.coupon.application.issuance.CouponIssuanceGateResult;
-import com.sweet.market.coupon.application.issuance.CouponIssuanceGateUnavailableException;
-import com.sweet.market.coupon.application.issuance.CouponIssuanceReservation;
-import com.sweet.market.coupon.application.issuance.ReservationType;
+import com.sweet.market.coupon.application.issuance.*;
 import com.sweet.market.coupon.domain.CouponCampaign;
 import com.sweet.market.coupon.domain.CouponDomainError;
 import com.sweet.market.coupon.domain.MemberCoupon;
 import com.sweet.market.coupon.repository.CouponCampaignRepository;
 import com.sweet.market.coupon.repository.MemberCouponRepository;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+
+import java.sql.SQLException;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 
 @Service
 public class CouponIssueService {
@@ -179,7 +174,8 @@ public class CouponIssueService {
             if (current instanceof ConstraintViolationException violation
                     && UNIQUE_CONSTRAINT.equals(violation.getConstraintName())) return true;
             if (current instanceof SQLException sqlException
-                    && sqlException.getMessage() != null && sqlException.getMessage().contains(UNIQUE_CONSTRAINT)) return true;
+                    && sqlException.getMessage() != null && sqlException.getMessage().contains(UNIQUE_CONSTRAINT))
+                return true;
             current = current.getCause();
         }
         return false;

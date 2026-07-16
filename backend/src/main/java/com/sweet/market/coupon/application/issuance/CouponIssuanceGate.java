@@ -8,7 +8,7 @@ public interface CouponIssuanceGate {
     Duration RESERVATION_DURATION = Duration.ofSeconds(30);
 
     CouponIssuanceGateResult reserve(Long campaignId, Long memberId, int issueLimit,
-            int issuedCount, Instant issueEndsAt, Instant now);
+                                     int issuedCount, Instant issueEndsAt, Instant now);
 
     void complete(CouponIssuanceReservation reservation, Instant now);
 

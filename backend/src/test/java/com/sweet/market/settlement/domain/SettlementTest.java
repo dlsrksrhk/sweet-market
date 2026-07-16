@@ -1,10 +1,5 @@
 package com.sweet.market.settlement.domain;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import org.junit.jupiter.api.Test;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.coupon.application.CouponDiscountQuote;
 import com.sweet.market.delivery.domain.Delivery;
@@ -13,6 +8,10 @@ import com.sweet.market.order.domain.Order;
 import com.sweet.market.payment.domain.Payment;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.promotion.application.PromotionPrice;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SettlementTest {
 

@@ -1,11 +1,10 @@
 package com.sweet.market.product.config;
 
+import com.sweet.market.product.storage.ProductImageStorageProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-
-import com.sweet.market.product.storage.ProductImageStorageProperties;
 
 @Configuration
 @EnableConfigurationProperties(ProductImageStorageProperties.class)

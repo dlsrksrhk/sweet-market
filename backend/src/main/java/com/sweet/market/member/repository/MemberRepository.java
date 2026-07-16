@@ -1,16 +1,15 @@
 package com.sweet.market.member.repository;
 
-import java.util.Optional;
-
+import com.sweet.market.member.admin.AdminMemberSummaryResponse;
+import com.sweet.market.member.domain.Member;
+import com.sweet.market.member.domain.MemberRole;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.sweet.market.member.admin.AdminMemberSummaryResponse;
-import com.sweet.market.member.domain.Member;
-import com.sweet.market.member.domain.MemberRole;
+import java.util.Optional;
 
 public interface MemberRepository extends JpaRepository<Member, Long> {
 

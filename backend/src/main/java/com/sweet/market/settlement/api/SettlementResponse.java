@@ -1,8 +1,8 @@
 package com.sweet.market.settlement.api;
 
-import java.time.LocalDateTime;
-
 import com.sweet.market.settlement.domain.Settlement;
+
+import java.time.LocalDateTime;
 
 public record SettlementResponse(
         Long id,

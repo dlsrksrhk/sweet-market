@@ -1,12 +1,11 @@
 package com.sweet.market.settlement.query;
 
-import java.util.List;
-
+import com.sweet.market.settlement.api.SettlementResponse;
+import com.sweet.market.settlement.repository.SettlementRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.sweet.market.settlement.api.SettlementResponse;
-import com.sweet.market.settlement.repository.SettlementRepository;
+import java.util.List;
 
 @Service
 public class SettlementQueryService {

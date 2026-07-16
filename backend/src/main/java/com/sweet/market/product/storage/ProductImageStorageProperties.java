@@ -1,11 +1,11 @@
 package com.sweet.market.product.storage;
 
-import java.nio.file.Path;
-import java.time.Duration;
-
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.StringUtils;
 import org.springframework.util.unit.DataSize;
+
+import java.nio.file.Path;
+import java.time.Duration;
 
 @ConfigurationProperties(prefix = "product.images")
 public class ProductImageStorageProperties {

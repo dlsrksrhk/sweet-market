@@ -1,10 +1,10 @@
 package com.sweet.market.order.scheduler;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class OrderAutoConfirmSchedulingConfigTest {
 

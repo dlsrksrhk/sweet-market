@@ -1,24 +1,17 @@
 package com.sweet.market.coupon.api;
 
-import org.springframework.data.domain.Page;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.RequestParam;
-
 import com.sweet.market.auth.security.AuthenticatedMember;
 import com.sweet.market.common.api.ApiResponse;
 import com.sweet.market.coupon.application.CouponIssueService;
 import com.sweet.market.coupon.query.CouponDiscoveryQueryService;
-import com.sweet.market.coupon.query.CouponWalletQueryService;
 import com.sweet.market.coupon.query.CouponEligibilityQueryService;
+import com.sweet.market.coupon.query.CouponWalletQueryService;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-
-import jakarta.validation.Valid;
 
 @RestController
 public class CouponClaimController {
@@ -60,7 +53,7 @@ public class CouponClaimController {
 
     @GetMapping("/api/me/coupons/eligible")
     public ApiResponse<List<EligibleMemberCouponResponse>> findEligible(Authentication authentication,
-                                                                         @RequestParam Long productId) {
+                                                                        @RequestParam Long productId) {
         return ApiResponse.ok(eligibilityQueryService.findEligible(memberId(authentication), productId));
     }
 

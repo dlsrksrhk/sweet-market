@@ -1,19 +1,20 @@
 package com.sweet.market.coupon.api;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.sweet.market.coupon.domain.CouponEffectiveStatus;
 import com.sweet.market.coupon.domain.CouponCampaignOwnerType;
+import com.sweet.market.coupon.domain.CouponEffectiveStatus;
 import com.sweet.market.coupon.domain.MemberCoupon;
 import com.sweet.market.coupon.domain.MemberCouponStatus;
 import com.sweet.market.coupon.query.MemberCouponWalletRow;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record MemberCouponResponse(
-        Long id, Long campaignId, String title, String label, CouponCampaignOwnerType source, CouponCampaignResponse.StoreSummary store,
+        Long id, Long campaignId, String title, String label, CouponCampaignOwnerType source,
+        CouponCampaignResponse.StoreSummary store,
         com.sweet.market.coupon.domain.CouponDiscountType discountType, long discountValue,
         Long maxDiscountAmount, long minimumPurchaseAmount, com.sweet.market.coupon.domain.CouponScope scope,
         boolean stackable, LocalDateTime issuedAt, LocalDateTime validUntil,
@@ -45,7 +46,15 @@ public record MemberCouponResponse(
         return MemberCouponStatus.ISSUED;
     }
 
-    private static LocalDateTime local(Instant value) { return value == null ? null : LocalDateTime.ofInstant(value, KST); }
-    private static CouponCampaignResponse.StoreSummary store(com.sweet.market.store.domain.Store store) { return store == null ? null : new CouponCampaignResponse.StoreSummary(store.getId(), store.getPublicName()); }
-    private static CouponCampaignResponse.StoreSummary store(Long id, String name) { return id == null ? null : new CouponCampaignResponse.StoreSummary(id, name); }
+    private static LocalDateTime local(Instant value) {
+        return value == null ? null : LocalDateTime.ofInstant(value, KST);
+    }
+
+    private static CouponCampaignResponse.StoreSummary store(com.sweet.market.store.domain.Store store) {
+        return store == null ? null : new CouponCampaignResponse.StoreSummary(store.getId(), store.getPublicName());
+    }
+
+    private static CouponCampaignResponse.StoreSummary store(Long id, String name) {
+        return id == null ? null : new CouponCampaignResponse.StoreSummary(id, name);
+    }
 }

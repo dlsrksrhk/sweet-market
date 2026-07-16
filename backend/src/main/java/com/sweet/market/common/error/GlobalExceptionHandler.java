@@ -1,7 +1,5 @@
 package com.sweet.market.common.error;
 
-import java.util.List;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -9,6 +7,8 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {

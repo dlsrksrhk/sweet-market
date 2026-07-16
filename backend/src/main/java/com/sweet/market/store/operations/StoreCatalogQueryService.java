@@ -1,18 +1,17 @@
 package com.sweet.market.store.operations;
 
-import java.util.List;
-
+import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.store.application.StoreAccessService;
+import com.sweet.market.store.domain.Store;
+import com.sweet.market.store.domain.StoreStatus;
+import com.sweet.market.store.repository.StoreMembershipRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.sweet.market.product.repository.ProductRepository;
-import com.sweet.market.store.application.StoreAccessService;
-import com.sweet.market.store.domain.Store;
-import com.sweet.market.store.domain.StoreStatus;
-import com.sweet.market.store.repository.StoreMembershipRepository;
+import java.util.List;
 
 @Service
 public class StoreCatalogQueryService {

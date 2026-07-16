@@ -1,9 +1,9 @@
 package com.sweet.market.catalog.query;
 
+import com.sweet.market.catalog.domain.CatalogSort;
+
 import java.time.Instant;
 import java.util.Objects;
-
-import com.sweet.market.catalog.domain.CatalogSort;
 
 public record CatalogCursor(
         CatalogSort sort,

@@ -1,8 +1,8 @@
 package com.sweet.market.product.api;
 
-import java.time.LocalDateTime;
-
 import com.sweet.market.product.domain.ProductImageUpload;
+
+import java.time.LocalDateTime;
 
 public record ProductImageUploadResponse(
         Long id,

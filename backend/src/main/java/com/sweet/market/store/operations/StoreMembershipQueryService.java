@@ -1,12 +1,11 @@
 package com.sweet.market.store.operations;
 
-import java.util.List;
-
+import com.sweet.market.store.application.StoreAccessService;
+import com.sweet.market.store.repository.StoreMembershipRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.sweet.market.store.application.StoreAccessService;
-import com.sweet.market.store.repository.StoreMembershipRepository;
+import java.util.List;
 
 @Service
 public class StoreMembershipQueryService {

@@ -1,19 +1,18 @@
 package com.sweet.market.store.repository;
 
-import java.util.List;
-import java.util.Optional;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.repository.query.Param;
-
 import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.domain.StoreType;
 import com.sweet.market.store.storefront.StorefrontResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.util.List;
+import java.util.Optional;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {
 

@@ -1,12 +1,6 @@
 package com.sweet.market.settlement.batch;
 
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
-
-import javax.sql.DataSource;
-
+import com.sweet.market.settlement.domain.Settlement;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobScope;
@@ -26,7 +20,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.dao.DataAccessException;
 import org.springframework.transaction.PlatformTransactionManager;
 
-import com.sweet.market.settlement.domain.Settlement;
+import javax.sql.DataSource;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Configuration
 public class SettlementBatchConfig {
@@ -94,20 +92,20 @@ public class SettlementBatchConfig {
         queryProvider.setFromClause("from orders o");
         if (forcedOrderId == null) {
             queryProvider.setWhereClause("""
-                o.status = 'CONFIRMED'
-                and o.confirmed_at < :confirmedBefore
-                and not exists (
-                    select 1
-                    from settlements s
-                    where s.order_id = o.id
-                )
-                """);
+                    o.status = 'CONFIRMED'
+                    and o.confirmed_at < :confirmedBefore
+                    and not exists (
+                        select 1
+                        from settlements s
+                        where s.order_id = o.id
+                    )
+                    """);
         } else {
             queryProvider.setWhereClause("""
-                o.status = 'CONFIRMED'
-                and o.confirmed_at < :confirmedBefore
-                and o.id = :forcedOrderId
-                """);
+                    o.status = 'CONFIRMED'
+                    and o.confirmed_at < :confirmedBefore
+                    and o.id = :forcedOrderId
+                    """);
         }
 
         Map<String, Order> sortKeys = new LinkedHashMap<>();

@@ -1,23 +1,22 @@
 package com.sweet.market.coupon;
 
+import com.sweet.market.auth.api.LoginRequest;
+import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.support.IntegrationTestSupport;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.ResultActions;
+
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.ResultActions;
-
-import com.sweet.market.auth.api.LoginRequest;
-import com.sweet.market.auth.api.SignupRequest;
-import com.sweet.market.support.IntegrationTestSupport;
 
 class CouponCampaignApiTest extends IntegrationTestSupport {
 
@@ -136,15 +135,19 @@ class CouponCampaignApiTest extends IntegrationTestSupport {
     private ResultActions createStoreCampaign(String token, Long storeId, String scope, String productIds) throws Exception {
         return mockMvc.perform(post("/api/stores/{storeId}/coupon-campaigns", storeId).header(HttpHeaders.AUTHORIZATION, "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(requestJson(scope, productIds)));
     }
+
     private ResultActions createStoreCampaign(String token, Long storeId, String scope, String productIds, Integer issueLimit) throws Exception {
         return mockMvc.perform(post("/api/stores/{storeId}/coupon-campaigns", storeId).header(HttpHeaders.AUTHORIZATION, "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(requestJson(scope, productIds, issueLimit)));
     }
+
     private ResultActions createPlatformCampaign(String token, String scope, String productIds) throws Exception {
         return mockMvc.perform(post("/api/admin/coupon-campaigns").header(HttpHeaders.AUTHORIZATION, "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(requestJson(scope, productIds)));
     }
+
     private String requestJson(String scope, String productIds) {
         return requestJson(scope, productIds, null);
     }
+
     private String requestJson(String scope, String productIds, Integer issueLimit) {
         LocalDateTime start = LocalDateTime.now(ZoneId.of("Asia/Seoul")).plusDays(2).withSecond(0).withNano(0);
         return """
@@ -154,12 +157,27 @@ class CouponCampaignApiTest extends IntegrationTestSupport {
                   "validityDays": 7, "issueLimit": %s, "productIds": %s }
                 """.formatted(scope, start, start.plusDays(1), issueLimit == null ? "null" : issueLimit, productIds);
     }
+
     private String signupAndLogin(String email) throws Exception {
         mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON).content(json(new SignupRequest(email, "password123", "판매자")))).andExpect(status().isCreated());
         return login(email);
     }
-    private String login(String email) throws Exception { return objectMapper.readTree(mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(json(new LoginRequest(email, "password123")))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data").path("accessToken").asText(); }
-    private Long createBusinessStore(String email, String status) { Long id = jdbcTemplate.queryForObject("insert into stores (version, owner_member_id, type, public_name, introduction, status, created_at, updated_at) values (0, ?, 'BUSINESS', '쿠폰 사업자 상점', '', ?, current_timestamp, current_timestamp) returning id", Long.class, memberId(email), status); jdbcTemplate.update("insert into store_memberships (store_id, member_id, role, active, created_at) values (?, ?, 'OWNER', true, current_timestamp)", id, memberId(email)); return id; }
-    private Long createProduct(Long storeId, String status) { return jdbcTemplate.queryForObject("insert into products (version, store_id, title, description, price, status, sales_policy, category) values (0, ?, '쿠폰 상품', '설명', 10000, ?, 'SINGLE_ITEM', 'OTHER') returning id", Long.class, storeId, status); }
-    private Long memberId(String email) { return jdbcTemplate.queryForObject("select id from members where email = ?", Long.class, email); }
+
+    private String login(String email) throws Exception {
+        return objectMapper.readTree(mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(json(new LoginRequest(email, "password123")))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data").path("accessToken").asText();
+    }
+
+    private Long createBusinessStore(String email, String status) {
+        Long id = jdbcTemplate.queryForObject("insert into stores (version, owner_member_id, type, public_name, introduction, status, created_at, updated_at) values (0, ?, 'BUSINESS', '쿠폰 사업자 상점', '', ?, current_timestamp, current_timestamp) returning id", Long.class, memberId(email), status);
+        jdbcTemplate.update("insert into store_memberships (store_id, member_id, role, active, created_at) values (?, ?, 'OWNER', true, current_timestamp)", id, memberId(email));
+        return id;
+    }
+
+    private Long createProduct(Long storeId, String status) {
+        return jdbcTemplate.queryForObject("insert into products (version, store_id, title, description, price, status, sales_policy, category) values (0, ?, '쿠폰 상품', '설명', 10000, ?, 'SINGLE_ITEM', 'OTHER') returning id", Long.class, storeId, status);
+    }
+
+    private Long memberId(String email) {
+        return jdbcTemplate.queryForObject("select id from members where email = ?", Long.class, email);
+    }
 }

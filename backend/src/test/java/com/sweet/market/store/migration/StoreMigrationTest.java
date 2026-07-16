@@ -1,22 +1,22 @@
 package com.sweet.market.store.migration;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.FlywayException;
+import org.flywaydb.core.api.configuration.FluentConfiguration;
+import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.UUID;
 
-import org.flywaydb.core.Flyway;
-import org.flywaydb.core.api.FlywayException;
-import org.flywaydb.core.api.configuration.FluentConfiguration;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
-import org.junit.jupiter.api.TestMethodOrder;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Testcontainers
 @TestMethodOrder(OrderAnnotation.class)

@@ -1,9 +1,8 @@
 package com.sweet.market.coupon.repository;
 
-import java.time.Instant;
-import java.util.Optional;
-import java.util.List;
-
+import com.sweet.market.coupon.domain.MemberCoupon;
+import com.sweet.market.coupon.query.MemberCouponWalletRow;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -12,10 +11,9 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.sweet.market.coupon.domain.MemberCoupon;
-import com.sweet.market.coupon.query.MemberCouponWalletRow;
-
-import jakarta.persistence.LockModeType;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 
 public interface MemberCouponRepository extends JpaRepository<MemberCoupon, Long> {
 

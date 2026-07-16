@@ -1,16 +1,5 @@
 package com.sweet.market.demo;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.List;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.support.TransactionTemplate;
-
 import com.sweet.market.delivery.repository.DeliveryRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.domain.MemberRole;
@@ -21,6 +10,16 @@ import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.settlement.repository.SettlementRepository;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.support.IntegrationTestSupport;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class DemoDataInitializerTest extends IntegrationTestSupport {
 

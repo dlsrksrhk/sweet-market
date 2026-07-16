@@ -1,28 +1,26 @@
 package com.sweet.market.auth;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.sweet.market.auth.api.LoginRequest;
+import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.support.IntegrationTestSupport;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.test.annotation.DirtiesContext;
+
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Date;
+
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.Date;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.test.annotation.DirtiesContext;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.sweet.market.auth.api.LoginRequest;
-import com.sweet.market.auth.api.SignupRequest;
-import com.sweet.market.support.IntegrationTestSupport;
-
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 
 @DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
 class SecurityApiTest extends IntegrationTestSupport {

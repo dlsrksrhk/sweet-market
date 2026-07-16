@@ -1,10 +1,5 @@
 package com.sweet.market.auth.application;
 
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.auth.api.AuthResponse;
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.MemberResponse;
@@ -15,6 +10,10 @@ import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.store.application.StoreProvisioningService;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AuthService {

@@ -1,36 +1,16 @@
 package com.sweet.market.coupon;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.same;
-import static org.mockito.Mockito.clearInvocations;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-
+import com.sweet.market.auth.api.LoginRequest;
+import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.common.error.BusinessException;
+import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.coupon.api.MemberCouponResponse;
+import com.sweet.market.coupon.application.CouponIssueService;
+import com.sweet.market.coupon.application.CouponIssueTransactionService;
+import com.sweet.market.coupon.application.issuance.*;
+import com.sweet.market.coupon.repository.CouponCampaignRepository;
+import com.sweet.market.coupon.repository.MemberCouponRepository;
+import com.sweet.market.support.IntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,21 +19,19 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.ResultActions;
 
-import com.sweet.market.auth.api.LoginRequest;
-import com.sweet.market.auth.api.SignupRequest;
-import com.sweet.market.coupon.api.MemberCouponResponse;
-import com.sweet.market.coupon.application.CouponIssueService;
-import com.sweet.market.coupon.application.CouponIssueTransactionService;
-import com.sweet.market.coupon.application.issuance.CouponIssuanceGate;
-import com.sweet.market.coupon.application.issuance.CouponIssuanceGateResult;
-import com.sweet.market.coupon.application.issuance.CouponIssuanceReservation;
-import com.sweet.market.coupon.application.issuance.CouponIssuanceGateUnavailableException;
-import com.sweet.market.common.error.BusinessException;
-import com.sweet.market.common.error.ErrorCode;
-import com.sweet.market.coupon.application.issuance.ReservationType;
-import com.sweet.market.coupon.repository.CouponCampaignRepository;
-import com.sweet.market.coupon.repository.MemberCouponRepository;
-import com.sweet.market.support.IntegrationTestSupport;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class CouponIssueApiTest extends IntegrationTestSupport {
 
@@ -310,22 +288,29 @@ class CouponIssueApiTest extends IntegrationTestSupport {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token));
     }
 
-    private Long activeCampaign() throws Exception { return activeCampaign("DAYS_FROM_ISSUANCE", 7, null); }
+    private Long activeCampaign() throws Exception {
+        return activeCampaign("DAYS_FROM_ISSUANCE", 7, null);
+    }
+
     private Long activeCampaign(String validityType, int validityDays) throws Exception {
         return activeCampaign(validityType, validityDays, null);
     }
+
     private Long activeCampaignWithLimit(int issueLimit) throws Exception {
         return activeCampaign("DAYS_FROM_ISSUANCE", 7, issueLimit);
     }
+
     private Long activeCampaign(String validityType, int validityDays, Integer issueLimit) throws Exception {
         LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul")).withSecond(0).withNano(0);
         Long id = campaign(now.minusDays(1), now.plusDays(2), validityType, validityDays, issueLimit);
         schedule(id);
         return id;
     }
+
     private Long campaign(LocalDateTime start, LocalDateTime end, String validityType, int validityDays) throws Exception {
         return campaign(start, end, validityType, validityDays, null);
     }
+
     private Long campaign(LocalDateTime start, LocalDateTime end, String validityType, int validityDays, Integer issueLimit) throws Exception {
         String adminToken = adminToken();
         String validity = "COMMON_EXPIRY".equals(validityType)
@@ -340,14 +325,43 @@ class CouponIssueApiTest extends IntegrationTestSupport {
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(response).path("data").path("id").asLong();
     }
-    private void schedule(Long campaignId) throws Exception { mockMvc.perform(post("/api/admin/coupon-campaigns/{campaignId}/schedule", campaignId).header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())).andExpect(status().isOk()); }
-    private void pause(Long campaignId) throws Exception { mockMvc.perform(post("/api/admin/coupon-campaigns/{campaignId}/pause", campaignId).header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())).andExpect(status().isOk()); }
-    private void end(Long campaignId) throws Exception { mockMvc.perform(post("/api/admin/coupon-campaigns/{campaignId}/end", campaignId).header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())).andExpect(status().isOk()); }
-    private String adminToken() throws Exception { if (jdbcTemplate.queryForObject("select count(*) from members where email = ?", Integer.class, "coupon-admin@example.com") == 0) signupAndLogin("coupon-admin@example.com"); jdbcTemplate.update("update members set role = 'ADMIN' where email = ?", "coupon-admin@example.com"); return login("coupon-admin@example.com"); }
-    private String signupAndLogin(String email) throws Exception { mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON).content(json(new SignupRequest(email, "password123", "회원")))).andExpect(status().isCreated()); return login(email); }
-    private String login(String email) throws Exception { return objectMapper.readTree(mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(json(new LoginRequest(email, "password123")))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data").path("accessToken").asText(); }
-    private Long memberId(String email) { return jdbcTemplate.queryForObject("select id from members where email = ?", Long.class, email); }
-    private int countMemberCoupons(Long campaignId, Long memberId) { return jdbcTemplate.queryForObject("select count(*) from member_coupons where coupon_campaign_id = ? and member_id = ?", Integer.class, campaignId, memberId); }
+
+    private void schedule(Long campaignId) throws Exception {
+        mockMvc.perform(post("/api/admin/coupon-campaigns/{campaignId}/schedule", campaignId).header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())).andExpect(status().isOk());
+    }
+
+    private void pause(Long campaignId) throws Exception {
+        mockMvc.perform(post("/api/admin/coupon-campaigns/{campaignId}/pause", campaignId).header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())).andExpect(status().isOk());
+    }
+
+    private void end(Long campaignId) throws Exception {
+        mockMvc.perform(post("/api/admin/coupon-campaigns/{campaignId}/end", campaignId).header(HttpHeaders.AUTHORIZATION, "Bearer " + adminToken())).andExpect(status().isOk());
+    }
+
+    private String adminToken() throws Exception {
+        if (jdbcTemplate.queryForObject("select count(*) from members where email = ?", Integer.class, "coupon-admin@example.com") == 0)
+            signupAndLogin("coupon-admin@example.com");
+        jdbcTemplate.update("update members set role = 'ADMIN' where email = ?", "coupon-admin@example.com");
+        return login("coupon-admin@example.com");
+    }
+
+    private String signupAndLogin(String email) throws Exception {
+        mockMvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON).content(json(new SignupRequest(email, "password123", "회원")))).andExpect(status().isCreated());
+        return login(email);
+    }
+
+    private String login(String email) throws Exception {
+        return objectMapper.readTree(mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(json(new LoginRequest(email, "password123")))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).path("data").path("accessToken").asText();
+    }
+
+    private Long memberId(String email) {
+        return jdbcTemplate.queryForObject("select id from members where email = ?", Long.class, email);
+    }
+
+    private int countMemberCoupons(Long campaignId, Long memberId) {
+        return jdbcTemplate.queryForObject("select count(*) from member_coupons where coupon_campaign_id = ? and member_id = ?", Integer.class, campaignId, memberId);
+    }
+
     private List<Long> createMembers(int count, String prefix) throws Exception {
         List<Long> memberIds = new ArrayList<>();
         for (int index = 0; index < count; index++) {
@@ -357,6 +371,7 @@ class CouponIssueApiTest extends IntegrationTestSupport {
         }
         return memberIds;
     }
+
     private List<Future<ClaimResult>> submitTogether(List<Long> memberIds, ClaimAction action) {
         CountDownLatch ready = new CountDownLatch(memberIds.size());
         CountDownLatch start = new CountDownLatch(1);
@@ -377,6 +392,7 @@ class CouponIssueApiTest extends IntegrationTestSupport {
             executor.shutdown();
         }
     }
+
     private ClaimResult await(Future<ClaimResult> claim) {
         try {
             return claim.get(10, TimeUnit.SECONDS);
@@ -384,6 +400,7 @@ class CouponIssueApiTest extends IntegrationTestSupport {
             throw new AssertionError(exception);
         }
     }
+
     private ClaimResult claimResult(Long memberId, Long campaignId) {
         try {
             couponIssueService.claim(memberId, campaignId);
@@ -392,10 +409,20 @@ class CouponIssueApiTest extends IntegrationTestSupport {
             return new ClaimResult(false);
         }
     }
-    private int issuedCount(Long campaignId) { return jdbcTemplate.queryForObject("select issued_count from coupon_campaigns where id = ?", Integer.class, campaignId); }
-    private int memberCouponCount(Long campaignId) { return jdbcTemplate.queryForObject("select count(*) from member_coupons where coupon_campaign_id = ?", Integer.class, campaignId); }
 
-    private record ClaimResult(boolean success) { }
+    private int issuedCount(Long campaignId) {
+        return jdbcTemplate.queryForObject("select issued_count from coupon_campaigns where id = ?", Integer.class, campaignId);
+    }
+
+    private int memberCouponCount(Long campaignId) {
+        return jdbcTemplate.queryForObject("select count(*) from member_coupons where coupon_campaign_id = ?", Integer.class, campaignId);
+    }
+
+    private record ClaimResult(boolean success) {
+    }
+
     @FunctionalInterface
-    private interface ClaimAction { ClaimResult claim(Long memberId) throws Exception; }
+    private interface ClaimAction {
+        ClaimResult claim(Long memberId) throws Exception;
+    }
 }

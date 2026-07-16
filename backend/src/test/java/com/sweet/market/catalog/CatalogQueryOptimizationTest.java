@@ -1,26 +1,5 @@
 package com.sweet.market.catalog;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Proxy;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.concurrent.CopyOnWriteArrayList;
-
-import org.hibernate.resource.jdbc.spi.StatementInspector;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.datasource.DelegatingDataSource;
-import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.cart.domain.CartItem;
 import com.sweet.market.cart.repository.CartItemRepository;
 import com.sweet.market.catalog.api.CatalogSearchRequest;
@@ -38,8 +17,27 @@ import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.wishlist.domain.WishlistItem;
 import com.sweet.market.wishlist.repository.WishlistItemRepository;
+import org.hibernate.resource.jdbc.spi.StatementInspector;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.DelegatingDataSource;
+import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.sql.DataSource;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @TestPropertySource(properties = {
         "spring.jpa.properties.hibernate.session_factory.statement_inspector="

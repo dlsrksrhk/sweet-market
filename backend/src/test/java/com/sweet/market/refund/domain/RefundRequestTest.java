@@ -1,16 +1,15 @@
 package com.sweet.market.refund.domain;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderStatus;
 import com.sweet.market.product.domain.Product;
+import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class RefundRequestTest {
 

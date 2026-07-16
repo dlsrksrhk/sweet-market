@@ -1,15 +1,5 @@
 package com.sweet.market.jpalab;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.util.List;
-import java.util.stream.Stream;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.api.OrderSummaryResponse;
@@ -18,8 +8,16 @@ import com.sweet.market.order.query.OrderQueryService;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
-
 import jakarta.persistence.PersistenceUnitUtil;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Stream;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class OrderQueryOptimizationTest extends QueryOptimizationTestSupport {
 

@@ -1,14 +1,5 @@
 package com.sweet.market.product;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.LocalDateTime;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.product.application.ProductImageCleanupService;
@@ -16,6 +7,14 @@ import com.sweet.market.product.domain.ProductImageUpload;
 import com.sweet.market.product.repository.ProductImageUploadRepository;
 import com.sweet.market.product.storage.ProductImageStorageProperties;
 import com.sweet.market.support.IntegrationTestSupport;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class ProductImageCleanupServiceTest extends IntegrationTestSupport {
 

@@ -1,10 +1,10 @@
 package com.sweet.market.store.admin;
 
-import java.time.LocalDateTime;
-
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.domain.StoreType;
+
+import java.time.LocalDateTime;
 
 public record AdminBusinessStoreResponse(
         Long storeId,

@@ -1,18 +1,15 @@
 package com.sweet.market.coupon.api;
 
+import com.sweet.market.coupon.domain.*;
+import com.sweet.market.coupon.query.AvailableCouponCampaignRow;
+
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
-import com.sweet.market.coupon.domain.CouponCampaignOwnerType;
-import com.sweet.market.coupon.domain.CouponDiscountType;
-import com.sweet.market.coupon.domain.CouponEffectiveStatus;
-import com.sweet.market.coupon.domain.CouponScope;
-import com.sweet.market.coupon.domain.CouponValidityType;
-import com.sweet.market.coupon.query.AvailableCouponCampaignRow;
-
 public record AvailableCouponCampaignResponse(
-        Long id, CouponCampaignOwnerType source, CouponCampaignResponse.StoreSummary store, CouponScope scope, CouponDiscountType discountType,
+        Long id, CouponCampaignOwnerType source, CouponCampaignResponse.StoreSummary store, CouponScope scope,
+        CouponDiscountType discountType,
         long discountValue, Long maxDiscountAmount, long minimumPurchaseAmount, boolean stackable,
         String title, String label, LocalDateTime issueStartsAt, LocalDateTime issueEndsAt,
         CouponValidityType validityType, LocalDateTime commonExpiresAt, Integer validityDays,
@@ -28,6 +25,11 @@ public record AvailableCouponCampaignResponse(
                 local(row.commonExpiresAt()), row.validityDays(), CouponEffectiveStatus.ACTIVE, row.claimed(), soldOut);
     }
 
-    private static LocalDateTime local(Instant value) { return value == null ? null : LocalDateTime.ofInstant(value, KST); }
-    private static CouponCampaignResponse.StoreSummary store(Long id, String name) { return id == null ? null : new CouponCampaignResponse.StoreSummary(id, name); }
+    private static LocalDateTime local(Instant value) {
+        return value == null ? null : LocalDateTime.ofInstant(value, KST);
+    }
+
+    private static CouponCampaignResponse.StoreSummary store(Long id, String name) {
+        return id == null ? null : new CouponCampaignResponse.StoreSummary(id, name);
+    }
 }

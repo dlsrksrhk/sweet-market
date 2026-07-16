@@ -1,8 +1,8 @@
 package com.sweet.market.delivery.api;
 
-import java.time.LocalDateTime;
-
 import com.sweet.market.delivery.domain.Delivery;
+
+import java.time.LocalDateTime;
 
 public record DeliveryResponse(
         Long id,

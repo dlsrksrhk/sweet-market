@@ -1,11 +1,10 @@
 package com.sweet.market.promotion.api;
 
-import java.time.LocalDateTime;
-
 import com.sweet.market.promotion.domain.PromotionEffectiveStatus;
-
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+
+import java.time.LocalDateTime;
 
 public record PromotionCampaignSearchRequest(
         PromotionEffectiveStatus status,

@@ -1,13 +1,13 @@
 package com.sweet.market.catalog.query;
 
-import java.util.Objects;
-
 import com.sweet.market.catalog.api.CatalogSearchRequest;
 import com.sweet.market.catalog.domain.CatalogAvailabilityFilter;
 import com.sweet.market.catalog.domain.CatalogSort;
 import com.sweet.market.product.domain.ProductCategory;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.store.domain.StoreType;
+
+import java.util.Objects;
 
 public record CatalogSearchCriteria(
         String keyword,

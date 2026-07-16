@@ -1,20 +1,19 @@
 package com.sweet.market.catalog.query;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sweet.market.catalog.domain.CatalogSort;
+import com.sweet.market.common.error.BusinessException;
+import com.sweet.market.common.error.ErrorCode;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sweet.market.catalog.domain.CatalogSort;
-import com.sweet.market.common.error.BusinessException;
-import com.sweet.market.common.error.ErrorCode;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CatalogCursorCodecTest {
 

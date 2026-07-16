@@ -1,19 +1,16 @@
 package com.sweet.market.auth.security;
 
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.Date;
-
-import javax.crypto.SecretKey;
-
-import org.springframework.stereotype.Component;
-
 import com.sweet.market.member.domain.MemberRole;
-
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.stereotype.Component;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Date;
 
 @Component
 public class JwtProvider {

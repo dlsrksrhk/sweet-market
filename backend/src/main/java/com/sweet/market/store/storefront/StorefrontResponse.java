@@ -1,10 +1,10 @@
 package com.sweet.market.store.storefront;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-
 import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.domain.StoreType;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 public record StorefrontResponse(
         Long storeId,

@@ -3,8 +3,8 @@ package com.sweet.market.store.storefront;
 import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.product.domain.ProductStatus;
-import com.sweet.market.store.domain.StoreType;
 import com.sweet.market.promotion.application.PromotionPrice;
+import com.sweet.market.store.domain.StoreType;
 
 public record StorefrontProductResponse(
         Long id,

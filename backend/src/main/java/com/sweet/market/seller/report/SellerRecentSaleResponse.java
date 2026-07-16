@@ -1,8 +1,8 @@
 package com.sweet.market.seller.report;
 
-import java.time.LocalDateTime;
-
 import com.sweet.market.settlement.domain.SettlementStatus;
+
+import java.time.LocalDateTime;
 
 public record SellerRecentSaleResponse(
         Long orderId,

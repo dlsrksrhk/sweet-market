@@ -1,16 +1,5 @@
 package com.sweet.market.jpalab;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.lang.reflect.Method;
-import java.util.List;
-import java.util.stream.Stream;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.delivery.domain.Delivery;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.order.domain.Order;
@@ -20,8 +9,17 @@ import com.sweet.market.settlement.api.SettlementResponse;
 import com.sweet.market.settlement.domain.Settlement;
 import com.sweet.market.settlement.query.SettlementQueryService;
 import com.sweet.market.settlement.repository.SettlementRepository;
-
 import jakarta.persistence.PersistenceUnitUtil;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.lang.reflect.Method;
+import java.util.List;
+import java.util.stream.Stream;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class SettlementQueryOptimizationTest extends QueryOptimizationTestSupport {
 

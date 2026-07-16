@@ -1,24 +1,10 @@
 package com.sweet.market.product.application;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.inventory.application.InventoryService;
-import com.sweet.market.product.api.ProductCreateImageRequest;
-import com.sweet.market.product.api.ProductCreateRequest;
-import com.sweet.market.product.api.ProductResponse;
-import com.sweet.market.product.api.ProductUpdateImageRequest;
-import com.sweet.market.product.api.ProductUpdateRequest;
+import com.sweet.market.product.api.*;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductDomainError;
 import com.sweet.market.product.domain.ProductImage;
@@ -29,6 +15,15 @@ import com.sweet.market.store.application.StoreAccessService;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreType;
 import com.sweet.market.wishlist.repository.WishlistItemRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class ProductService {
@@ -303,8 +298,7 @@ public class ProductService {
             case IMAGE_NOT_FOUND -> ErrorCode.PRODUCT_IMAGE_NOT_FOUND;
             case IMAGE_REQUIRED -> ErrorCode.PRODUCT_IMAGE_REQUIRED;
             case IMAGE_LIMIT_EXCEEDED -> ErrorCode.PRODUCT_IMAGE_LIMIT_EXCEEDED;
-            case CHANGE_NOT_ALLOWED, NOT_HIDDEN, NOT_ON_SALE, NOT_RESERVED ->
-                    ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED;
+            case CHANGE_NOT_ALLOWED, NOT_HIDDEN, NOT_ON_SALE, NOT_RESERVED -> ErrorCode.PRODUCT_CHANGE_NOT_ALLOWED;
             default -> ErrorCode.VALIDATION_ERROR;
         };
         return new BusinessException(errorCode, exception);

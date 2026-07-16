@@ -1,7 +1,9 @@
 -- Preserve every existing BUSINESS store. Operators must resolve duplicates before retrying this migration.
-DO $$
+DO
+$$
 BEGIN
-    IF EXISTS (
+    IF
+EXISTS (
         SELECT 1
         FROM stores
         WHERE type = 'BUSINESS'
@@ -9,7 +11,7 @@ BEGIN
         HAVING COUNT(*) > 1
     ) THEN
         RAISE EXCEPTION 'Duplicate BUSINESS stores exist for at least one owner; resolve duplicates before applying V2';
-    END IF;
+END IF;
 END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_business_store_owner

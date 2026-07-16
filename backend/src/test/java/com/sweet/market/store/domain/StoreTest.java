@@ -1,12 +1,11 @@
 package com.sweet.market.store.domain;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import org.junit.jupiter.api.Test;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StoreTest {
 

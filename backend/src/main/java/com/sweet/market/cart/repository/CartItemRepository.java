@@ -1,9 +1,6 @@
 package com.sweet.market.cart.repository;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-
+import com.sweet.market.cart.domain.CartItem;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -11,7 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.sweet.market.cart.domain.CartItem;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 
 public interface CartItemRepository extends JpaRepository<CartItem, Long> {
 
@@ -107,10 +106,10 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
             order by ci.createdAt desc, ci.id desc
             """,
             countQuery = """
-            select count(ci)
-            from CartItem ci
-            where ci.buyer.id = :buyerId
-            """)
+                    select count(ci)
+                    from CartItem ci
+                    where ci.buyer.id = :buyerId
+                    """)
     Page<CartItemReadRow> findPageByBuyerId(@Param("buyerId") Long buyerId, Pageable pageable);
 
     @EntityGraph(attributePaths = {"buyer", "product", "product.store", "product.store.ownerMember", "product.images"})

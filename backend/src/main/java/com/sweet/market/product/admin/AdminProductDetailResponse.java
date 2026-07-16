@@ -1,9 +1,9 @@
 package com.sweet.market.product.admin;
 
-import java.util.List;
-
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductImage;
+
+import java.util.List;
 
 public record AdminProductDetailResponse(
         Long productId,

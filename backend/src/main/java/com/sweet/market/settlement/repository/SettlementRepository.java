@@ -1,9 +1,9 @@
 package com.sweet.market.settlement.repository;
 
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-
+import com.sweet.market.settlement.admin.AdminSettlementDetailResponse;
+import com.sweet.market.settlement.admin.AdminSettlementSummaryResponse;
+import com.sweet.market.settlement.domain.Settlement;
+import com.sweet.market.settlement.domain.SettlementStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -12,10 +12,9 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import com.sweet.market.settlement.admin.AdminSettlementDetailResponse;
-import com.sweet.market.settlement.admin.AdminSettlementSummaryResponse;
-import com.sweet.market.settlement.domain.Settlement;
-import com.sweet.market.settlement.domain.SettlementStatus;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 
 public interface SettlementRepository extends JpaRepository<Settlement, Long> {
 

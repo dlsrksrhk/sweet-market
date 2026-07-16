@@ -1,12 +1,10 @@
 package com.sweet.market.coupon;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import java.time.Instant;
-
+import com.sweet.market.auth.api.LoginRequest;
+import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.coupon.application.CouponRedemptionService;
+import com.sweet.market.coupon.scheduler.CouponReservationExpiryScheduler;
+import com.sweet.market.support.IntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -14,11 +12,12 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.scheduling.annotation.Scheduled;
 
-import com.sweet.market.auth.api.LoginRequest;
-import com.sweet.market.auth.api.SignupRequest;
-import com.sweet.market.coupon.application.CouponRedemptionService;
-import com.sweet.market.coupon.scheduler.CouponReservationExpiryScheduler;
-import com.sweet.market.support.IntegrationTestSupport;
+import java.time.Instant;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class CouponReservationExpiryServiceTest extends IntegrationTestSupport {
 

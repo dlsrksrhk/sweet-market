@@ -1,20 +1,5 @@
 package com.sweet.market.wishlist.application;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import java.util.Optional;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.support.SimpleTransactionStatus;
-
 import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
@@ -25,6 +10,18 @@ import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.wishlist.api.WishlistResponse;
 import com.sweet.market.wishlist.domain.WishlistItem;
 import com.sweet.market.wishlist.repository.WishlistItemRepository;
+import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
 
 class WishlistServiceTest {
 

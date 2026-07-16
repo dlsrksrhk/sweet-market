@@ -1,17 +1,17 @@
 package com.sweet.market.coupon.application.issuance;
 
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.stereotype.Component;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.dao.DataAccessException;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.stereotype.Component;
 
 @Component
 public class RedisCouponIssuanceGate implements CouponIssuanceGate {
@@ -32,13 +32,13 @@ public class RedisCouponIssuanceGate implements CouponIssuanceGate {
 
     @Override
     public CouponIssuanceGateResult reserve(Long campaignId, Long memberId, int issueLimit,
-            int issuedCount, Instant issueEndsAt, Instant now) {
+                                            int issuedCount, Instant issueEndsAt, Instant now) {
         String token = UUID.randomUUID().toString();
         String keyPrefix = keyPrefix(campaignId);
         List<?> result = execute(reserveScript, List.of(
-                keyPrefix + "count",
-                keyPrefix + "pending",
-                keyPrefix + "member:" + memberId),
+                        keyPrefix + "count",
+                        keyPrefix + "pending",
+                        keyPrefix + "member:" + memberId),
                 Long.toString(now.toEpochMilli()),
                 Integer.toString(issuedCount),
                 Integer.toString(issueLimit),
@@ -58,9 +58,9 @@ public class RedisCouponIssuanceGate implements CouponIssuanceGate {
     public void complete(CouponIssuanceReservation reservation, Instant now) {
         String keyPrefix = keyPrefix(reservation.campaignId());
         execute(completeScript, List.of(
-                keyPrefix + "count",
-                keyPrefix + "pending",
-                keyPrefix + "member:" + reservation.memberId()),
+                        keyPrefix + "count",
+                        keyPrefix + "pending",
+                        keyPrefix + "member:" + reservation.memberId()),
                 pendingMemberToken(reservation),
                 reservation.token(),
                 Long.toString(now.toEpochMilli()));
@@ -70,9 +70,9 @@ public class RedisCouponIssuanceGate implements CouponIssuanceGate {
     public void release(CouponIssuanceReservation reservation, Instant now) {
         String keyPrefix = keyPrefix(reservation.campaignId());
         execute(releaseScript, List.of(
-                keyPrefix + "count",
-                keyPrefix + "pending",
-                keyPrefix + "member:" + reservation.memberId()),
+                        keyPrefix + "count",
+                        keyPrefix + "pending",
+                        keyPrefix + "member:" + reservation.memberId()),
                 pendingMemberToken(reservation),
                 reservation.token());
     }

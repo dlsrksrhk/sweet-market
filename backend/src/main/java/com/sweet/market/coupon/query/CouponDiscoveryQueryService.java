@@ -1,17 +1,16 @@
 package com.sweet.market.coupon.query;
 
-import java.time.Clock;
-import java.time.Instant;
-
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import com.sweet.market.coupon.api.AvailableCouponCampaignResponse;
 import com.sweet.market.coupon.api.AvailableCouponCampaignSearchRequest;
 import com.sweet.market.coupon.repository.CouponCampaignRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
+import java.time.Instant;
 
 @Service
 public class CouponDiscoveryQueryService {
@@ -32,7 +31,7 @@ public class CouponDiscoveryQueryService {
     public Page<AvailableCouponCampaignResponse> findAvailable(Long memberId, AvailableCouponCampaignSearchRequest request) {
         Instant now = clock.instant();
         return campaignRepository.findAvailableForMember(memberId, now, request.source(), request.storeId(),
-                PageRequest.of(request.resolvedPage(), request.resolvedSize()))
+                        PageRequest.of(request.resolvedPage(), request.resolvedSize()))
                 .map(AvailableCouponCampaignResponse::from);
     }
 }

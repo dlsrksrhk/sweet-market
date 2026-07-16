@@ -1,18 +1,17 @@
 package com.sweet.market.coupon.domain;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import java.time.Instant;
-import java.util.List;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
-
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.store.domain.Store;
+import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.Instant;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CouponCampaignTest {
 

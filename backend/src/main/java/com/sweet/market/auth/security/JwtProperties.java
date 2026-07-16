@@ -1,9 +1,9 @@
 package com.sweet.market.auth.security;
 
-import java.nio.charset.StandardCharsets;
-
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.StringUtils;
+
+import java.nio.charset.StandardCharsets;
 
 @ConfigurationProperties(prefix = "jwt")
 public record JwtProperties(

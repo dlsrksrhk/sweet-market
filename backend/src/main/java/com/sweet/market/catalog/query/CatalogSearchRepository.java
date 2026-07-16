@@ -1,14 +1,5 @@
 package com.sweet.market.catalog.query;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.List;
-
-import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.stereotype.Repository;
-
 import com.sweet.market.catalog.domain.CatalogAvailabilityFilter;
 import com.sweet.market.catalog.domain.CatalogSort;
 import com.sweet.market.inventory.api.BuyerAvailabilityResponse;
@@ -16,6 +7,14 @@ import com.sweet.market.product.domain.ProductCategory;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.store.domain.StoreType;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
 
 @Repository
 public class CatalogSearchRepository {

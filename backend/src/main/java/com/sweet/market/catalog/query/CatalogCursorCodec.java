@@ -1,5 +1,14 @@
 package com.sweet.market.catalog.query;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sweet.market.common.error.BusinessException;
+import com.sweet.market.common.error.ErrorCode;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -9,17 +18,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Objects;
-
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sweet.market.common.error.BusinessException;
-import com.sweet.market.common.error.ErrorCode;
 
 @Component
 public class CatalogCursorCodec {

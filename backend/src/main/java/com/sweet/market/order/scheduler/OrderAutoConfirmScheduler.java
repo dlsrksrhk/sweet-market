@@ -1,14 +1,13 @@
 package com.sweet.market.order.scheduler;
 
+import com.sweet.market.order.application.OrderAutoConfirmResult;
+import com.sweet.market.order.application.OrderAutoConfirmService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-
-import com.sweet.market.order.application.OrderAutoConfirmResult;
-import com.sweet.market.order.application.OrderAutoConfirmService;
 
 @Component
 @Profile({"local", "dev"})
