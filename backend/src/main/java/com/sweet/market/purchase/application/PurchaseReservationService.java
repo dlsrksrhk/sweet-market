@@ -28,6 +28,7 @@ import com.sweet.market.purchase.api.CartCheckoutFailure;
 import com.sweet.market.purchase.api.CartCheckoutFailureException;
 import com.sweet.market.purchase.api.CartCheckoutFailureItem;
 import com.sweet.market.purchase.api.CartCheckoutFailureResponse;
+import com.sweet.market.store.repository.StoreRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -36,6 +37,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -46,6 +48,7 @@ public class PurchaseReservationService {
     private final CartItemRepository cartItemRepository;
     private final MemberRepository memberRepository;
     private final ProductRepository productRepository;
+    private final StoreRepository storeRepository;
     private final OrderRepository orderRepository;
     private final PromotionPricingService promotionPricingService;
     private final CouponRedemptionService couponRedemptionService;
@@ -59,6 +62,7 @@ public class PurchaseReservationService {
             CartItemRepository cartItemRepository,
             MemberRepository memberRepository,
             ProductRepository productRepository,
+            StoreRepository storeRepository,
             OrderRepository orderRepository,
             PromotionPricingService promotionPricingService,
             CouponRedemptionService couponRedemptionService,
@@ -71,6 +75,7 @@ public class PurchaseReservationService {
         this.cartItemRepository = cartItemRepository;
         this.memberRepository = memberRepository;
         this.productRepository = productRepository;
+        this.storeRepository = storeRepository;
         this.orderRepository = orderRepository;
         this.promotionPricingService = promotionPricingService;
         this.couponRedemptionService = couponRedemptionService;
@@ -176,8 +181,12 @@ public class PurchaseReservationService {
         List<CartItem> orderedCartItems = cartItems.stream()
                 .sorted(Comparator.comparing(cartItem -> cartItem.getProduct().getId()))
                 .toList();
+        Map<Long, Product> lockedProductsById = lockCartReservationTargets(orderedCartItems);
         List<Long> orderIds = orderedCartItems.stream()
-                .map(this::createAndReserveCartOrder)
+                .map(cartItem -> createAndReserveCartOrder(
+                        cartItem,
+                        lockedProductsById.get(cartItem.getProduct().getId())
+                ))
                 .map(Order::getId)
                 .toList();
 
@@ -205,10 +214,28 @@ public class PurchaseReservationService {
         }
     }
 
-    private Order createAndReserveCartOrder(CartItem cartItem) {
+    private Map<Long, Product> lockCartReservationTargets(List<CartItem> cartItems) {
+        List<Long> storeIds = cartItems.stream()
+                .map(cartItem -> cartItem.getProduct().getStore().getId())
+                .distinct()
+                .sorted()
+                .toList();
+        List<Long> productIds = cartItems.stream()
+                .map(cartItem -> cartItem.getProduct().getId())
+                .toList();
+        storeRepository.findAllByIdInForUpdateOrderByIdAsc(storeIds);
+        return productRepository.findAllByIdInForUpdateOrderByIdAsc(productIds).stream()
+                .collect(java.util.stream.Collectors.toMap(Product::getId, product -> product));
+    }
+
+    private Product lockDirectReservationTarget(Product product) {
+        storeRepository.findAllByIdInForUpdateOrderByIdAsc(List.of(product.getStore().getId()));
+        return productRepository.findWithStoreForUpdate(product.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_UNAVAILABLE));
+    }
+
+    private Order createAndReserveCartOrder(CartItem cartItem, Product product) {
         try {
-            Product product = productRepository.findWithStoreForUpdate(cartItem.getProduct().getId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_UNAVAILABLE));
             PromotionPrice price = promotionPricingService.quote(product);
             Order order = orderRepository.saveAndFlush(Order.create(cartItem.getBuyer(), product, price));
             productReservationService.reserve(order);
@@ -249,25 +276,26 @@ public class PurchaseReservationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
         Product product = productRepository.findWithStoreAndImagesById(command.productId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+        Product lockedProduct = lockDirectReservationTarget(product);
 
         try {
-            if (!product.isPurchasable()) {
+            if (!lockedProduct.isPurchasable()) {
                 throw new DomainException(OrderDomainError.PRODUCT_NOT_PURCHASABLE);
             }
-            PromotionPrice promotionPrice = promotionPricingService.quote(product);
+            PromotionPrice promotionPrice = promotionPricingService.quote(lockedProduct);
             CouponReservationQuote couponReservationQuote = command.memberCouponId() == null ? null
                     : couponRedemptionService.quoteForReservation(
-                            command.buyerId(), command.memberCouponId(), product, promotionPrice, Instant.now()
+                            command.buyerId(), command.memberCouponId(), lockedProduct, promotionPrice, Instant.now()
                     );
             Order order = couponReservationQuote == null
-                    ? Order.create(buyer, product, promotionPrice)
-                    : Order.create(buyer, product, promotionPrice, couponReservationQuote.discountQuote());
+                    ? Order.create(buyer, lockedProduct, promotionPrice)
+                    : Order.create(buyer, lockedProduct, promotionPrice, couponReservationQuote.discountQuote());
             Order savedOrder = orderRepository.saveAndFlush(order);
 
             productReservationService.reserve(savedOrder);
             if (couponReservationQuote != null) {
                 CouponReservationQuote revalidatedCouponReservationQuote = couponRedemptionService.quoteForReservation(
-                        command.buyerId(), command.memberCouponId(), product, promotionPrice, Instant.now()
+                        command.buyerId(), command.memberCouponId(), lockedProduct, promotionPrice, Instant.now()
                 );
                 couponRedemptionService.reserve(revalidatedCouponReservationQuote, savedOrder, Instant.now());
             }

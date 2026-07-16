@@ -26,9 +26,12 @@ import java.util.Optional;
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @EntityGraph(attributePaths = {"store", "store.ownerMember"})
     @Query("select product from Product product where product.id = :productId")
     Optional<Product> findWithStoreForUpdate(@Param("productId") Long productId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select product from Product product where product.id in :productIds order by product.id asc")
+    List<Product> findAllByIdInForUpdateOrderByIdAsc(@Param("productIds") List<Long> productIds);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""

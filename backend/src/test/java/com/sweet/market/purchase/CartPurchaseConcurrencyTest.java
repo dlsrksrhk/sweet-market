@@ -90,13 +90,56 @@ class CartPurchaseConcurrencyTest extends IntegrationTestSupport {
         }
     }
 
+    @Test
+    void 여러_상품_장바구니와_나중_상품_체크아웃이_동시에_실행되어도_모두_성공한다() throws Exception {
+        List<Long> productIds = transactionTemplate.execute(status -> {
+            Member seller = memberRepository.save(Member.create("multi-seller@example.com", "encoded-password", "판매자"));
+            Store store = storeRepository.save(Store.createPersonal(seller, "상점", "소개"));
+            Product firstProduct = productRepository.save(Product.create(
+                    store, "첫 번째 재고 상품", "설명", 10_000L, ProductSalesPolicy.STOCK_MANAGED, 1, 1
+            ));
+            Product laterProduct = productRepository.save(Product.create(
+                    store, "나중 재고 상품", "설명", 10_000L, ProductSalesPolicy.STOCK_MANAGED, 2, 2
+            ));
+            inventoryService.initialize(firstProduct, 1, seller.getId());
+            inventoryService.initialize(laterProduct, 2, seller.getId());
+            return List.of(firstProduct.getId(), laterProduct.getId());
+        });
+        Buyer cartBuyer = createBuyerWithCart("multi-cart-buyer@example.com", "장바구니 구매자", productIds);
+        Buyer laterProductBuyer = createBuyerWithCart(
+                "multi-later-buyer@example.com", "나중 상품 구매자", List.of(productIds.get(1))
+        );
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+            List<Future<CheckoutResult>> futures = List.of(cartBuyer, laterProductBuyer).stream()
+                    .map(buyer -> executor.submit(checkoutAfterBarrier(buyer, ready, start)))
+                    .toList();
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            assertThat(futures.stream().map(this::getResult).map(CheckoutResult::status).toList())
+                    .containsExactlyInAnyOrder(200, 200);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private Buyer createBuyerWithCart(String email, String nickname, Long productId) {
+        return createBuyerWithCart(email, nickname, List.of(productId));
+    }
+
+    private Buyer createBuyerWithCart(String email, String nickname, List<Long> productIds) {
         return transactionTemplate.execute(status -> {
             Member buyer = memberRepository.save(Member.create(email, "encoded-password", nickname));
-            Product product = productRepository.findById(productId).orElseThrow();
-            CartItem cartItem = cartItemRepository.save(CartItem.create(buyer, product));
+            List<Long> cartItemIds = productIds.stream()
+                    .map(productId -> productRepository.findById(productId).orElseThrow())
+                    .map(product -> cartItemRepository.save(CartItem.create(buyer, product)).getId())
+                    .toList();
             String accessToken = jwtProvider.createAccessToken(buyer.getId(), buyer.getEmail(), buyer.getRole());
-            return new Buyer(accessToken, cartItem.getId());
+            return new Buyer(accessToken, cartItemIds);
         });
     }
 
@@ -110,7 +153,7 @@ class CartPurchaseConcurrencyTest extends IntegrationTestSupport {
                             .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyer.accessToken())
                             .header("Idempotency-Key", UUID.randomUUID().toString())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"cartItemIds\":[%d]}".formatted(buyer.cartItemId())))
+                            .content("{\"cartItemIds\":%s}".formatted(buyer.cartItemIds())))
                     .andReturn();
             return new CheckoutResult(result.getResponse().getStatus(), result.getResponse().getContentAsString());
         };
@@ -124,7 +167,7 @@ class CartPurchaseConcurrencyTest extends IntegrationTestSupport {
         }
     }
 
-    private record Buyer(String accessToken, Long cartItemId) {
+    private record Buyer(String accessToken, List<Long> cartItemIds) {
     }
 
     private record CheckoutResult(int status, String content) {
