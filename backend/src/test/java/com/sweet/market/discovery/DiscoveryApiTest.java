@@ -121,21 +121,25 @@ class DiscoveryApiTest extends IntegrationTestSupport {
         saveVisibleProduct(store, "이벤트 정렬 상품");
         Long earlyPromotion = savePromotion(store, 1);
         Long earlyCoupon = saveCoupon(store, 1);
+        Long anotherEarlyPromotion = savePromotion(store, 1);
         Long latePromotion = savePromotion(store, 2);
         Long lateCoupon = saveCoupon(store, 2);
         setEventEndTime(earlyPromotion, earlyCoupon, 1);
+        setPromotionEndTime(anotherEarlyPromotion, 1);
         setEventEndTime(latePromotion, lateCoupon, 2);
 
         mockMvc.perform(get("/api/discovery/events"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].eventType").value("PROMOTION"))
                 .andExpect(jsonPath("$.data[0].eventId").value(earlyPromotion))
-                .andExpect(jsonPath("$.data[1].eventType").value("COUPON"))
-                .andExpect(jsonPath("$.data[1].eventId").value(earlyCoupon))
-                .andExpect(jsonPath("$.data[2].eventType").value("PROMOTION"))
-                .andExpect(jsonPath("$.data[2].eventId").value(latePromotion))
-                .andExpect(jsonPath("$.data[3].eventType").value("COUPON"))
-                .andExpect(jsonPath("$.data[3].eventId").value(lateCoupon));
+                .andExpect(jsonPath("$.data[1].eventType").value("PROMOTION"))
+                .andExpect(jsonPath("$.data[1].eventId").value(anotherEarlyPromotion))
+                .andExpect(jsonPath("$.data[2].eventType").value("COUPON"))
+                .andExpect(jsonPath("$.data[2].eventId").value(earlyCoupon))
+                .andExpect(jsonPath("$.data[3].eventType").value("PROMOTION"))
+                .andExpect(jsonPath("$.data[3].eventId").value(latePromotion))
+                .andExpect(jsonPath("$.data[4].eventType").value("COUPON"))
+                .andExpect(jsonPath("$.data[4].eventId").value(lateCoupon));
     }
 
     @Test
@@ -239,15 +243,19 @@ class DiscoveryApiTest extends IntegrationTestSupport {
     }
 
     private void setEventEndTime(Long promotionId, Long couponId, int endsInHours) {
-        jdbcTemplate.update("""
-                update promotion_campaigns
-                set end_at = date_trunc('second', current_timestamp) + (? * interval '1 hour')
-                where id = ?
-                """, endsInHours, promotionId);
+        setPromotionEndTime(promotionId, endsInHours);
         jdbcTemplate.update("""
                 update coupon_campaigns
                 set issue_ends_at = date_trunc('second', current_timestamp) + (? * interval '1 hour')
                 where id = ?
                 """, endsInHours, couponId);
+    }
+
+    private void setPromotionEndTime(Long promotionId, int endsInHours) {
+        jdbcTemplate.update("""
+                update promotion_campaigns
+                set end_at = date_trunc('second', current_timestamp) + (? * interval '1 hour')
+                where id = ?
+                """, endsInHours, promotionId);
     }
 }

@@ -46,3 +46,17 @@ $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 ```
 
 Exact result: `BUILD SUCCESSFUL in 37s` (`5 actionable tasks: 5 executed`).
+
+Final ordering regression correction: the event-order test now includes two `PROMOTION` events with the same end time and asserts their source IDs are ascending before the same-time `COUPON` event.
+
+Exact verification command:
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+.\gradlew.bat test --tests 'com.sweet.market.discovery.*' --tests 'com.sweet.market.catalog.CatalogQueryOptimizationTest' --rerun-tasks
+```
+
+Exact result: `BUILD SUCCESSFUL in 37s` (`5 actionable tasks: 5 executed`).
