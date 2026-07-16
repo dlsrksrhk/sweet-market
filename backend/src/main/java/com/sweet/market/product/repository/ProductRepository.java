@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -21,6 +22,15 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update Product product
+            set product.status = com.sweet.market.product.domain.ProductStatus.RESERVED
+            where product.id = :productId
+              and product.status = com.sweet.market.product.domain.ProductStatus.ON_SALE
+            """)
+    int reserveSingleItemIfOnSale(@Param("productId") Long productId);
 
     List<Product> findAllByStoreIdAndIdIn(Long storeId, List<Long> ids);
 

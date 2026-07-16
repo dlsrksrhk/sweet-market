@@ -104,6 +104,15 @@ public class InventoryAdjustment {
     }
 
     static InventoryAdjustment reservation(Inventory inventory, Order order, int beforeReservedQuantity) {
+        return reservation(inventory, order, beforeReservedQuantity, inventory.getReservedQuantity());
+    }
+
+    public static InventoryAdjustment reservation(
+            Inventory inventory,
+            Order order,
+            int beforeReservedQuantity,
+            int afterReservedQuantity
+    ) {
         return new InventoryAdjustment(
                 inventory,
                 order,
@@ -114,7 +123,7 @@ public class InventoryAdjustment {
                 inventory.getTotalQuantity(),
                 inventory.getTotalQuantity(),
                 beforeReservedQuantity,
-                inventory.getReservedQuantity()
+                afterReservedQuantity
         );
     }
 
