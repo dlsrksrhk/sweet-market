@@ -68,7 +68,7 @@ export function MyCartPage() {
       navigate('/me/orders');
     },
     onError: (error) => {
-      if (isOrderRequestInProgress(error)) {
+      if (!isTerminalPurchaseError(error)) {
         return;
       }
 
@@ -234,8 +234,9 @@ function toErrorMessage(error: unknown) {
   return fieldMessage ?? apiError.message ?? '장바구니 주문을 처리하지 못했습니다.';
 }
 
-function isOrderRequestInProgress(error: unknown) {
-  return (error as Partial<ApiError>).code === 'ORDER_REQUEST_IN_PROGRESS';
+function isTerminalPurchaseError(error: unknown) {
+  const code = (error as Partial<ApiError>).code;
+  return typeof code === 'string' && code !== 'NETWORK_ERROR' && code !== 'ORDER_REQUEST_IN_PROGRESS' && code !== 'UNKNOWN_ERROR';
 }
 
 function getCartCheckoutFailureItems(error: unknown): CartCheckoutFailureItem[] {
