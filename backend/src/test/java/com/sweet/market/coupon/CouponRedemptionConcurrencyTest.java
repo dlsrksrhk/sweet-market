@@ -54,6 +54,39 @@ class CouponRedemptionConcurrencyTest extends IntegrationTestSupport {
                 .isEqualTo(1);
     }
 
+    @Test
+    void 재고_경합에서_진_쿠폰은_예약되지_않는다() throws Exception {
+        String sellerToken = signupAndLogin("stock-race-seller@example.com", "seller");
+        String buyerToken = signupAndLogin("stock-race-buyer@example.com", "buyer");
+        Long productId = createStockProduct(sellerToken, 1);
+        Long firstCouponId = issueCoupon("stock-race-buyer@example.com");
+        Long secondCouponId = issueCoupon("stock-race-buyer@example.com");
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<OrderAttempt>> attempts = List.of(
+                    executor.submit(() -> submitOrder(buyerToken, productId, firstCouponId, ready, start)),
+                    executor.submit(() -> submitOrder(buyerToken, productId, secondCouponId, ready, start))
+            );
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            List<OrderAttempt> results = attempts.stream().map(this::await).toList();
+
+            assertThat(results).filteredOn(result -> result.status() == 201).hasSize(1);
+            assertThat(results).filteredOn(result -> result.status() == 409).hasSize(1);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(jdbcTemplate.queryForObject("select count(*) from coupon_reservations where status = 'RESERVED'", Integer.class))
+                .isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from coupon_reservations where member_coupon_id in (?, ?)", Integer.class,
+                firstCouponId, secondCouponId)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select reserved_quantity from inventories where product_id = ?", Integer.class, productId))
+                .isEqualTo(1);
+    }
+
     private OrderAttempt submitOrder(String token, Long productId, Long couponId, CountDownLatch ready, CountDownLatch start) throws Exception {
         ready.countDown();
         if (!start.await(10, TimeUnit.SECONDS)) {
@@ -88,15 +121,19 @@ class CouponRedemptionConcurrencyTest extends IntegrationTestSupport {
     }
 
     private Long createStockProduct(String sellerToken) throws Exception {
+        return createStockProduct(sellerToken, 2);
+    }
+
+    private Long createStockProduct(String sellerToken, int stock) throws Exception {
         Long storeId = activePersonalStoreId(sellerToken);
         jdbcTemplate.update("update stores set type = 'BUSINESS' where id = ?", storeId);
         Long uploadId = uploadImage(sellerToken);
         String response = mockMvc.perform(post("/api/products").header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken)
                         .contentType(MediaType.APPLICATION_JSON).content("""
                                 { "storeId": %d, "title": "동시 주문 재고 상품", "description": "설명", "price": 10000,
-                                  "salesPolicy": "STOCK_MANAGED", "initialTotalQuantity": 2, "lowStockThreshold": 1,
+                                  "salesPolicy": "STOCK_MANAGED", "initialTotalQuantity": %d, "lowStockThreshold": 1,
                                   "images": [{ "uploadId": %d, "sortOrder": 0, "representative": true }] }
-                                """.formatted(storeId, uploadId)))
+                                """.formatted(storeId, stock, uploadId)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(response).path("data").path("id").asLong();
     }

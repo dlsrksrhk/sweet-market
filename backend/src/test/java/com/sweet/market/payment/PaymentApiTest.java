@@ -130,6 +130,26 @@ class PaymentApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 실패한_결제와_중복취소는_예약재고를_한번만_복구한다() throws Exception {
+        signupAndLogin("failed-cancel-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("failed-cancel-buyer@example.com", "password123", "buyer");
+        Long productId = createStockProduct("failed-cancel-seller@example.com", 1);
+        Long orderId = createOrder(buyerToken, productId);
+        doThrow(new PaymentGatewayException("gateway rejected"))
+                .when(paymentGateway).approve(orderId, 10_000L);
+
+        mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isConflict());
+        mockMvc.perform(post("/api/orders/{orderId}/cancel", orderId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
+                .andExpect(status().isOk());
+
+        assertInventory(productId, 1, 0);
+        assertThat(countInventoryAdjustments(orderId, "RELEASE")).isEqualTo(1);
+    }
+
+    @Test
     void 주문자는_결제_승인에_성공한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
