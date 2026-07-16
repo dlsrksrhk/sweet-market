@@ -14,10 +14,20 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = """
+            with orderable_product as (
+                select product.id
+                from products product
+                join stores store on store.id = product.store_id
+                where product.id = :productId
+                  and product.status = 'ON_SALE'
+                  and store.status = 'ACTIVE'
+                for update of product, store
+            )
             update inventories
             set reserved_quantity = reserved_quantity + 1,
                 version = version + 1
-            where product_id = :productId
+            from orderable_product
+            where inventories.product_id = orderable_product.id
               and total_quantity - reserved_quantity > 0
             """, nativeQuery = true)
     int reserveOneIfAvailable(@Param("productId") Long productId);

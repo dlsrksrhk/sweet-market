@@ -41,13 +41,13 @@ public class ProductReservationService {
 
     private void reserveSingleItem(Order order, Long productId) {
         if (productRepository.reserveSingleItemIfOnSale(productId) == 0) {
-            throw reservationFailure(order.getProduct());
+            throw reservationFailure(productId);
         }
     }
 
     private void reserveStockItem(Order order, Long productId) {
         if (inventoryRepository.reserveOneIfAvailable(productId) == 0) {
-            throw reservationFailure(order.getProduct());
+            throw reservationFailure(productId);
         }
 
         Inventory inventory = inventoryRepository.findByProductId(productId)
@@ -61,8 +61,10 @@ public class ProductReservationService {
         ));
     }
 
-    private BusinessException reservationFailure(Product product) {
-        ErrorCode errorCode = product.isPurchasable()
+    private BusinessException reservationFailure(Long productId) {
+        ErrorCode errorCode = productRepository.findWithStoreById(productId)
+                .filter(Product::isPurchasable)
+                .isPresent()
                 ? ErrorCode.PRODUCT_SOLD_OUT
                 : ErrorCode.PRODUCT_UNAVAILABLE;
         return new BusinessException(errorCode);
