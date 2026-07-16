@@ -21,11 +21,12 @@ M30 is the next milestone. Begin it in a fresh worktree with design and planning
 
 ## Verification Note
 
-M29’s backend suite has one documented non-M29 residual: storefront query optimization expects an on-sale count of 20 and observes 22. Investigate it separately; do not change M29 reservation logic to make that expectation pass.
+The storefront query-optimization fixture creates 20 catalog products and 2 review products, all with the default `ON_SALE` status. Its summary expectation was corrected from 20 to 22, and `StorefrontQueryOptimizationTest` now passes. This is a test-fixture expectation correction, not an M29 reservation behavior change.
 
 M29-focused verification passed:
 
 - Backend focused suite: 76 tests, 0 failures.
+- `StorefrontQueryOptimizationTest`: passed after the 20 → 22 fixture-expectation correction.
 - Web: `npm run build` passed (the existing Vite chunk-size warning remains).
 - Manual API QA: a repeated direct-purchase request with the same key replayed the original `201 CREATED` order response.
 
@@ -38,6 +39,8 @@ $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
 $env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
 .\gradlew.bat --no-daemon test
 ```
+
+The full suite should be rerun in a normal terminal/CI session after this correction; the desktop tool's 120-second command window ended before it could capture a complete full-suite result.
 
 Start local services when needed:
 

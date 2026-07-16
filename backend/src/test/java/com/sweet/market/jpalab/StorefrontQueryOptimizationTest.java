@@ -96,7 +96,7 @@ class StorefrontQueryOptimizationTest extends QueryOptimizationTestSupport {
         );
 
         assertThat(stores).hasSize(1);
-        assertThat(summary.onSaleCount()).isEqualTo(20);
+        assertThat(summary.onSaleCount()).isEqualTo(22);
         assertThat(products.getContent()).hasSize(12);
         assertThat(products.getContent()).allSatisfy(product -> assertThat(product.thumbnailUrl()).isNotBlank());
         assertThat(products.getContent()).allSatisfy(product -> {
