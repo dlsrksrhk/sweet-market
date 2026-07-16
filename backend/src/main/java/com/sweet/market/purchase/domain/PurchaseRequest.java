@@ -94,9 +94,29 @@ public class PurchaseRequest {
         return !leaseExpiresAt.isAfter(now);
     }
 
+    public boolean hasExpiredAt(Instant now) {
+        return !expiresAt.isAfter(now);
+    }
+
     public void reclaim(UUID nextExecutionToken, Instant nextLeaseExpiresAt) {
         this.executionToken = nextExecutionToken;
         this.leaseExpiresAt = nextLeaseExpiresAt;
+    }
+
+    public void restart(
+            String nextRequestFingerprint,
+            UUID nextExecutionToken,
+            Instant nextLeaseExpiresAt,
+            Instant nextExpiresAt
+    ) {
+        this.requestFingerprint = nextRequestFingerprint;
+        this.status = PurchaseRequestStatus.PROCESSING;
+        this.executionToken = nextExecutionToken;
+        this.leaseExpiresAt = nextLeaseExpiresAt;
+        this.responseStatus = null;
+        this.responsePayload = null;
+        this.completedAt = null;
+        this.expiresAt = nextExpiresAt;
     }
 
     public boolean hasExecutionToken(UUID token) {

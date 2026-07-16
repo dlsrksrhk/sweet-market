@@ -35,9 +35,10 @@ public class PurchaseRequestService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Claim claim(Long buyerId, String key, String fingerprint, Instant now) {
+        Member buyer = memberRepository.findByIdForUpdate(buyerId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
         PurchaseRequest request = purchaseRequestRepository.findForUpdate(buyerId, key).orElse(null);
         if (request == null) {
-            Member buyer = memberRepository.getReferenceById(buyerId);
             UUID executionToken = UUID.randomUUID();
             purchaseRequestRepository.save(PurchaseRequest.start(
                     buyer,
@@ -50,6 +51,11 @@ public class PurchaseRequestService {
             return new Claim.New(executionToken);
         }
 
+        if (request.getStatus() == PurchaseRequestStatus.COMPLETED && request.hasExpiredAt(now)) {
+            UUID executionToken = UUID.randomUUID();
+            request.restart(fingerprint, executionToken, now.plus(LEASE_DURATION), now.plus(RESPONSE_RETENTION));
+            return new Claim.New(executionToken);
+        }
         if (!request.hasFingerprint(fingerprint)) {
             throw new BusinessException(ErrorCode.IDEMPOTENCY_KEY_REUSED);
         }

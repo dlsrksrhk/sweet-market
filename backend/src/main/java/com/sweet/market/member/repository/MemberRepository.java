@@ -3,9 +3,11 @@ package com.sweet.market.member.repository;
 import com.sweet.market.member.admin.AdminMemberSummaryResponse;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.domain.MemberRole;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,6 +18,14 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     boolean existsByEmail(String email);
 
     Optional<Member> findByEmail(String email);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select member
+            from Member member
+            where member.id = :memberId
+            """)
+    Optional<Member> findByIdForUpdate(@Param("memberId") Long memberId);
 
     @Query(
             value = """
