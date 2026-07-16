@@ -4,6 +4,7 @@ import com.sweet.market.auth.security.AuthenticatedMember;
 import com.sweet.market.catalog.api.CatalogProductCardResponse;
 import com.sweet.market.common.api.ApiResponse;
 import com.sweet.market.discovery.domain.DiscoveryEventType;
+import com.sweet.market.discovery.metrics.DiscoveryMetrics;
 import com.sweet.market.discovery.query.DiscoveryQueryService;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,14 +19,16 @@ import java.util.List;
 public class DiscoveryController {
 
     private final DiscoveryQueryService discoveryQueryService;
+    private final DiscoveryMetrics discoveryMetrics;
 
-    public DiscoveryController(DiscoveryQueryService discoveryQueryService) {
+    public DiscoveryController(DiscoveryQueryService discoveryQueryService, DiscoveryMetrics discoveryMetrics) {
         this.discoveryQueryService = discoveryQueryService;
+        this.discoveryMetrics = discoveryMetrics;
     }
 
     @GetMapping("/events")
     public ApiResponse<List<ActiveEventResponse>> events() {
-        return ApiResponse.ok(discoveryQueryService.activeEvents());
+        return discoveryMetrics.events(() -> ApiResponse.ok(discoveryQueryService.activeEvents()));
     }
 
     @GetMapping("/events/{eventType}/{eventId}")
@@ -33,12 +36,14 @@ public class DiscoveryController {
             @PathVariable DiscoveryEventType eventType,
             @PathVariable Long eventId
     ) {
-        return ApiResponse.ok(discoveryQueryService.event(eventType, eventId));
+        return discoveryMetrics.detail(() -> ApiResponse.ok(discoveryQueryService.event(eventType, eventId)));
     }
 
     @GetMapping("/popular-products")
     public ApiResponse<List<CatalogProductCardResponse>> popularProducts(Authentication authentication) {
-        return ApiResponse.ok(discoveryQueryService.popularProducts(authenticatedMemberId(authentication)));
+        return discoveryMetrics.popularity(() -> ApiResponse.ok(
+                discoveryQueryService.popularProducts(authenticatedMemberId(authentication))
+        ));
     }
 
     private Long authenticatedMemberId(Authentication authentication) {

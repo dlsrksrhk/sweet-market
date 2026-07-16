@@ -3,6 +3,8 @@ package com.sweet.market.discovery.cache;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.sweet.market.discovery.api.ActiveEventResponse;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -26,5 +28,9 @@ public class ActiveEventCache {
 
     public void invalidate() {
         cache.invalidateAll();
+    }
+
+    public void bindMetricsTo(MeterRegistry meterRegistry) {
+        CaffeineCacheMetrics.monitor(meterRegistry, cache, "discovery.active-events");
     }
 }

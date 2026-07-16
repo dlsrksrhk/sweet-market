@@ -10,6 +10,8 @@ import java.time.Instant;
 
 public interface ProductViewDeduplicationRepository extends JpaRepository<ProductViewDeduplication, ProductViewDeduplication.IdValue> {
 
+    long deleteByLastCountedAtBefore(Instant cutoff);
+
     @Modifying
     @Query(value = """
             insert into product_view_deduplications (product_id, visitor_hash, last_counted_at)
