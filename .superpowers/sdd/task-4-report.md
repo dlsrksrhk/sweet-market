@@ -8,7 +8,7 @@
 - Added `DiscoveryMetrics` timer instrumentation for catalog, event summaries, popularity, and event detail (`discovery.read.duration`, `endpoint` tag).
 - Bound Caffeine active-event cache statistics to Micrometer under cache name `discovery.active-events`.
 - Added the `local-experiment` profile. Its `DataSource` post-processor counts JDBC executions from both Hibernate and `NamedParameterJdbcTemplate` as `discovery.jdbc.statements` without affecting the default profile.
-- Added the reproducible k6 scenario and evidence report. The workload is one minute at 20 VUs for warm-up, then five minutes at 100 VUs; the decision is home/catalog 70% and detail 30%.
+- Added the reproducible k6 scenario and evidence report. The workload is one minute at 20 VUs for warm-up, then five minutes at 100 VUs; the decision is home/catalog 70% and detail 30%. The report starts `local` fixtures, derives `PRODUCT_ID` from the public catalog response, and supports `cache-off` as an executable comparison profile.
 
 ## TDD evidence
 
@@ -29,6 +29,12 @@
 
 ## Known concern
 
-Running all `com.sweet.market.productview.*` and `com.sweet.market.discovery.*` tests in one JVM exposed an existing discovery-test isolation issue: `DiscoveryApiTest.활성_이벤트는_종료시각과_유형과_ID_순으로_정렬된다` receives an `ActiveEventCache` entry seeded by an earlier test and expects uncached ordering. The same test passes in isolation. This Task 4 change does not change cache loading or ordering; the remediation belongs with Task 3's cache-test setup (invalidate cache before each discovery API test).
-
 The local machine has no `k6` executable on `PATH`; Docker k6 was used for the required parse validation. No load numbers or SQL plans were fabricated. `docs/superpowers/reports/2026-07-16-milestone-30-catalog-read-performance.md` records the fixture inputs, commands, and result fields to populate from an actual run.
+
+## Review follow-up evidence
+
+- Added `cache-off` as a real Spring profile (`discovery.active-event-cache.enabled=false`) and a cache test proving that disabled mode invokes the loader on every read.
+- The report now starts `local,local-experiment`, then obtains `PRODUCT_ID` from `GET /api/catalog/products?size=1` and stops if no buyer-visible product exists. It documents both cache-off and default cache-on server commands.
+- `DiscoveryApiTest` now invalidates the singleton cache before each fixture setup. The retention test also clears its two product-view tables before setup because Hibernate's test schema does not create the deduplication foreign-key cascade.
+- Fresh command: `backend\gradlew.bat test --tests 'com.sweet.market.productview.*' --tests 'com.sweet.market.discovery.*' --rerun-tasks` → `BUILD SUCCESSFUL` (18 tests, 2026-07-16).
+- Fresh command: `docker run --rm -v "${PWD}:/work" -w /work grafana/k6:latest inspect performance/m30-catalog-reads.js` → parsed the 20-VU/1m warm-up and 100-VU/5m scenario (2026-07-16).

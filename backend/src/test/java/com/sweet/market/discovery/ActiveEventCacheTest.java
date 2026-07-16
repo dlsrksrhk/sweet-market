@@ -77,6 +77,23 @@ class ActiveEventCacheTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 캐시_비활성화_프로필에서는_매번_원본을_조회한다() {
+        ActiveEventCache disabledCache = new ActiveEventCache(false);
+        AtomicInteger loaderCalls = new AtomicInteger();
+
+        disabledCache.get(() -> {
+            loaderCalls.incrementAndGet();
+            return List.<ActiveEventResponse>of();
+        });
+        disabledCache.get(() -> {
+            loaderCalls.incrementAndGet();
+            return List.<ActiveEventResponse>of();
+        });
+
+        assertThat(loaderCalls).hasValue(2);
+    }
+
+    @Test
     void 캠페인종료_상품숨김_재고소진후_캐시를_비운다() {
         cache.invalidate();
         AtomicInteger loaderCalls = new AtomicInteger();

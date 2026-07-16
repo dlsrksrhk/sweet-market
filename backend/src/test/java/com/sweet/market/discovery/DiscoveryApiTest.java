@@ -2,6 +2,7 @@ package com.sweet.market.discovery;
 
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.discovery.cache.ActiveEventCache;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductImage;
 import com.sweet.market.product.repository.ProductRepository;
@@ -43,8 +44,12 @@ class DiscoveryApiTest extends IntegrationTestSupport {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
+    @Autowired
+    private ActiveEventCache activeEventCache;
+
     @BeforeEach
     void 조회_이벤트_픽스처를_초기화한다() {
+        activeEventCache.invalidate();
         jdbcTemplate.execute("TRUNCATE TABLE product_view_events, product_view_deduplications RESTART IDENTITY CASCADE");
     }
 

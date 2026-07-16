@@ -5,6 +5,7 @@ import com.sweet.market.productview.application.ProductViewRetentionCleanupServi
 import com.sweet.market.productview.repository.ProductViewDeduplicationRepository;
 import com.sweet.market.productview.repository.ProductViewEventRepository;
 import com.sweet.market.support.IntegrationTestSupport;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -31,6 +32,11 @@ class ProductViewRetentionCleanupServiceTest extends IntegrationTestSupport {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @BeforeEach
+    void 조회_이벤트_픽스처를_초기화한다() {
+        jdbcTemplate.execute("TRUNCATE TABLE product_view_events, product_view_deduplications RESTART IDENTITY CASCADE");
+    }
 
     @Test
     void 칠일을_지난_조회이벤트와_중복제거_행을_삭제한다() throws Exception {
