@@ -143,7 +143,8 @@ public class DiscoveryRepository {
     }
 
     public List<ActiveEventResponse> findActiveEvents() {
-        return jdbcTemplate.query("SELECT * FROM (" + EVENTS_SQL + ") events ORDER BY ends_at ASC, event_type ASC, event_id ASC",
+        return jdbcTemplate.query("SELECT * FROM (" + EVENTS_SQL + ") events "
+                        + "ORDER BY ends_at ASC, CASE event_type WHEN 'PROMOTION' THEN 0 ELSE 1 END ASC, event_id ASC",
                 this::activeEventResponse);
     }
 

@@ -30,3 +30,19 @@ Result: `BUILD SUCCESSFUL` (36s).
 
 - No caching or invalidation hooks were added; those remain Task 3 scope.
 - The pre-existing M30 plan document was left untracked and excluded from this task commit.
+
+## Review correction
+
+The reviewer identified four missing boundary regressions. Added focused API coverage for exclusion of wishlist/view rows older than seven days, product-ID descending ties at equal popularity scores, the eight-card popularity limit, and event ordering by end time, `PROMOTION` before `COUPON`, then ID. The equal-end-time event test exposed that lexical event-type sorting placed coupons first; the JDBC event ordering now uses an explicit promotion-first sort key.
+
+Exact verification command:
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+.\gradlew.bat test --tests 'com.sweet.market.discovery.*' --tests 'com.sweet.market.catalog.CatalogQueryOptimizationTest' --rerun-tasks
+```
+
+Exact result: `BUILD SUCCESSFUL in 37s` (`5 actionable tasks: 5 executed`).
