@@ -26,6 +26,41 @@ class OrderApiTest extends IntegrationTestSupport {
     private PaymentGateway paymentGateway;
 
     @Test
+    void 동일한_직접주문_키는_주문을_한번만_생성한다() throws Exception {
+        String sellerToken = signupAndLogin("idempotent-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("idempotent-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+
+        String first = createOrderResponse(buyerToken, productId, null, "direct-retry-1");
+        String second = createOrderResponse(buyerToken, productId, null, "direct-retry-1");
+
+        assertThat(orderId(first)).isEqualTo(orderId(second));
+        assertThat(countOrders()).isEqualTo(1);
+    }
+
+    @Test
+    void 직접주문은_멱등성_키가_없거나_비어있으면_검증오류를_반환한다() throws Exception {
+        String sellerToken = signupAndLogin("key-seller@example.com", "password123", "seller");
+        String buyerToken = signupAndLogin("key-buyer@example.com", "password123", "buyer");
+        Long productId = createProduct(sellerToken);
+
+        mockMvc.perform(post("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productId\":%d}".formatted(productId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+
+        mockMvc.perform(post("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", "   ")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productId\":%d}".formatted(productId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
     void 주문_생성에_성공한다() throws Exception {
         String sellerToken = signupAndLogin("seller@example.com", "password123", "seller");
         String buyerToken = signupAndLogin("buyer@example.com", "password123", "buyer");
@@ -33,6 +68,7 @@ class OrderApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -75,6 +111,7 @@ class OrderApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -95,6 +132,7 @@ class OrderApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                                 {
@@ -115,6 +153,7 @@ class OrderApiTest extends IntegrationTestSupport {
 
         String response = mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -150,6 +189,7 @@ class OrderApiTest extends IntegrationTestSupport {
 
         String response = mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 { "productId": %d, "memberCouponId": %d }
@@ -181,6 +221,7 @@ class OrderApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"productId\":%d,\"memberCouponId\":%d}".formatted(productId, couponId)))
                 .andExpect(status().isCreated())
@@ -380,6 +421,7 @@ class OrderApiTest extends IntegrationTestSupport {
         Long couponId = issueFixedAmountCoupon("coupon-cancel-buyer@example.com", 1_000L);
         String response = mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"productId\":%d,\"memberCouponId\":%d}".formatted(productId, couponId)))
                 .andExpect(status().isCreated())
@@ -469,21 +511,31 @@ class OrderApiTest extends IntegrationTestSupport {
     }
 
     private Long createOrder(String accessToken, Long productId) throws Exception {
-        String response = mockMvc.perform(post("/api/orders")
+        return orderId(createOrderResponse(accessToken, productId, null, java.util.UUID.randomUUID().toString()));
+    }
+
+    private String createOrderResponse(String accessToken, Long productId, Long memberCouponId, String idempotencyKey) throws Exception {
+        String request = memberCouponId == null
+                ? "{\"productId\":%d}".formatted(productId)
+                : "{\"productId\":%d,\"memberCouponId\":%d}".formatted(productId, memberCouponId);
+        return mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header("Idempotency-Key", idempotencyKey)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "productId": %d
-                                }
-                                """.formatted(productId)))
+                        .content(request))
                 .andExpect(status().isCreated())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
+    }
 
-        JsonNode root = objectMapper.readTree(response);
-        return root.path("data").path("id").asLong();
+    private Long orderId(String response) throws Exception {
+        return objectMapper.readTree(response).path("data").path("id").asLong();
+    }
+
+    private long countOrders() {
+        Long count = jdbcTemplate.queryForObject("select count(*) from orders", Long.class);
+        return count == null ? 0 : count;
     }
 
     private Long issueFixedAmountCoupon(String buyerEmail, long discountAmount) {
@@ -513,6 +565,7 @@ class OrderApiTest extends IntegrationTestSupport {
     private void assertCouponOrderError(String accessToken, Long productId, Long couponId, String errorCode) throws Exception {
         mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"productId\":%d,\"memberCouponId\":%d}".formatted(productId, couponId)))
                 .andExpect(status().isConflict())

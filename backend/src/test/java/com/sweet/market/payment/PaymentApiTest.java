@@ -251,7 +251,7 @@ class PaymentApiTest extends IntegrationTestSupport {
         Long productId = createProduct(sellerToken, 10_000L);
         Long couponId = issueFixedAmountCoupon("coupon-expired-buyer@example.com", 1_000L);
         Long orderId = createCouponOrder(buyerToken, productId, couponId);
-        jdbcTemplate.update("update coupon_reservations set expires_at = current_timestamp - interval '1 second' where order_id = ?", orderId);
+        jdbcTemplate.update("update coupon_reservations set expires_at = current_timestamp - interval '5 seconds' where order_id = ?", orderId);
 
         mockMvc.perform(post("/api/payments/{orderId}/approve", orderId)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
@@ -627,6 +627,7 @@ class PaymentApiTest extends IntegrationTestSupport {
     private Long createOrder(String accessToken, Long productId) throws Exception {
         String response = mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -645,6 +646,7 @@ class PaymentApiTest extends IntegrationTestSupport {
     private Long createCouponOrder(String accessToken, Long productId, Long couponId) throws Exception {
         String response = mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"productId\":%d,\"memberCouponId\":%d}".formatted(productId, couponId)))
                 .andExpect(status().isCreated())

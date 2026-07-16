@@ -10,6 +10,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,6 +61,7 @@ class CouponRedemptionConcurrencyTest extends IntegrationTestSupport {
         }
         MvcResult result = mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"productId\":%d,\"memberCouponId\":%d}".formatted(productId, couponId)))
                 .andReturn();

@@ -175,7 +175,6 @@ class ProductReservationServiceTest extends IntegrationTestSupport {
             Store store = storeRepository.save(Store.createPersonal(seller, "단품 상점", "소개"));
             Product product = productRepository.save(Product.create(store, "단품 상품", "설명", 10_000L));
             Order order = orderRepository.save(Order.create(buyer, product));
-            product.restoreOnSaleFromReservation();
             return orderRepository.saveAndFlush(order);
         });
     }
@@ -185,7 +184,6 @@ class ProductReservationServiceTest extends IntegrationTestSupport {
             Member buyer = memberRepository.save(Member.create("single-other-buyer@example.com", "encoded-password", "다른 구매자"));
             Product persistedProduct = productRepository.findById(product.getId()).orElseThrow();
             Order order = orderRepository.save(Order.create(buyer, persistedProduct));
-            persistedProduct.restoreOnSaleFromReservation();
             return orderRepository.saveAndFlush(order);
         });
     }

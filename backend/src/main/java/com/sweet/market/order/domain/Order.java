@@ -97,9 +97,6 @@ public class Order {
         if (!product.isPurchasable()) {
             throw new DomainException(OrderDomainError.PRODUCT_NOT_PURCHASABLE);
         }
-        if (product.isSingleItem()) {
-            product.reserve();
-        }
         return new Order(
                 buyer, product, product.getStore().getOwnerMember(),
                 price.listPrice(), price.promotionId(), price.promotionDiscountAmount(),
