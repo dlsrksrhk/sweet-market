@@ -7,6 +7,7 @@ import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.common.error.ErrorResponse;
+import com.sweet.market.discovery.cache.DiscoveryInvalidationEvent;
 import com.sweet.market.cart.api.CartCheckoutResponse;
 import com.sweet.market.cart.domain.CartItem;
 import com.sweet.market.cart.repository.CartItemRepository;
@@ -30,6 +31,7 @@ import com.sweet.market.purchase.api.CartCheckoutFailureItem;
 import com.sweet.market.purchase.api.CartCheckoutFailureResponse;
 import com.sweet.market.store.repository.StoreRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -56,6 +58,7 @@ public class PurchaseReservationService {
     private final PaymentApprovalTransactionService paymentApprovalTransactionService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     public PurchaseReservationService(
             PurchaseRequestService requestService,
@@ -69,7 +72,8 @@ public class PurchaseReservationService {
             ProductReservationService productReservationService,
             PaymentApprovalTransactionService paymentApprovalTransactionService,
             ObjectMapper objectMapper,
-            PlatformTransactionManager transactionManager
+            PlatformTransactionManager transactionManager,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.requestService = requestService;
         this.cartItemRepository = cartItemRepository;
@@ -83,6 +87,7 @@ public class PurchaseReservationService {
         this.paymentApprovalTransactionService = paymentApprovalTransactionService;
         this.objectMapper = objectMapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.eventPublisher = eventPublisher;
     }
 
     public OrderResponse purchaseDirect(DirectPurchaseCommand command, String idempotencyKey) {
@@ -191,11 +196,13 @@ public class PurchaseReservationService {
                 .toList();
 
         cartItemRepository.deleteAllByIdInBatch(orderedCartItems.stream().map(CartItem::getId).toList());
-        return new CartCheckoutResponse(orderIds.stream()
+        CartCheckoutResponse response = new CartCheckoutResponse(orderIds.stream()
                 .map(orderId -> orderRepository.findWithBuyerAndProductById(orderId)
                         .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND)))
                 .map(com.sweet.market.order.api.OrderSummaryResponse::from)
                 .toList());
+        invalidateDiscovery();
+        return response;
     }
 
     private void validateCartItemIds(List<Long> cartItemIds) {
@@ -304,7 +311,9 @@ public class PurchaseReservationService {
             }
             Order reservedOrder = orderRepository.findWithBuyerAndProductById(savedOrder.getId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
-            return OrderResponse.from(reservedOrder);
+            OrderResponse response = OrderResponse.from(reservedOrder);
+            invalidateDiscovery();
+            return response;
         } catch (DomainException exception) {
             if (exception.error() == ProductDomainError.NOT_ON_SALE
                     || exception.error() == OrderDomainError.PRODUCT_NOT_PURCHASABLE) {
@@ -312,5 +321,9 @@ public class PurchaseReservationService {
             }
             throw exception;
         }
+    }
+
+    private void invalidateDiscovery() {
+        eventPublisher.publishEvent(new DiscoveryInvalidationEvent());
     }
 }

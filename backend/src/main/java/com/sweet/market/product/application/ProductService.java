@@ -3,6 +3,7 @@ package com.sweet.market.product.application;
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.discovery.cache.DiscoveryInvalidationEvent;
 import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.product.api.*;
 import com.sweet.market.product.domain.Product;
@@ -16,6 +17,7 @@ import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreType;
 import com.sweet.market.wishlist.repository.WishlistItemRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -34,6 +36,7 @@ public class ProductService {
     private final ProductImageStorageService productImageStorageService;
     private final WishlistItemRepository wishlistItemRepository;
     private final InventoryService inventoryService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProductService(
             ProductRepository productRepository,
@@ -41,7 +44,8 @@ public class ProductService {
             ProductImageUploadService productImageUploadService,
             ProductImageStorageService productImageStorageService,
             WishlistItemRepository wishlistItemRepository,
-            InventoryService inventoryService
+            InventoryService inventoryService,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.productRepository = productRepository;
         this.storeAccessService = storeAccessService;
@@ -49,6 +53,7 @@ public class ProductService {
         this.productImageStorageService = productImageStorageService;
         this.wishlistItemRepository = wishlistItemRepository;
         this.inventoryService = inventoryService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -83,7 +88,9 @@ public class ProductService {
         if (savedProduct.getSalesPolicy() == ProductSalesPolicy.STOCK_MANAGED) {
             inventoryService.initialize(savedProduct, request.initialTotalQuantity(), memberId);
         }
-        return sellerResponse(savedProduct);
+        ProductResponse response = sellerResponse(savedProduct);
+        invalidateDiscovery();
+        return response;
     }
 
     @Transactional
@@ -121,7 +128,9 @@ public class ProductService {
         } catch (DomainException exception) {
             throw mapProductDomainException(exception);
         }
-        return sellerResponse(product);
+        ProductResponse response = sellerResponse(product);
+        invalidateDiscovery();
+        return response;
     }
 
     @Transactional
@@ -132,7 +141,9 @@ public class ProductService {
         } catch (DomainException exception) {
             throw mapProductDomainException(exception);
         }
-        return sellerResponse(product);
+        ProductResponse response = sellerResponse(product);
+        invalidateDiscovery();
+        return response;
     }
 
     private ProductResponse sellerResponse(Product product) {
@@ -302,5 +313,9 @@ public class ProductService {
             default -> ErrorCode.VALIDATION_ERROR;
         };
         return new BusinessException(errorCode, exception);
+    }
+
+    private void invalidateDiscovery() {
+        eventPublisher.publishEvent(new DiscoveryInvalidationEvent());
     }
 }

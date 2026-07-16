@@ -3,6 +3,7 @@ package com.sweet.market.promotion.application;
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.discovery.cache.DiscoveryInvalidationEvent;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.promotion.api.PromotionCampaignCreateRequest;
@@ -16,6 +17,7 @@ import com.sweet.market.promotion.repository.PromotionCampaignRepository;
 import com.sweet.market.store.application.StoreAccessService;
 import com.sweet.market.store.domain.Store;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -41,14 +43,16 @@ public class PromotionCampaignService {
     private final ProductRepository productRepository;
     private final StoreAccessService storeAccessService;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
     public PromotionCampaignService(
             PromotionCampaignRepository promotionCampaignRepository,
             ProductRepository productRepository,
-            StoreAccessService storeAccessService
+            StoreAccessService storeAccessService,
+            ApplicationEventPublisher eventPublisher
     ) {
-        this(promotionCampaignRepository, productRepository, storeAccessService, Clock.systemUTC());
+        this(promotionCampaignRepository, productRepository, storeAccessService, Clock.systemUTC(), eventPublisher);
     }
 
     PromotionCampaignService(
@@ -57,10 +61,21 @@ public class PromotionCampaignService {
             StoreAccessService storeAccessService,
             Clock clock
     ) {
+        this(promotionCampaignRepository, productRepository, storeAccessService, clock, event -> { });
+    }
+
+    PromotionCampaignService(
+            PromotionCampaignRepository promotionCampaignRepository,
+            ProductRepository productRepository,
+            StoreAccessService storeAccessService,
+            Clock clock,
+            ApplicationEventPublisher eventPublisher
+    ) {
         this.promotionCampaignRepository = promotionCampaignRepository;
         this.productRepository = productRepository;
         this.storeAccessService = storeAccessService;
         this.clock = clock;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -72,7 +87,9 @@ public class PromotionCampaignService {
                     store, request.scope(), request.discountType(), request.discountValue(), request.priority(),
                     request.title(), request.label(), toInstant(request.startsAt()), toInstant(request.endsAt()), products
             );
-            return PromotionCampaignResponse.detail(promotionCampaignRepository.save(campaign), now());
+            PromotionCampaignResponse response = PromotionCampaignResponse.detail(promotionCampaignRepository.save(campaign), now());
+            invalidateDiscovery();
+            return response;
         } catch (DomainException exception) {
             throw mapDomainException(exception);
         }
@@ -120,7 +137,9 @@ public class PromotionCampaignService {
                     request.scope(), request.discountType(), request.discountValue(), request.priority(), request.title(), request.label(),
                     toInstant(request.startsAt()), toInstant(request.endsAt()), products, now()
             );
-            return PromotionCampaignResponse.detail(campaign, now());
+            PromotionCampaignResponse response = PromotionCampaignResponse.detail(campaign, now());
+            invalidateDiscovery();
+            return response;
         } catch (DomainException exception) {
             throw mapDomainException(exception);
         }
@@ -151,7 +170,9 @@ public class PromotionCampaignService {
         PromotionCampaign campaign = findCampaign(storeId, promotionId);
         try {
             transition.apply(campaign);
-            return PromotionCampaignResponse.detail(campaign, now());
+            PromotionCampaignResponse response = PromotionCampaignResponse.detail(campaign, now());
+            invalidateDiscovery();
+            return response;
         } catch (DomainException exception) {
             throw mapDomainException(exception);
         }
@@ -204,6 +225,10 @@ public class PromotionCampaignService {
                     new BusinessException(ErrorCode.PROMOTION_LIFECYCLE_NOT_ALLOWED, exception);
             default -> new BusinessException(ErrorCode.VALIDATION_ERROR, exception);
         };
+    }
+
+    private void invalidateDiscovery() {
+        eventPublisher.publishEvent(new DiscoveryInvalidationEvent());
     }
 
     @FunctionalInterface

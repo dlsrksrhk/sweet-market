@@ -4,10 +4,12 @@ import com.sweet.market.cart.repository.CartItemRepository;
 import com.sweet.market.catalog.api.CatalogProductCardResponse;
 import com.sweet.market.catalog.query.CatalogProductRow;
 import com.sweet.market.discovery.api.ActiveEventResponse;
+import com.sweet.market.discovery.cache.ActiveEventCache;
 import com.sweet.market.discovery.api.EventDetailResponse;
 import com.sweet.market.discovery.domain.DiscoveryEventType;
 import com.sweet.market.wishlist.repository.WishlistItemRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -23,20 +25,32 @@ public class DiscoveryQueryService {
     private final DiscoveryRepository discoveryRepository;
     private final WishlistItemRepository wishlistItemRepository;
     private final CartItemRepository cartItemRepository;
+    private final ActiveEventCache activeEventCache;
+
+    @Autowired
+    public DiscoveryQueryService(
+            DiscoveryRepository discoveryRepository,
+            WishlistItemRepository wishlistItemRepository,
+            CartItemRepository cartItemRepository,
+            ActiveEventCache activeEventCache
+    ) {
+        this.discoveryRepository = discoveryRepository;
+        this.wishlistItemRepository = wishlistItemRepository;
+        this.cartItemRepository = cartItemRepository;
+        this.activeEventCache = activeEventCache;
+    }
 
     public DiscoveryQueryService(
             DiscoveryRepository discoveryRepository,
             WishlistItemRepository wishlistItemRepository,
             CartItemRepository cartItemRepository
     ) {
-        this.discoveryRepository = discoveryRepository;
-        this.wishlistItemRepository = wishlistItemRepository;
-        this.cartItemRepository = cartItemRepository;
+        this(discoveryRepository, wishlistItemRepository, cartItemRepository, new ActiveEventCache());
     }
 
     @Transactional(readOnly = true)
     public List<ActiveEventResponse> activeEvents() {
-        return discoveryRepository.findActiveEvents();
+        return activeEventCache.get(discoveryRepository::findActiveEvents);
     }
 
     @Transactional(readOnly = true)

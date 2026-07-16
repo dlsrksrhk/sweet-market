@@ -3,6 +3,7 @@ package com.sweet.market.coupon.application;
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.discovery.cache.DiscoveryInvalidationEvent;
 import com.sweet.market.coupon.api.CouponCampaignCreateRequest;
 import com.sweet.market.coupon.api.CouponCampaignResponse;
 import com.sweet.market.coupon.api.CouponCampaignSearchRequest;
@@ -17,6 +18,7 @@ import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.store.application.StoreAccessService;
 import com.sweet.market.store.domain.Store;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -40,17 +42,27 @@ public class CouponCampaignService {
     private final ProductRepository productRepository;
     private final StoreAccessService storeAccessService;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
+    public CouponCampaignService(CouponCampaignRepository campaignRepository, ProductRepository productRepository, StoreAccessService storeAccessService, ApplicationEventPublisher eventPublisher) {
+        this(campaignRepository, productRepository, storeAccessService, Clock.systemUTC(), eventPublisher);
+    }
+
     public CouponCampaignService(CouponCampaignRepository campaignRepository, ProductRepository productRepository, StoreAccessService storeAccessService) {
-        this(campaignRepository, productRepository, storeAccessService, Clock.systemUTC());
+        this(campaignRepository, productRepository, storeAccessService, Clock.systemUTC(), event -> { });
     }
 
     CouponCampaignService(CouponCampaignRepository campaignRepository, ProductRepository productRepository, StoreAccessService storeAccessService, Clock clock) {
+        this(campaignRepository, productRepository, storeAccessService, clock, event -> { });
+    }
+
+    CouponCampaignService(CouponCampaignRepository campaignRepository, ProductRepository productRepository, StoreAccessService storeAccessService, Clock clock, ApplicationEventPublisher eventPublisher) {
         this.campaignRepository = campaignRepository;
         this.productRepository = productRepository;
         this.storeAccessService = storeAccessService;
         this.clock = clock;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -67,7 +79,9 @@ public class CouponCampaignService {
     private CouponCampaignResponse create(CouponCampaignOwnerType ownerType, Store store, CouponCampaignCreateRequest request) {
         try {
             CouponCampaign campaign = CouponCampaign.create(ownerType, store, request.scope(), request.discountType(), request.discountValue(), request.maxDiscountAmount(), request.minimumPurchaseAmount(), request.stackable(), request.title(), request.label(), toInstant(request.issueStartsAt()), toInstant(request.issueEndsAt()), request.validityType(), toInstant(request.commonExpiresAt()), request.validityDays(), request.issueLimit(), validatedTargets(ownerType, store, request));
-            return CouponCampaignResponse.detail(campaignRepository.save(campaign), now());
+            CouponCampaignResponse response = CouponCampaignResponse.detail(campaignRepository.save(campaign), now());
+            invalidateDiscovery();
+            return response;
         } catch (DomainException exception) {
             throw map(exception);
         }
@@ -112,7 +126,9 @@ public class CouponCampaignService {
         try {
             CouponCampaignCreateRequest input = request.asCreateRequest();
             campaign.update(input.scope(), input.discountType(), input.discountValue(), input.maxDiscountAmount(), input.minimumPurchaseAmount(), input.stackable(), input.title(), input.label(), toInstant(input.issueStartsAt()), toInstant(input.issueEndsAt()), input.validityType(), toInstant(input.commonExpiresAt()), input.validityDays(), input.issueLimit(), validatedTargets(campaign.getOwnerType(), campaign.getStore(), input), now());
-            return CouponCampaignResponse.detail(campaign, now());
+            CouponCampaignResponse response = CouponCampaignResponse.detail(campaign, now());
+            invalidateDiscovery();
+            return response;
         } catch (DomainException exception) {
             throw map(exception);
         }
@@ -165,7 +181,9 @@ public class CouponCampaignService {
     private CouponCampaignResponse transition(CouponCampaign campaign, Transition transition) {
         try {
             transition.apply(campaign);
-            return CouponCampaignResponse.detail(campaign, now());
+            CouponCampaignResponse response = CouponCampaignResponse.detail(campaign, now());
+            invalidateDiscovery();
+            return response;
         } catch (DomainException exception) {
             throw map(exception);
         }
@@ -224,6 +242,10 @@ public class CouponCampaignService {
             case ISSUE_LIMIT_EXCEEDED -> new BusinessException(ErrorCode.COUPON_ISSUE_LIMIT_EXCEEDED, exception);
             default -> new BusinessException(ErrorCode.VALIDATION_ERROR, exception);
         };
+    }
+
+    private void invalidateDiscovery() {
+        eventPublisher.publishEvent(new DiscoveryInvalidationEvent());
     }
 
     @FunctionalInterface
