@@ -9,6 +9,7 @@ import { AdminSettlementBatchPage } from '../pages/AdminSettlementBatchPage';
 import { BusinessStoreApplicationPage } from '../pages/BusinessStoreApplicationPage';
 import { CouponCampaignDetailPage } from '../pages/CouponCampaignDetailPage';
 import { CouponCampaignWorkspacePage } from '../pages/CouponCampaignWorkspacePage';
+import { EventDetailPage } from '../pages/EventDetailPage';
 import { HomePage } from '../pages/HomePage';
 import { LoginPage } from '../pages/LoginPage';
 import { MyCartPage } from '../pages/MyCartPage';
@@ -37,6 +38,7 @@ export function AppRouter() {
         <Route path="login" element={<LoginPage />} />
         <Route path="signup" element={<SignupPage />} />
         <Route path="products/:productId" element={<ProductDetailPage />} />
+        <Route path="events/:eventType/:eventId" element={<EventDetailPage />} />
         <Route path="stores/:storeId" element={<StoreProfilePage />} />
         <Route
           path="products/new"

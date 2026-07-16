@@ -10,6 +10,7 @@ import { getProduct, hideProduct, toProductImageSrc, type WishlistResponse } fro
 import { getProductReviews } from '../features/reviews/reviewApi';
 import { getMyStores, storeQueryKeys } from '../features/stores/storeApi';
 import { BuyerPrice } from '../features/promotions/BuyerPrice';
+import { recordProductView } from '../features/discovery/discoveryApi';
 import { WishlistToggle } from '../features/wishlist/WishlistToggle';
 import { type ApiError } from '../shared/api/http';
 import { BuyerAvailabilityBadge, EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
@@ -97,6 +98,19 @@ export function ProductDetailPage() {
   useEffect(() => {
     setSelectedMemberCouponId(null);
   }, [parsedProductId]);
+
+  const isProductDetailVisible = product !== undefined
+    && !isLoading
+    && !authLoading
+    && !(member !== null && ownedStoresQuery.isLoading)
+    && !error
+    && !(member !== null && ownedStoresQuery.error);
+
+  useEffect(() => {
+    if (isProductDetailVisible && product) {
+      void recordProductView(product.id);
+    }
+  }, [isProductDetailVisible, product?.id]);
 
   if (!hasValidProductId) {
     return <ErrorState message="상품 주소가 올바르지 않습니다." />;

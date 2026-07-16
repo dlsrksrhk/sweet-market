@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import { CatalogPanel } from '../features/catalog/CatalogPanel';
+import { ActiveEventStrip } from '../features/discovery/ActiveEventStrip';
+import { PopularProductGrid } from '../features/discovery/PopularProductGrid';
 
 export function HomePage() {
   return (
@@ -14,6 +16,8 @@ export function HomePage() {
           상품 등록
         </Link>
       </div>
+      <ActiveEventStrip />
+      <PopularProductGrid />
       <section className="product-list-section" aria-labelledby="product-list-title">
         <div className="product-list-heading">
           <div>
