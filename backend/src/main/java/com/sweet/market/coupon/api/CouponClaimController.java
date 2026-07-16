@@ -39,6 +39,11 @@ public class CouponClaimController {
         return ApiResponse.ok(discoveryQueryService.findAvailable(memberId(authentication), request));
     }
 
+    @GetMapping("/api/coupon-campaigns/{campaignId}/claim-state")
+    public ApiResponse<AvailableCouponCampaignResponse> claimState(Authentication authentication, @PathVariable Long campaignId) {
+        return ApiResponse.ok(discoveryQueryService.findClaimState(memberId(authentication), campaignId));
+    }
+
     @PostMapping("/api/coupon-campaigns/{campaignId}/claim")
     public ApiResponse<MemberCouponResponse> claim(Authentication authentication, @PathVariable Long campaignId) {
         return ApiResponse.ok(issueService.claim(memberId(authentication), campaignId));

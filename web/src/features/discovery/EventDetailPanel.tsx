@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { CatalogProductCard } from '../catalog/CatalogProductCard';
-import { claimCouponCampaign, couponQueryKeys, getAvailableCouponCampaigns } from '../coupons/couponApi';
+import { claimCouponCampaign, couponQueryKeys, getCouponCampaignClaimState } from '../coupons/couponApi';
 import { toProductImageSrc } from '../products/productApi';
 import { EmptyState, ErrorState } from '../../shared/ui/ResourceStates';
 import { discoveryQueryKeys, getEventDetail, type DiscoveryEventType } from './discoveryApi';
@@ -18,9 +18,9 @@ export function EventDetailPanel({ eventType, eventId }: EventDetailPanelProps) 
   const client = useQueryClient();
   const { loading: authLoading, member } = useAuth();
   const eventQuery = useQuery({ queryKey: discoveryQueryKeys.event(eventType, eventId), queryFn: () => getEventDetail(eventType, eventId) });
-  const availableCouponsQuery = useQuery({
-    queryKey: couponQueryKeys.available({ page: 0, size: 100 }),
-    queryFn: () => getAvailableCouponCampaigns({ page: 0, size: 100 }),
+  const couponClaimStateQuery = useQuery({
+    queryKey: couponQueryKeys.claimState(member?.id ?? 0, eventId),
+    queryFn: () => getCouponCampaignClaimState(eventId),
     enabled: eventType === 'COUPON' && !authLoading && member !== null,
   });
   const claimMutation = useMutation({
@@ -38,7 +38,7 @@ export function EventDetailPanel({ eventType, eventId }: EventDetailPanelProps) 
 
   const event = eventQuery.data;
   const imageSrc = toProductImageSrc(event.representativeImageUrl);
-  const coupon = availableCouponsQuery.data?.content.find((campaign) => campaign.id === event.id);
+  const coupon = couponClaimStateQuery.data ?? undefined;
 
   return <section className="event-detail-content">
     <article className="event-detail-panel">
@@ -48,7 +48,7 @@ export function EventDetailPanel({ eventType, eventId }: EventDetailPanelProps) 
         <h1>{event.title}</h1>
         {event.label ? <p>{event.label}</p> : null}
         <p className="muted-text">{event.storeName ?? '전체 상점'} · {dateTimeFormatter.format(new Date(event.endsAt))} 종료</p>
-        {event.eventType === 'COUPON' ? <div className="event-detail-actions"><CouponClaimAction authLoading={authLoading} member={member} loading={availableCouponsQuery.isLoading} error={availableCouponsQuery.isError} coupon={coupon} pending={claimMutation.isPending} onClaim={() => claimMutation.mutate(event.id)} /></div> : null}
+        {event.eventType === 'COUPON' ? <div className="event-detail-actions"><CouponClaimAction authLoading={authLoading} member={member} loading={couponClaimStateQuery.isLoading} error={couponClaimStateQuery.isError} coupon={coupon} pending={claimMutation.isPending} onClaim={() => claimMutation.mutate(event.id)} /></div> : null}
         {claimMutation.isError ? <p className="error-text">쿠폰을 발급하지 못했습니다. 잠시 후 다시 시도해 주세요.</p> : null}
       </div>
     </article>
@@ -64,7 +64,7 @@ type CouponClaimActionProps = {
   member: ReturnType<typeof useAuth>['member'];
   loading: boolean;
   error: boolean;
-  coupon: Awaited<ReturnType<typeof getAvailableCouponCampaigns>>['content'][number] | undefined;
+  coupon: Awaited<ReturnType<typeof getCouponCampaignClaimState>> | undefined;
   pending: boolean;
   onClaim: () => void;
 };

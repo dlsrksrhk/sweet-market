@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -61,6 +62,30 @@ class CouponIssueApiTest extends IntegrationTestSupport {
         claim(token, campaignId).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(firstCouponId));
         assertThat(countMemberCoupons(campaignId, memberId("coupon-claim@example.com"))).isEqualTo(1);
+    }
+
+    @Test
+    void 백개보다_오래된_활성_캠페인의_발급상태를_캠페인_ID로_조회한다() throws Exception {
+        String token = signupAndLogin("coupon-claim-state@example.com");
+        Long campaignId = activeCampaign();
+
+        for (int index = 0; index < 101; index++) {
+            jdbcTemplate.update("""
+                    insert into coupon_campaigns (version, owner_type, store_id, scope, discount_type, discount_value,
+                        max_discount_amount, minimum_purchase_amount, stackable, title, issue_starts_at, issue_ends_at,
+                        validity_type, common_expires_at, validity_days, lifecycle_status, issued_count, issue_limit, created_at, updated_at)
+                    values (0, 'PLATFORM', null, 'ALL_PRODUCTS', 'FIXED_AMOUNT', 1000, null, 0, false, ?,
+                        current_timestamp - interval '1 hour', current_timestamp + interval '1 hour',
+                        'COMMON_EXPIRY', current_timestamp + interval '2 hours', null, 'SCHEDULED', 0, null,
+                        current_timestamp, current_timestamp)
+                    """, "더 최신 활성 캠페인 " + index);
+        }
+
+        mockMvc.perform(get("/api/coupon-campaigns/{campaignId}/claim-state", campaignId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(campaignId))
+                .andExpect(jsonPath("$.data.claimed").value(false));
     }
 
     @Test

@@ -57,3 +57,25 @@ Result: backend discovery suite `BUILD SUCCESSFUL` (37s); web Vitest 2/2 passed 
 ## Scope
 
 - The pre-existing untracked milestone plan under `docs/superpowers/plans/` was intentionally excluded from the task commit.
+
+## P1 claim-state correction
+
+- Replaced the event-detail page's `page=0&size=100` available-campaign scan with authenticated `GET /api/coupon-campaigns/{campaignId}/claim-state`.
+- The endpoint filters by the exact campaign ID and active issue window, then returns the existing claim-state response (or `null` when it is no longer claimable). It retains the member-specific `claimed` flag without a campaign-list scan.
+- Added an integration regression that creates the target campaign, then 101 newer active campaigns, and proves the target still resolves by ID. Added a web API regression asserting the exact claim-state URL and response.
+
+### P1 verification
+
+```powershell
+cd backend
+$env:JAVA_HOME='C:\java\jdk-21'
+$env:PATH="$env:JAVA_HOME\bin;$env:PATH"
+$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+.\gradlew.bat test --tests 'com.sweet.market.coupon.CouponIssueApiTest' --rerun-tasks
+
+cd ../web
+npm test
+npm run build
+```
+
+Result: coupon API suite `BUILD SUCCESSFUL` (36s); web Vitest 3/3 passed and the production build exited `0`.
