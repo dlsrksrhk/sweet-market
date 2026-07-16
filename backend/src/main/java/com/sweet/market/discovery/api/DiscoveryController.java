@@ -34,9 +34,10 @@ public class DiscoveryController {
     @GetMapping("/events/{eventType}/{eventId}")
     public ApiResponse<EventDetailResponse> event(
             @PathVariable DiscoveryEventType eventType,
-            @PathVariable Long eventId
+            @PathVariable Long eventId,
+            Authentication authentication
     ) {
-        return discoveryMetrics.detail(() -> ApiResponse.ok(discoveryQueryService.event(eventType, eventId)));
+        return discoveryMetrics.detail(() -> ApiResponse.ok(discoveryQueryService.event(eventType, eventId, authenticatedMemberId(authentication))));
     }
 
     @GetMapping("/popular-products")

@@ -8,8 +8,8 @@ export type ActiveEvent = {
   eventId: number;
   title: string;
   label: string | null;
-  storeId: number;
-  storeName: string;
+  storeId: number | null;
+  storeName: string | null;
   representativeImageUrl: string | null;
   endsAt: string;
 };
@@ -19,10 +19,11 @@ export type EventDetail = {
   id: number;
   title: string;
   label: string | null;
-  storeId: number;
-  storeName: string;
+  storeId: number | null;
+  storeName: string | null;
   representativeImageUrl: string | null;
   endsAt: string;
+  products: CatalogProductCard[];
 };
 
 export const discoveryQueryKeys = {

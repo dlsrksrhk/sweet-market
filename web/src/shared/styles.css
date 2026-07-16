@@ -3744,7 +3744,8 @@ a.wishlist-card-main:hover h2 {
   font-weight: 900;
 }
 
-.popular-product-grid {
+.popular-product-grid,
+.event-product-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
@@ -3807,6 +3808,13 @@ a.wishlist-card-main:hover h2 {
   min-width: 0;
 }
 
+.event-detail-content,
+.event-product-section {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+
 .event-detail-panel {
   display: grid;
   grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.1fr);
@@ -3865,7 +3873,8 @@ a.wishlist-card-main:hover h2 {
 }
 
 @media (max-width: 900px) {
-  .popular-product-grid {
+  .popular-product-grid,
+  .event-product-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

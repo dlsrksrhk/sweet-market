@@ -132,6 +132,77 @@ public class DiscoveryRepository {
               AND (cc.owner_type = 'PLATFORM' OR s.id IS NOT NULL)
             """;
 
+    private static final String EVENT_PRODUCTS_SQL = """
+            SELECT p.id AS product_id, p.title, p.price, p.price AS list_price, p.category,
+                   representative_image.image_url AS representative_image_url, p.sales_policy,
+                   i.total_quantity - i.reserved_quantity AS available_quantity, p.low_stock_threshold,
+                   s.id AS store_id, s.owner_member_id AS seller_id, s.public_name AS store_name, s.type AS store_type,
+                   promotion.promotion_id, promotion.promotion_title,
+                   COALESCE(promotion.promotion_discount_amount, 0) AS promotion_discount_amount,
+                   COALESCE(promotion.effective_price, p.price) AS effective_price
+            FROM products p
+            JOIN stores s ON s.id = p.store_id
+            LEFT JOIN inventories i ON i.product_id = p.id
+            JOIN LATERAL (
+                SELECT pi.image_url
+                FROM product_images pi
+                WHERE pi.product_id = p.id AND pi.representative = true
+                ORDER BY pi.sort_order ASC, pi.id ASC
+                LIMIT 1
+            ) representative_image ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT candidate.promotion_id, candidate.promotion_title, candidate.promotion_discount_amount,
+                       p.price - candidate.promotion_discount_amount AS effective_price
+                FROM (
+                    SELECT pc.id AS promotion_id, pc.title AS promotion_title, pc.priority,
+                           CASE
+                               WHEN pc.discount_type = 'FIXED_AMOUNT' THEN LEAST(pc.discount_value, p.price)
+                               WHEN pc.discount_value >= 100 THEN p.price
+                               ELSE (p.price / 100) * pc.discount_value + ((p.price % 100) * pc.discount_value) / 100
+                           END AS promotion_discount_amount
+                    FROM promotion_campaigns pc
+                    WHERE pc.store_id = p.store_id AND s.type = 'BUSINESS'
+                      AND pc.lifecycle_status = 'SCHEDULED'
+                      AND pc.start_at <= CURRENT_TIMESTAMP AND pc.end_at > CURRENT_TIMESTAMP
+                      AND (pc.scope = 'STORE_WIDE' OR EXISTS (
+                          SELECT 1 FROM promotion_targets pt
+                          WHERE pt.promotion_campaign_id = pc.id AND pt.product_id = p.id
+                      ))
+                ) candidate
+                ORDER BY p.price - candidate.promotion_discount_amount ASC, candidate.priority DESC, candidate.promotion_id ASC
+                LIMIT 1
+            ) promotion ON TRUE
+            WHERE """ + " " + VISIBLE_PRODUCT_SQL + """
+              AND (
+                  (:eventType = 'PROMOTION' AND EXISTS (
+                      SELECT 1
+                      FROM promotion_campaigns pc
+                      WHERE pc.id = :eventId
+                        AND pc.store_id = p.store_id
+                        AND pc.lifecycle_status = 'SCHEDULED'
+                        AND pc.start_at <= CURRENT_TIMESTAMP AND pc.end_at > CURRENT_TIMESTAMP
+                        AND (pc.scope = 'STORE_WIDE' OR EXISTS (
+                            SELECT 1 FROM promotion_targets pt
+                            WHERE pt.promotion_campaign_id = pc.id AND pt.product_id = p.id
+                        ))
+                  ))
+                  OR (:eventType = 'COUPON' AND EXISTS (
+                      SELECT 1
+                      FROM coupon_campaigns cc
+                      WHERE cc.id = :eventId
+                        AND cc.lifecycle_status = 'SCHEDULED'
+                        AND cc.issue_starts_at <= CURRENT_TIMESTAMP AND cc.issue_ends_at > CURRENT_TIMESTAMP
+                        AND (cc.owner_type = 'PLATFORM' OR cc.store_id = p.store_id)
+                        AND (cc.scope = 'ALL_PRODUCTS' OR EXISTS (
+                            SELECT 1 FROM coupon_campaign_targets ct
+                            WHERE ct.coupon_campaign_id = cc.id AND ct.product_id = p.id
+                        ))
+                  ))
+              )
+            ORDER BY p.id DESC
+            LIMIT 8
+            """;
+
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     public DiscoveryRepository(NamedParameterJdbcTemplate jdbcTemplate) {
@@ -154,6 +225,13 @@ public class DiscoveryRepository {
                 .addValue("eventId", eventId);
         return jdbcTemplate.query("SELECT * FROM (" + EVENTS_SQL + ") events WHERE event_type = :eventType AND event_id = :eventId", parameters,
                 (resultSet, rowNumber) -> eventDetailResponse(resultSet)).stream().findFirst();
+    }
+
+    public List<CatalogProductRow> findEventProducts(DiscoveryEventType eventType, Long eventId) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("eventType", eventType.name())
+                .addValue("eventId", eventId);
+        return jdbcTemplate.query(EVENT_PRODUCTS_SQL, parameters, this::catalogProductRow);
     }
 
     private CatalogProductRow catalogProductRow(ResultSet resultSet, int rowNumber) throws SQLException {
@@ -181,7 +259,7 @@ public class DiscoveryRepository {
         return new EventDetailResponse(DiscoveryEventType.valueOf(resultSet.getString("event_type")), resultSet.getLong("event_id"),
                 resultSet.getString("title"), resultSet.getString("label"), nullableLong(resultSet, "store_id"),
                 resultSet.getString("store_name"), resultSet.getString("representative_image_url"),
-                resultSet.getObject("ends_at", OffsetDateTime.class).toInstant());
+                resultSet.getObject("ends_at", OffsetDateTime.class).toInstant(), List.of());
     }
 
     private Long nullableLong(ResultSet resultSet, String column) throws SQLException {

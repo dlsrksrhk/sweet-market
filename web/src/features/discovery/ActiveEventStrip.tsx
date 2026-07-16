@@ -35,7 +35,7 @@ function EventCard({ event }: { event: ActiveEvent }) {
         <span className="discovery-event-type">{event.eventType === 'PROMOTION' ? '할인 이벤트' : '쿠폰 이벤트'}</span>
         <h3>{event.title}</h3>
         {event.label ? <p>{event.label}</p> : null}
-        <small>{event.storeName} · {dateTimeFormatter.format(new Date(event.endsAt))} 종료</small>
+        <small>{event.storeName ?? '전체 상점'} · {dateTimeFormatter.format(new Date(event.endsAt))} 종료</small>
       </div>
     </Link>
   );

@@ -54,14 +54,21 @@ public class DiscoveryQueryService {
     }
 
     @Transactional(readOnly = true)
-    public EventDetailResponse event(DiscoveryEventType eventType, Long eventId) {
-        return discoveryRepository.findEvent(eventType, eventId)
+    public EventDetailResponse event(DiscoveryEventType eventType, Long eventId, Long viewerId) {
+        EventDetailResponse event = discoveryRepository.findEvent(eventType, eventId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return new EventDetailResponse(
+                event.eventType(), event.id(), event.title(), event.label(), event.storeId(), event.storeName(),
+                event.representativeImageUrl(), event.endsAt(), catalogProductCards(discoveryRepository.findEventProducts(eventType, eventId), viewerId)
+        );
     }
 
     @Transactional(readOnly = true)
     public List<CatalogProductCardResponse> popularProducts(Long viewerId) {
-        List<CatalogProductRow> rows = discoveryRepository.findPopularProducts(OffsetDateTime.now().minusDays(7));
+        return catalogProductCards(discoveryRepository.findPopularProducts(OffsetDateTime.now().minusDays(7)), viewerId);
+    }
+
+    private List<CatalogProductCardResponse> catalogProductCards(List<CatalogProductRow> rows, Long viewerId) {
         Set<Long> productIds = rows.stream().map(CatalogProductRow::productId).collect(java.util.stream.Collectors.toSet());
         Set<Long> wishlisted = viewerId == null || productIds.isEmpty() ? Set.of() : new HashSet<>(
                 wishlistItemRepository.findProductIdsByBuyerIdAndProductIdIn(viewerId, productIds)

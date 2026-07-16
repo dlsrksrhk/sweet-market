@@ -178,6 +178,34 @@ class DiscoveryApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.id").value(promotionId));
     }
 
+    @Test
+    void 프로모션_이벤트_상세는_대상_상품_카드를_반환한다() throws Exception {
+        Store store = saveActiveStore("discovery-detail-owner@example.com");
+        Product product = saveVisibleProduct(store, "상세 대상 상품");
+        Long promotionId = savePromotion(store);
+
+        mockMvc.perform(get("/api/discovery/events/PROMOTION/{eventId}", promotionId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(promotionId))
+                .andExpect(jsonPath("$.data.products.length()").value(1))
+                .andExpect(jsonPath("$.data.products[0].id").value(product.getId()))
+                .andExpect(jsonPath("$.data.products[0].wishlisted").value(false))
+                .andExpect(jsonPath("$.data.products[0].carted").value(false));
+    }
+
+    @Test
+    void 플랫폼_쿠폰_이벤트_상세는_상점없이_상품_카드를_반환한다() throws Exception {
+        Store store = saveActiveStore("discovery-platform-coupon-owner@example.com");
+        Product product = saveVisibleProduct(store, "플랫폼 쿠폰 대상 상품");
+        Long couponId = savePlatformCoupon();
+
+        mockMvc.perform(get("/api/discovery/events/COUPON/{eventId}", couponId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.storeId").doesNotExist())
+                .andExpect(jsonPath("$.data.products.length()").value(1))
+                .andExpect(jsonPath("$.data.products[0].id").value(product.getId()));
+    }
+
     private Store saveActiveStore(String email) {
         Store store = Store.applyBusiness(saveMember(email), "공개 상점", "소개", "법인", "999-99-99999");
         store.approve();
@@ -245,6 +273,18 @@ class DiscoveryApiTest extends IntegrationTestSupport {
                     'COMMON_EXPIRY', current_timestamp + ((? + 1) * interval '1 hour'), null, 'SCHEDULED', 0, null,
                     current_timestamp, current_timestamp) returning id
                 """, Long.class, store.getId(), endsInHours, endsInHours);
+    }
+
+    private Long savePlatformCoupon() {
+        return jdbcTemplate.queryForObject("""
+                insert into coupon_campaigns (version, owner_type, store_id, scope, discount_type, discount_value,
+                    max_discount_amount, minimum_purchase_amount, stackable, title, issue_starts_at, issue_ends_at,
+                    validity_type, common_expires_at, validity_days, lifecycle_status, issued_count, issue_limit, created_at, updated_at)
+                values (0, 'PLATFORM', null, 'ALL_PRODUCTS', 'FIXED_AMOUNT', 1000, null, 0, false, '플랫폼 진행 쿠폰',
+                    current_timestamp - interval '1 hour', current_timestamp + interval '1 hour',
+                    'COMMON_EXPIRY', current_timestamp + interval '2 hours', null, 'SCHEDULED', 0, null,
+                    current_timestamp, current_timestamp) returning id
+                """, Long.class);
     }
 
     private void setEventEndTime(Long promotionId, Long couponId, int endsInHours) {
