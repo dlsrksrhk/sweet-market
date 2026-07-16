@@ -15,15 +15,22 @@ public class WebCorsConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource(WebCorsProperties properties) {
+        CorsConfiguration productViewConfiguration = corsConfiguration(properties, true);
+        CorsConfiguration configuration = corsConfiguration(properties, false);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/products/*/views", productViewConfiguration);
+        source.registerCorsConfiguration("/api/**", configuration);
+        return source;
+    }
+
+    private CorsConfiguration corsConfiguration(WebCorsProperties properties, boolean allowCredentials) {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(properties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setExposedHeaders(List.of("Authorization"));
-        configuration.setAllowCredentials(false);
-
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", configuration);
-        return source;
+        configuration.setAllowCredentials(allowCredentials);
+        return configuration;
     }
 }
