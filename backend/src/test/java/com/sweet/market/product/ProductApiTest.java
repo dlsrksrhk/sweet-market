@@ -208,6 +208,7 @@ class ProductApiTest extends IntegrationTestSupport {
         mockMvc.perform(post("/api/products/{productId}/cart", productId).header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken))
                 .andExpect(status().isConflict());
         mockMvc.perform(post("/api/orders").header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"productId\":%d}".formatted(productId)))
                 .andExpect(status().isConflict());
     }

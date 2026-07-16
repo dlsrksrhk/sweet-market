@@ -384,6 +384,7 @@ class AdminSettlementApiTest extends IntegrationTestSupport {
             entityManager.persist(product);
 
             Order order = Order.create(buyer, product);
+            product.reserve();
             order.markPaid();
             order.startShipping();
             order.completeDelivery();
@@ -417,6 +418,7 @@ class AdminSettlementApiTest extends IntegrationTestSupport {
             entityManager.persist(product);
 
             Order order = Order.create(buyer, product);
+            product.reserve();
             order.markPaid();
             order.startShipping();
             order.completeDelivery();

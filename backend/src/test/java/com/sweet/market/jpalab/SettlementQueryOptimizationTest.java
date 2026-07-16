@@ -124,6 +124,7 @@ class SettlementQueryOptimizationTest extends QueryOptimizationTestSupport {
 
             Order order = Order.create(buyer, product);
             entityManager.persist(order);
+            product.reserve();
 
             entityManager.persist(Payment.approve(order, "payment-" + i));
             Delivery delivery = Delivery.start(order, "tracking-" + i);

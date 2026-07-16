@@ -142,6 +142,7 @@ class CouponQueryOptimizationTest extends QueryOptimizationTestSupport {
 
         Long directOrderId = objectMapper.readTree(mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"productId\": %d}".formatted(directProduct.getId())))
                 .andExpect(status().isCreated())
@@ -154,6 +155,7 @@ class CouponQueryOptimizationTest extends QueryOptimizationTestSupport {
                 "select id from cart_items where buyer_id = ? and product_id = ?", Long.class, buyer.getId(), cartProduct.getId());
         Long cartOrderId = objectMapper.readTree(mockMvc.perform(post("/api/me/cart/checkout")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cartItemIds\": [%d]}".formatted(cartItemId)))
                 .andExpect(status().isOk())

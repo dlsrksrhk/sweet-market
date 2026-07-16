@@ -7,6 +7,7 @@ import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.payment.repository.PaymentRepository;
 import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.purchase.application.ProductReservationService;
 import com.sweet.market.settlement.repository.SettlementRepository;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.support.IntegrationTestSupport;
@@ -45,6 +46,9 @@ class DemoDataInitializerTest extends IntegrationTestSupport {
     private StoreRepository storeRepository;
 
     @Autowired
+    private ProductReservationService productReservationService;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -59,6 +63,7 @@ class DemoDataInitializerTest extends IntegrationTestSupport {
                 deliveryRepository,
                 settlementRepository,
                 storeRepository,
+                productReservationService,
                 passwordEncoder,
                 jdbcTemplate
         );

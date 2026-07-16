@@ -225,6 +225,7 @@ class OrderAutoConfirmServiceTest extends IntegrationTestSupport {
         Member buyer = memberRepository.save(Member.create("buyer-" + key + "@example.com", "encoded-password", "buyer-" + key));
         Product product = productRepository.save(Product.create(seller, "MacBook Pro " + key, "M3 laptop", 2_000_000L));
         Order order = orderRepository.save(Order.create(buyer, product));
+        product.reserve();
         order.markPaid();
         entityManager.flush();
         entityManager.clear();
@@ -236,6 +237,7 @@ class OrderAutoConfirmServiceTest extends IntegrationTestSupport {
         Member buyer = memberRepository.save(Member.create("buyer-" + key + "@example.com", "encoded-password", "buyer-" + key));
         Product product = productRepository.save(Product.create(seller, "MacBook Pro " + key, "M3 laptop", 2_000_000L));
         Order order = orderRepository.save(Order.create(buyer, product));
+        product.reserve();
         order.cancel();
         entityManager.flush();
         entityManager.clear();
@@ -277,6 +279,7 @@ class OrderAutoConfirmServiceTest extends IntegrationTestSupport {
         Member buyer = Member.create("buyer-" + key + "@example.com", "encoded-password", "buyer-" + key);
         Product product = Product.create(seller, "MacBook Pro " + key, "M3 laptop", 2_000_000L);
         Order order = Order.create(buyer, product);
+        product.reserve();
         order.markPaid();
         Delivery delivery = Delivery.start(order, "tracking-" + key);
         delivery.complete();

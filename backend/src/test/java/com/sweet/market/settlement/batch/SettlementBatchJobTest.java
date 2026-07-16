@@ -191,6 +191,7 @@ class SettlementBatchJobTest extends IntegrationTestSupport {
             entityManager.persist(product);
 
             Order order = Order.create(buyer, product);
+            product.reserve();
             order.markPaid();
             order.startShipping();
             order.completeDelivery();
@@ -246,6 +247,7 @@ class SettlementBatchJobTest extends IntegrationTestSupport {
 
         Order order = Order.create(buyer, product);
         entityManager.persist(order);
+        product.reserve();
         entityManager.persist(Payment.approve(order, "payment-" + suffix));
         order.startShipping();
         order.completeDelivery();

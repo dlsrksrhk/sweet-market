@@ -136,6 +136,7 @@ class AdminOrderAutoConfirmApiTest extends IntegrationTestSupport {
             entityManager.persist(product);
 
             Order order = Order.create(buyer, product);
+            product.reserve();
             order.markPaid();
             entityManager.persist(order);
 

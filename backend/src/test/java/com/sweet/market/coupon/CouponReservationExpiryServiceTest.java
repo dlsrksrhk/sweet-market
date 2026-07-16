@@ -110,6 +110,7 @@ class CouponReservationExpiryServiceTest extends IntegrationTestSupport {
         Long couponId = issueCoupon(buyerEmail);
         String response = mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + buyerToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"productId\":%d,\"memberCouponId\":%d}".formatted(productId, couponId)))
                 .andExpect(status().isCreated())

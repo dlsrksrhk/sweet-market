@@ -100,6 +100,8 @@ class PaymentTest {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Member buyer = Member.create("buyer@example.com", "encoded-password", "buyer");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
-        return Order.create(buyer, product);
+        Order order = Order.create(buyer, product);
+        product.reserve();
+        return order;
     }
 }

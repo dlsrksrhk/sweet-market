@@ -21,6 +21,7 @@ class OrderTest {
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
 
         Order order = Order.create(buyer, product);
+        product.reserve();
 
         assertThat(order.getBuyer()).isSameAs(buyer);
         assertThat(order.getProduct()).isSameAs(product);
@@ -87,6 +88,7 @@ class OrderTest {
         Member buyer = Member.create("buyer@example.com", "encoded-password", "buyer");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
         Order order = Order.create(buyer, product);
+        product.reserve();
 
         order.cancel();
 
@@ -101,6 +103,7 @@ class OrderTest {
         Member buyer = Member.create("buyer@example.com", "encoded-password", "buyer");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
         Order order = Order.create(buyer, product);
+        product.reserve();
         order.cancel();
 
         order.cancel();
@@ -170,6 +173,7 @@ class OrderTest {
         Member buyer = Member.create("buyer-confirmed-at@example.com", "encoded-password", "buyer");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
         Order order = Order.create(buyer, product);
+        product.reserve();
         order.markPaid();
         order.startShipping();
         order.completeDelivery();
@@ -284,7 +288,9 @@ class OrderTest {
         Member seller = Member.create("seller@example.com", "encoded-password", "seller");
         Member buyer = Member.create("buyer@example.com", "encoded-password", "buyer");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
-        return Order.create(buyer, product);
+        Order order = Order.create(buyer, product);
+        product.reserve();
+        return order;
     }
 
     private Order deliveredOrder() {

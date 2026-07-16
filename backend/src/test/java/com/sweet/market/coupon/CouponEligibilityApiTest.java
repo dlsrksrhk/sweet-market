@@ -187,6 +187,7 @@ class CouponEligibilityApiTest extends IntegrationTestSupport {
 
     private Long createOrder(String token, Long productId) throws Exception {
         String response = mockMvc.perform(post("/api/orders").header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"productId\":%d}".formatted(productId)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(response).path("data").path("id").asLong();

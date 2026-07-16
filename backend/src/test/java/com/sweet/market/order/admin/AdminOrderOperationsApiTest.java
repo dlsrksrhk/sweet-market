@@ -280,6 +280,7 @@ class AdminOrderOperationsApiTest extends IntegrationTestSupport {
             entityManager.persist(product);
 
             Order order = Order.create(buyer, product);
+            product.reserve();
             if (orderStep == OrderStep.PAID || orderStep == OrderStep.CONFIRMED_WITH_SETTLEMENT) {
                 order.markPaid();
             }

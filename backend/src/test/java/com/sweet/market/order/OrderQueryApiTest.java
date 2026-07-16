@@ -293,6 +293,7 @@ class OrderQueryApiTest extends IntegrationTestSupport {
         String couponField = memberCouponId == null ? "" : ",\n  \"memberCouponId\": " + memberCouponId;
         String response = mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {

@@ -37,6 +37,7 @@ class DirtyCheckingTest extends IntegrationTestSupport {
         Member buyer = memberRepository.save(Member.create("buyer@example.com", "encoded-password", "buyer"));
         Product product = productRepository.save(Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L));
         Order order = orderRepository.save(Order.create(buyer, product));
+        product.reserve();
         entityManager.flush();
         entityManager.clear();
 

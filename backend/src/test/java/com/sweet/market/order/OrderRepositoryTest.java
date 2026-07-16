@@ -39,6 +39,7 @@ class OrderRepositoryTest extends IntegrationTestSupport {
         Product product = productRepository.save(Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L));
 
         Order firstOrder = orderRepository.save(Order.create(firstBuyer, product));
+        product.reserve();
         entityManager.flush();
         entityManager.clear();
 
@@ -49,6 +50,7 @@ class OrderRepositoryTest extends IntegrationTestSupport {
 
         Product foundProduct = productRepository.findById(product.getId()).orElseThrow();
         Order secondOrder = orderRepository.save(Order.create(secondBuyer, foundProduct));
+        foundProduct.reserve();
         entityManager.flush();
         entityManager.clear();
 

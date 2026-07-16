@@ -635,6 +635,7 @@ class SellerReportApiTest extends IntegrationTestSupport {
             Member managedBuyer = entityManager.find(Member.class, buyer.getId());
             Product managedProduct = entityManager.find(Product.class, product.getId());
             Order createdOrder = Order.create(managedBuyer, managedProduct);
+            managedProduct.reserve();
             createdOrder.markPaid();
             createdOrder.startShipping();
             createdOrder.completeDelivery();

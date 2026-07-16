@@ -1045,6 +1045,7 @@ class RefundRequestApiTest extends IntegrationTestSupport {
     private Long createOrder(String accessToken, Long productId) throws Exception {
         String response = mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -1062,6 +1063,7 @@ class RefundRequestApiTest extends IntegrationTestSupport {
     private Long createCouponOrder(String accessToken, Long productId, Long couponId) throws Exception {
         String response = mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"productId\":%d,\"memberCouponId\":%d}".formatted(productId, couponId)))
                 .andExpect(status().isCreated())

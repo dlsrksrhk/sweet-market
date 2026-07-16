@@ -36,6 +36,7 @@ class SettlementTest {
         PromotionPrice promotion = new PromotionPrice(10_000L, 31L, "프로모션", 2_000L, 8_000L);
         CouponDiscountQuote coupon = new CouponDiscountQuote(71L, 1_000L, 7_000L);
         Order order = Order.create(buyer, product, promotion, coupon);
+        product.reserve();
         Payment.approve(order, "pay_discount");
         Delivery.start(order, "tracking-discount").complete();
         order.confirm();
@@ -70,6 +71,7 @@ class SettlementTest {
         Member buyer = Member.create("buyer@example.com", "encoded-password", "buyer");
         Product product = Product.create(seller, "MacBook Pro", "M3 laptop", 2_000_000L);
         Order order = Order.create(buyer, product);
+        product.reserve();
         Payment.approve(order, "pay_123");
         Delivery.start(order, "tracking-123").complete();
         return order;

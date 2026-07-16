@@ -10,6 +10,7 @@ import com.sweet.market.payment.domain.Payment;
 import com.sweet.market.payment.repository.PaymentRepository;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.purchase.application.ProductReservationService;
 import com.sweet.market.settlement.domain.Settlement;
 import com.sweet.market.settlement.repository.SettlementRepository;
 import com.sweet.market.store.domain.Store;
@@ -64,6 +65,7 @@ public class DemoDataInitializer implements ApplicationRunner {
     private final DeliveryRepository deliveryRepository;
     private final SettlementRepository settlementRepository;
     private final StoreRepository storeRepository;
+    private final ProductReservationService productReservationService;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbcTemplate;
 
@@ -75,6 +77,7 @@ public class DemoDataInitializer implements ApplicationRunner {
             DeliveryRepository deliveryRepository,
             SettlementRepository settlementRepository,
             StoreRepository storeRepository,
+            ProductReservationService productReservationService,
             PasswordEncoder passwordEncoder,
             JdbcTemplate jdbcTemplate
     ) {
@@ -85,6 +88,7 @@ public class DemoDataInitializer implements ApplicationRunner {
         this.deliveryRepository = deliveryRepository;
         this.settlementRepository = settlementRepository;
         this.storeRepository = storeRepository;
+        this.productReservationService = productReservationService;
         this.passwordEncoder = passwordEncoder;
         this.jdbcTemplate = jdbcTemplate;
     }
@@ -205,7 +209,9 @@ public class DemoDataInitializer implements ApplicationRunner {
                 "Timeline " + scenario.status().name() + " Product " + sequence,
                 priceFor(sequence + CATALOG_PRODUCT_COUNT)
         );
-        Order order = orderRepository.save(Order.create(buyer, product));
+        Order order = orderRepository.saveAndFlush(Order.create(buyer, product));
+        productReservationService.reserve(order);
+        order = orderRepository.findById(order.getId()).orElseThrow();
         LocalDateTime orderedAt = orderDate.atTime(9 + sequence % 8, 15);
         updateOrderOrderedAt(order, orderedAt);
         Payment payment = null;
