@@ -30,3 +30,16 @@ Result: `BUILD SUCCESSFUL` (72.9 seconds).
 ## Review
 
 Independent review identified a missed `StoreProvisioningService` reactivation path and insufficient commit/rollback listener coverage. Both were addressed before final verification. No unresolved critical or important findings remain.
+
+## Follow-up: Admin and store catalog visibility paths
+
+- Added after-commit invalidation events to `AdminProductService.hide` and `StoreCatalogCommandService.hide` / `show`.
+- Added Korean-named regression tests proving each committed command evicts the active-event cache; the store command test covers both hide and subsequent show.
+
+Executed from `backend` with JDK 21 and `JWT_SECRET` set:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.discovery.ActiveEventCacheTest' --tests 'com.sweet.market.product.admin.*' --tests 'com.sweet.market.store.StoreOperationsApiTest' --rerun-tasks
+```
+
+Result: `BUILD SUCCESSFUL` (30 seconds).
