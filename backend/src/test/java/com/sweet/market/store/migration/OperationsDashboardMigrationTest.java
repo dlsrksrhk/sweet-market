@@ -1,5 +1,7 @@
 package com.sweet.market.store.migration;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -9,13 +11,16 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
 class OperationsDashboardMigrationTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Container
     static final PostgreSQLContainer<?> POSTGRESQL = new PostgreSQLContainer<>("postgres:17-alpine")
@@ -44,14 +49,32 @@ class OperationsDashboardMigrationTest {
         assertThat(tableExists("performance_endpoint_metrics")).isTrue();
         assertThat(tableExists("performance_query_evidence")).isTrue();
         assertThat(indexExists("idx_operational_event_outbox_poll")).isTrue();
-        assertThat(indexDefinition("idx_projection_event_receipts_generation_processed_at"))
-                .contains("generation_id", "processed_at DESC");
-        assertThat(indexExists("idx_campaign_metric_hourly_store_bucket")).isTrue();
-        assertThat(indexDefinition("idx_campaign_metric_hourly_owner_store_bucket"))
-                .contains("generation_id", "campaign_owner_store_id", "bucket_start");
+        assertThat(indexMetadata("idx_projection_event_receipts_generation_processed_at"))
+                .isEqualTo(index(
+                        column("generation_id", "ASC", "LAST"),
+                        column("processed_at", "DESC", "FIRST")));
+        assertThat(indexMetadata("idx_campaign_metric_hourly_store_bucket"))
+                .isEqualTo(index(
+                        column("generation_id", "ASC", "LAST"),
+                        column("commerce_store_id", "ASC", "LAST"),
+                        column("bucket_start", "ASC", "LAST"),
+                        column("campaign_kind", "ASC", "LAST"),
+                        column("campaign_id", "ASC", "LAST")));
+        assertThat(indexMetadata("idx_campaign_metric_hourly_owner_store_bucket"))
+                .isEqualTo(index(
+                        column("generation_id", "ASC", "LAST"),
+                        column("campaign_owner_store_id", "ASC", "LAST"),
+                        column("bucket_start", "ASC", "LAST"),
+                        column("campaign_kind", "ASC", "LAST"),
+                        column("campaign_id", "ASC", "LAST")));
         assertThat(indexExists("idx_inventory_pressure_store_attention")).isTrue();
-        assertThat(indexDefinition("idx_campaign_audit_projection_owner_time"))
-                .contains("occurred_at DESC", "aggregate_version DESC NULLS LAST", "event_id DESC");
+        assertThat(indexMetadata("idx_campaign_audit_projection_owner_time"))
+                .isEqualTo(index(
+                        column("generation_id", "ASC", "LAST"),
+                        column("owner_store_id", "ASC", "LAST"),
+                        column("occurred_at", "DESC", "FIRST"),
+                        column("aggregate_version", "DESC", "LAST"),
+                        column("event_id", "DESC", "FIRST")));
         assertThat(uniqueConstraintExists("uq_projection_event_receipts_generation_projection_event")).isTrue();
     }
 
@@ -64,30 +87,39 @@ class OperationsDashboardMigrationTest {
                 .migrate();
         seedRepresentativeRows();
 
-        assertThat(explain("""
-                SELECT MAX(processed_at)
-                FROM projection_event_receipts
-                WHERE generation_id = 7
-                """))
-                .contains("idx_projection_event_receipts_generation_processed_at");
-        assertThat(explain("""
+        assertIndexAccess(explain("""
+                SELECT generation.id, generation.tracking_started_at,
+                       COALESCE(receipt.processed_at, generation.activated_at,
+                                generation.cutoff_at) AS projection_updated_at
+                FROM projection_generations generation
+                LEFT JOIN LATERAL (
+                    SELECT projection_receipt.processed_at
+                    FROM projection_event_receipts projection_receipt
+                    WHERE projection_receipt.generation_id = generation.id
+                    ORDER BY projection_receipt.processed_at DESC
+                    LIMIT 1
+                ) receipt ON TRUE
+                WHERE generation.status = 'ACTIVE'
+                """), "idx_projection_event_receipts_generation_processed_at");
+        Map<String, String> campaignPlan = explain("""
                 SELECT campaign_id
                 FROM campaign_metric_hourly
                 WHERE generation_id = 7
                   AND bucket_start >= '2026-07-01T00:00:00Z'
                   AND bucket_start < '2026-08-01T00:00:00Z'
                   AND (campaign_owner_store_id = 11 OR commerce_store_id = 11)
-                """))
-                .contains("idx_campaign_metric_hourly_owner_store_bucket")
-                .contains("idx_campaign_metric_hourly_store_bucket");
-        assertThat(explain("""
+                """);
+        assertIndexAccess(campaignPlan, "idx_campaign_metric_hourly_owner_store_bucket");
+        assertIndexAccess(campaignPlan, "idx_campaign_metric_hourly_store_bucket");
+        assertIndexAccess(explain("""
                 SELECT event_id
                 FROM campaign_audit_projection
                 WHERE generation_id = 7 AND owner_store_id = 11
+                  AND occurred_at >= '2026-07-10T00:00:00Z'
+                  AND occurred_at < '2026-07-20T00:00:00Z'
                 ORDER BY occurred_at DESC, aggregate_version DESC NULLS LAST, event_id DESC
                 LIMIT 20
-                """))
-                .contains("idx_campaign_audit_projection_owner_time");
+                """), "idx_campaign_audit_projection_owner_time");
     }
 
     private boolean tableExists(String tableName) throws SQLException {
@@ -99,22 +131,93 @@ class OperationsDashboardMigrationTest {
                 + indexName + "')");
     }
 
-    private String indexDefinition(String indexName) throws SQLException {
-        return queryString("SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = '"
-                + indexName + "'");
+    private IndexMetadata indexMetadata(String indexName) throws SQLException {
+        String sql = """
+                SELECT access_method.amname,
+                       keys.ordinality,
+                       attribute.attname,
+                       (COALESCE(keys.index_option, 0) & 1) = 1 AS descending,
+                       (COALESCE(keys.index_option, 0) & 2) = 2 AS nulls_first,
+                       keys.ordinality <= index_metadata.indnkeyatts AS key_column,
+                       pg_get_expr(index_metadata.indpred, index_metadata.indrelid) AS predicate
+                FROM pg_class index_class
+                JOIN pg_namespace namespace ON namespace.oid = index_class.relnamespace
+                JOIN pg_index index_metadata ON index_metadata.indexrelid = index_class.oid
+                JOIN pg_am access_method ON access_method.oid = index_class.relam
+                CROSS JOIN LATERAL unnest(
+                    index_metadata.indkey::smallint[],
+                    index_metadata.indoption::smallint[]
+                ) WITH ORDINALITY AS keys(attribute_number, index_option, ordinality)
+                LEFT JOIN pg_attribute attribute
+                  ON attribute.attrelid = index_metadata.indrelid
+                 AND attribute.attnum = keys.attribute_number
+                WHERE namespace.nspname = 'public'
+                  AND index_class.relname = ?
+                ORDER BY keys.ordinality
+                """;
+        try (Connection connection = connection(); var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, indexName);
+            try (var resultSet = statement.executeQuery()) {
+                List<IndexColumn> keyColumns = new java.util.ArrayList<>();
+                List<String> includeColumns = new java.util.ArrayList<>();
+                String accessMethod = null;
+                String predicate = null;
+                while (resultSet.next()) {
+                    accessMethod = resultSet.getString("amname");
+                    predicate = resultSet.getString("predicate");
+                    String columnName = resultSet.getString("attname");
+                    if (resultSet.getBoolean("key_column")) {
+                        keyColumns.add(column(
+                                columnName,
+                                resultSet.getBoolean("descending") ? "DESC" : "ASC",
+                                resultSet.getBoolean("nulls_first") ? "FIRST" : "LAST"));
+                    } else {
+                        includeColumns.add(columnName);
+                    }
+                }
+                assertThat(accessMethod).as(indexName + " exists").isNotNull();
+                return new IndexMetadata(accessMethod, keyColumns, includeColumns, predicate);
+            }
+        }
     }
 
-    private String explain(String query) throws SQLException {
+    private IndexMetadata index(IndexColumn... columns) {
+        return new IndexMetadata("btree", List.of(columns), List.of(), null);
+    }
+
+    private IndexColumn column(String name, String direction, String nulls) {
+        return new IndexColumn(name, direction, nulls);
+    }
+
+    private Map<String, String> explain(String query) throws SQLException {
         try (Connection connection = connection(); var statement = connection.createStatement()) {
-            statement.execute("SET enable_seqscan = off");
-            List<String> lines = new ArrayList<>();
-            try (var resultSet = statement.executeQuery("EXPLAIN " + query)) {
-                while (resultSet.next()) {
-                    lines.add(resultSet.getString(1));
+            try (var resultSet = statement.executeQuery("EXPLAIN (FORMAT JSON) " + query)) {
+                assertThat(resultSet.next()).isTrue();
+                JsonNode root;
+                try {
+                    root = OBJECT_MAPPER.readTree(resultSet.getString(1)).get(0).path("Plan");
+                } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+                    throw new SQLException("PostgreSQL returned invalid JSON EXPLAIN output", exception);
                 }
+                Map<String, String> accesses = new LinkedHashMap<>();
+                collectIndexAccesses(root, accesses);
+                return accesses;
             }
-            return String.join("\n", lines);
         }
+    }
+
+    private void collectIndexAccesses(JsonNode plan, Map<String, String> accesses) {
+        if (plan.hasNonNull("Index Name")) {
+            accesses.put(plan.path("Index Name").asText(), plan.path("Node Type").asText());
+        }
+        for (JsonNode child : plan.path("Plans")) {
+            collectIndexAccesses(child, accesses);
+        }
+    }
+
+    private void assertIndexAccess(Map<String, String> accesses, String indexName) {
+        assertThat(accesses).containsKey(indexName);
+        assertThat(accesses.get(indexName)).isIn("Index Scan", "Index Only Scan", "Bitmap Index Scan");
     }
 
     private void seedRepresentativeRows() throws SQLException {
@@ -187,20 +290,22 @@ class OperationsDashboardMigrationTest {
         }
     }
 
-    private String queryString(String sql) throws SQLException {
-        try (Connection connection = connection();
-             var statement = connection.createStatement();
-             var resultSet = statement.executeQuery(sql)) {
-            assertThat(resultSet.next()).isTrue();
-            return resultSet.getString(1);
-        }
-    }
-
     private Connection connection() throws SQLException {
         return DriverManager.getConnection(
                 POSTGRESQL.getJdbcUrl(),
                 POSTGRESQL.getUsername(),
                 POSTGRESQL.getPassword()
         );
+    }
+
+    private record IndexMetadata(
+            String accessMethod,
+            List<IndexColumn> keyColumns,
+            List<String> includeColumns,
+            String predicate
+    ) {
+    }
+
+    private record IndexColumn(String name, String direction, String nulls) {
     }
 }

@@ -409,14 +409,17 @@ public class StoreOperationsDashboardQueryService {
     private ActiveGeneration activeGeneration() {
         List<ActiveGeneration> generations = jdbcTemplate.query("""
                 SELECT generation.id, generation.tracking_started_at,
-                       COALESCE(MAX(receipt.processed_at), generation.activated_at,
+                       COALESCE(receipt.processed_at, generation.activated_at,
                                 generation.cutoff_at) AS projection_updated_at
                 FROM projection_generations generation
-                LEFT JOIN projection_event_receipts receipt
-                  ON receipt.generation_id = generation.id
+                LEFT JOIN LATERAL (
+                    SELECT projection_receipt.processed_at
+                    FROM projection_event_receipts projection_receipt
+                    WHERE projection_receipt.generation_id = generation.id
+                    ORDER BY projection_receipt.processed_at DESC
+                    LIMIT 1
+                ) receipt ON TRUE
                 WHERE generation.status = 'ACTIVE'
-                GROUP BY generation.id, generation.tracking_started_at,
-                         generation.activated_at, generation.cutoff_at
                 """, new MapSqlParameterSource(), (resultSet, rowNumber) -> new ActiveGeneration(
                 resultSet.getLong("id"),
                 instant(resultSet, "tracking_started_at"),
