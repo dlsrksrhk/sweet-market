@@ -72,16 +72,15 @@ export function MyStorePage() {
 
         <SummaryStrip store={selectedStore} summaryQuery={summaryQuery} />
 
-        {isOwner ? (
-          <nav className="store-owner-links" aria-label="소유자 운영 메뉴">
-            <Link to="/me/sales">판매 관리</Link>
-            <Link to="/me/sales/refunds">환불 관리</Link>
-            <Link to="/me/settlements">정산</Link>
-            <Link to="/me/reports">리포트</Link>
-            <Link to="/me/store/promotions">프로모션</Link>
-            <Link to="/me/store/coupons">쿠폰</Link>
-          </nav>
-        ) : null}
+        <nav className="store-owner-links" aria-label="상점 운영 메뉴">
+          <Link to="/me/store/dashboard">운영 대시보드</Link>
+          {isOwner ? <Link to="/me/sales">판매 관리</Link> : null}
+          {isOwner ? <Link to="/me/sales/refunds">환불 관리</Link> : null}
+          {isOwner ? <Link to="/me/settlements">정산</Link> : null}
+          {isOwner ? <Link to="/me/reports">리포트</Link> : null}
+          {isOwner ? <Link to="/me/store/promotions">프로모션</Link> : null}
+          {isOwner ? <Link to="/me/store/coupons">쿠폰</Link> : null}
+        </nav>
       </section>
 
       <nav className="store-operations-tabs" aria-label="상점 운영 탭">

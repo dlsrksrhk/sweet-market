@@ -28,6 +28,7 @@ import { PromotionWorkspacePage } from '../pages/PromotionWorkspacePage';
 import { SellerRefundRequestsPage } from '../pages/SellerRefundRequestsPage';
 import { SignupPage } from '../pages/SignupPage';
 import { StoreProfilePage } from '../pages/StoreProfilePage';
+import { StoreOperationsDashboardPage } from '../pages/StoreOperationsDashboardPage';
 import { Shell } from '../shared/layout/Shell';
 
 export function AppRouter() {
@@ -61,6 +62,14 @@ export function AppRouter() {
           element={
             <RequireAuth>
               <MyStorePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="me/store/dashboard"
+          element={
+            <RequireAuth>
+              <StoreOperationsDashboardPage />
             </RequireAuth>
           }
         />

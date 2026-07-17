@@ -3899,3 +3899,416 @@ a.wishlist-card-main:hover h2 {
     padding: 24px;
   }
 }
+
+/* Store operations dashboard */
+.operations-dashboard,
+.operations-dashboard-header,
+.operations-dashboard-panel,
+.operations-period-controls {
+  min-width: 0;
+}
+
+.operations-dashboard {
+  display: grid;
+  gap: 22px;
+}
+
+.operations-dashboard-header,
+.operations-dashboard-panel,
+.operations-period-controls {
+  display: grid;
+  gap: 18px;
+  border: 1px solid #dfe6ee;
+  border-radius: 10px;
+  padding: 26px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgb(20 38 58 / 8%);
+}
+
+.operations-dashboard-heading,
+.operations-panel-heading,
+.operations-store-identity,
+.operations-freshness,
+.operations-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.operations-dashboard-heading h1,
+.operations-panel-heading h2,
+.operations-period-controls h2,
+.operations-amount-panel h3,
+.operations-reasons h3 {
+  margin: 0;
+}
+
+.operations-dashboard-heading p:not(.eyebrow),
+.operations-period-controls p,
+.operations-reasons p {
+  margin: 7px 0 0;
+  color: #637282;
+}
+
+.operations-store-selector,
+.operations-custom-period label,
+.operations-filters label {
+  display: grid;
+  gap: 7px;
+  color: #52616f;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.operations-store-selector select,
+.operations-custom-period input,
+.operations-filters select,
+.operations-filters input:not([type='checkbox']) {
+  min-width: 0;
+  border: 1px solid #cfd9e3;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: #172026;
+}
+
+.operations-store-identity {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.operations-store-identity strong {
+  margin-right: auto;
+  font-size: 18px;
+}
+
+.operations-route-links,
+.operations-preset-buttons,
+.operations-drilldown-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.operations-route-links a,
+.operations-preset-buttons button,
+.operations-drilldown-tabs button,
+.operations-custom-period button,
+.operations-pagination button {
+  border: 1px solid #cfd9e3;
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: #ffffff;
+  color: #52616f;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.operations-route-links a.owner-control {
+  border-color: #a8d6d3;
+  background: #eef8f7;
+  color: #0f6d6a;
+}
+
+.operations-preset-buttons button[aria-pressed='true'],
+.operations-drilldown-tabs button[aria-current='page'] {
+  border-color: #0f7b78;
+  background: #0f7b78;
+  color: #ffffff;
+}
+
+.operations-custom-period,
+.operations-filters {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 14px;
+  background: #f9fbfd;
+}
+
+.operations-checkbox {
+  display: flex !important;
+  align-items: center;
+  min-height: 40px;
+}
+
+.operations-checkbox input {
+  width: 18px;
+  height: 18px;
+}
+
+.operations-freshness {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  border-left: 4px solid #0f7b78;
+  border-radius: 8px;
+  padding: 13px 15px;
+  background: #eef8f7;
+}
+
+.operations-freshness span {
+  color: #52616f;
+  font-size: 13px;
+}
+
+.operations-freshness.is-neutral {
+  border-left-color: #8291a1;
+  background: #f2f5f8;
+}
+
+.operations-freshness.is-delayed {
+  border-left-color: #d47a20;
+  background: #fff7e8;
+}
+
+.operations-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.operations-summary-card,
+.operations-amount-panel {
+  min-width: 0;
+  border: 1px solid #dfe6ee;
+  border-radius: 9px;
+  padding: 16px;
+  background: #f9fbfd;
+}
+
+.operations-summary-card.is-warning {
+  background: #fffaf1;
+}
+
+.operations-summary-card dt,
+.operations-amount-panel dt {
+  color: #637282;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.operations-summary-card dd,
+.operations-amount-panel dd {
+  margin: 7px 0 4px;
+  color: #172026;
+  font-size: 21px;
+  font-weight: 900;
+}
+
+.operations-summary-card small,
+.operations-amount-panel small {
+  color: #758391;
+  font-size: 11px;
+}
+
+.operations-amount-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.operations-amount-panel {
+  display: grid;
+  gap: 12px;
+  background: #ffffff;
+}
+
+.operations-amount-panel dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.operations-amount-panel dl > div {
+  min-width: 0;
+  border-radius: 7px;
+  padding: 12px;
+  background: #f3f7fa;
+}
+
+.operations-reasons {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid #e7edf3;
+  padding-top: 17px;
+}
+
+.operations-reasons ol {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.operations-reasons li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 7px;
+  padding: 11px 12px;
+  background: #fff7e8;
+}
+
+.operations-table {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+}
+
+.operations-table-head,
+.operations-table-row {
+  display: grid;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px 14px;
+}
+
+.operations-table-head {
+  background: #f2f5f8;
+  color: #52616f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.operations-table-row + .operations-table-row {
+  border-top: 1px solid #e7edf3;
+}
+
+.operations-table-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #52616f;
+  font-size: 13px;
+}
+
+.operations-table-row > span:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.operations-table-row a {
+  color: #0f6d6a;
+  font-weight: 800;
+}
+
+.campaign-grid {
+  grid-template-columns: minmax(145px, 1.2fr) 100px minmax(130px, 1fr) minmax(130px, 1fr) minmax(95px, .8fr) minmax(105px, .8fr);
+}
+
+.coupon-outcome-grid,
+.inventory-pressure-grid,
+.purchase-outcome-grid,
+.audit-grid {
+  grid-template-columns: repeat(5, minmax(110px, 1fr));
+}
+
+.operations-pagination {
+  justify-content: flex-end;
+}
+
+.operations-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+@media (max-width: 1100px) {
+  .operations-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .operations-table {
+    overflow-x: auto;
+  }
+
+  .operations-table-head,
+  .operations-table-row {
+    min-width: 850px;
+  }
+}
+
+@media (max-width: 760px) {
+  .operations-dashboard-header,
+  .operations-dashboard-panel,
+  .operations-period-controls {
+    padding: 18px;
+  }
+
+  .operations-dashboard-heading,
+  .operations-panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .operations-store-selector,
+  .operations-store-selector select,
+  .operations-custom-period label,
+  .operations-custom-period button {
+    width: 100%;
+  }
+
+  .operations-summary-grid,
+  .operations-amount-sections,
+  .operations-reasons ol {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .operations-amount-panel dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .operations-table {
+    overflow: visible;
+    border: 0;
+  }
+
+  .operations-table-head {
+    display: none;
+  }
+
+  .operations-table-row,
+  .campaign-grid,
+  .coupon-outcome-grid,
+  .inventory-pressure-grid,
+  .purchase-outcome-grid,
+  .audit-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    gap: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #dfe6ee;
+    border-radius: 8px;
+    padding: 13px;
+  }
+
+  .operations-table-row + .operations-table-row {
+    border-top: 1px solid #dfe6ee;
+  }
+
+  .operations-table-row > span {
+    display: grid;
+    grid-template-columns: 95px minmax(0, 1fr);
+    align-items: start;
+    justify-content: initial;
+    gap: 8px;
+  }
+
+  .operations-table-row > span::before {
+    content: attr(data-label);
+    color: #758391;
+    font-size: 11px;
+    font-weight: 900;
+  }
+}
