@@ -7,6 +7,10 @@ import com.sweet.market.coupon.domain.*;
 import com.sweet.market.coupon.repository.CouponReservationRepository;
 import com.sweet.market.coupon.repository.MemberCouponRepository;
 import com.sweet.market.order.domain.Order;
+import com.sweet.market.operations.coupon.CouponOutcomeEventFactory;
+import com.sweet.market.operations.coupon.CouponOutcomeReason;
+import com.sweet.market.operations.event.OperationalEventRecorder;
+import com.sweet.market.operations.event.OperationalFailureRecorder;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.promotion.application.PromotionPrice;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -19,13 +23,22 @@ public class CouponRedemptionService {
     private final MemberCouponRepository memberCouponRepository;
     private final CouponReservationRepository couponReservationRepository;
     private final CouponReservationExpiryTransactionService couponReservationExpiryTransactionService;
+    private final OperationalEventRecorder operationalEventRecorder;
+    private final OperationalFailureRecorder operationalFailureRecorder;
+    private final CouponOutcomeEventFactory outcomeEventFactory;
 
     public CouponRedemptionService(MemberCouponRepository memberCouponRepository,
                                    CouponReservationRepository couponReservationRepository,
-                                   CouponReservationExpiryTransactionService couponReservationExpiryTransactionService) {
+                                   CouponReservationExpiryTransactionService couponReservationExpiryTransactionService,
+                                   OperationalEventRecorder operationalEventRecorder,
+                                   OperationalFailureRecorder operationalFailureRecorder,
+                                   CouponOutcomeEventFactory outcomeEventFactory) {
         this.memberCouponRepository = memberCouponRepository;
         this.couponReservationRepository = couponReservationRepository;
         this.couponReservationExpiryTransactionService = couponReservationExpiryTransactionService;
+        this.operationalEventRecorder = operationalEventRecorder;
+        this.operationalFailureRecorder = operationalFailureRecorder;
+        this.outcomeEventFactory = outcomeEventFactory;
     }
 
     public CouponDiscountQuote quote(MemberCoupon coupon, Product product, PromotionPrice promotion, Instant now) {
@@ -45,13 +58,21 @@ public class CouponRedemptionService {
                                                       PromotionPrice promotion, Instant now) {
         MemberCoupon coupon = memberCouponRepository.findRedemptionTargetByIdForUpdate(memberCouponId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_COUPON_NOT_FOUND));
-        if (!coupon.getMember().getId().equals(memberId)) {
-            throw new BusinessException(ErrorCode.MEMBER_COUPON_ACCESS_DENIED);
+        try {
+            if (!coupon.getMember().getId().equals(memberId)) {
+                throw new BusinessException(ErrorCode.MEMBER_COUPON_ACCESS_DENIED);
+            }
+            if (couponReservationRepository.existsActiveByMemberCouponId(coupon.getId())) {
+                throw new BusinessException(ErrorCode.MEMBER_COUPON_ALREADY_RESERVED);
+            }
+            return new CouponReservationQuote(coupon, quote(coupon, product, promotion, now));
+        } catch (BusinessException exception) {
+            CouponOutcomeReason reason = redemptionReason(exception.errorCode());
+            if (reason != null) {
+                recordRedemptionFailure(coupon, product, null, reason, now);
+            }
+            throw exception;
         }
-        if (couponReservationRepository.existsActiveByMemberCouponId(coupon.getId())) {
-            throw new BusinessException(ErrorCode.MEMBER_COUPON_ALREADY_RESERVED);
-        }
-        return new CouponReservationQuote(coupon, quote(coupon, product, promotion, now));
     }
 
     public void reserve(CouponReservationQuote reservationQuote, Order order, Instant now) {
@@ -61,6 +82,9 @@ public class CouponRedemptionService {
             ));
         } catch (DataIntegrityViolationException exception) {
             if (isActiveReservationConstraintViolation(exception)) {
+                recordRedemptionFailure(
+                        reservationQuote.memberCoupon(), order.getProduct(), order.getId(),
+                        CouponOutcomeReason.RESERVATION_CONFLICT, now);
                 throw new BusinessException(ErrorCode.MEMBER_COUPON_ALREADY_RESERVED, exception);
             }
             throw exception;
@@ -75,13 +99,21 @@ public class CouponRedemptionService {
                 .orElseThrow(() -> new DomainException(CouponDomainError.RESERVATION_TRANSITION_NOT_ALLOWED));
         MemberCoupon memberCoupon = memberCouponRepository.findRedemptionTargetByIdForUpdate(reservation.getMemberCoupon().getId())
                 .orElseThrow(() -> new DomainException(CouponDomainError.MEMBER_COUPON_USE_NOT_ALLOWED));
-        if (memberCoupon.getStatus() != MemberCouponStatus.ISSUED) {
-            throw new DomainException(CouponDomainError.MEMBER_COUPON_USE_NOT_ALLOWED);
+        try {
+            if (memberCoupon.getStatus() != MemberCouponStatus.ISSUED) {
+                throw new DomainException(CouponDomainError.MEMBER_COUPON_USE_NOT_ALLOWED);
+            }
+            if (!now.isBefore(reservation.getExpiresAt())) {
+                throw new DomainException(CouponDomainError.RESERVATION_EXPIRED);
+            }
+            return reservation;
+        } catch (DomainException exception) {
+            CouponOutcomeReason reason = redemptionReason((CouponDomainError) exception.error());
+            if (reason != null) {
+                recordRedemptionFailure(memberCoupon, order.getProduct(), order.getId(), reason, now);
+            }
+            throw exception;
         }
-        if (!now.isBefore(reservation.getExpiresAt())) {
-            throw new DomainException(CouponDomainError.RESERVATION_EXPIRED);
-        }
-        return reservation;
     }
 
     public void consumeAfterPaymentApproval(CouponReservation reservation, Instant now) {
@@ -90,6 +122,13 @@ public class CouponRedemptionService {
         }
         reservation.consume(now);
         reservation.getMemberCoupon().markUsed();
+        Order order = reservation.getOrder();
+        operationalEventRecorder.record(outcomeEventFactory.redemptionSucceeded(
+                reservation.getMemberCoupon().getCampaign(),
+                order.getProduct().getStore().getId(),
+                order.getId(),
+                order.getCouponDiscountAmount(),
+                now));
     }
 
     public void releaseForCanceledOrder(Order order, Instant now) {
@@ -144,6 +183,40 @@ public class CouponRedemptionService {
             return base;
         }
         return (base / 100) * rate + ((base % 100) * rate) / 100;
+    }
+
+    private void recordRedemptionFailure(
+            MemberCoupon coupon,
+            Product product,
+            Long orderId,
+            CouponOutcomeReason reason,
+            Instant occurredAt
+    ) {
+        operationalFailureRecorder.recordSafely(outcomeEventFactory.redemptionFailed(
+                coupon.getCampaign(), product.getStore().getId(), orderId, reason, occurredAt));
+    }
+
+    private CouponOutcomeReason redemptionReason(ErrorCode errorCode) {
+        return switch (errorCode) {
+            case MEMBER_COUPON_ACCESS_DENIED,
+                 MEMBER_COUPON_MINIMUM_PURCHASE_NOT_MET -> CouponOutcomeReason.INELIGIBLE;
+            case MEMBER_COUPON_NOT_ISSUED -> CouponOutcomeReason.UNAVAILABLE;
+            case MEMBER_COUPON_EXPIRED -> CouponOutcomeReason.EXPIRED;
+            case MEMBER_COUPON_TARGET_MISMATCH -> CouponOutcomeReason.SCOPE_MISMATCH;
+            case MEMBER_COUPON_PROMOTION_STACKING_NOT_ALLOWED ->
+                    CouponOutcomeReason.COMBINATION_NOT_ALLOWED;
+            case MEMBER_COUPON_ALREADY_RESERVED -> CouponOutcomeReason.RESERVATION_CONFLICT;
+            default -> null;
+        };
+    }
+
+    private CouponOutcomeReason redemptionReason(CouponDomainError error) {
+        return switch (error) {
+            case RESERVATION_EXPIRED -> CouponOutcomeReason.EXPIRED;
+            case RESERVATION_TRANSITION_NOT_ALLOWED -> CouponOutcomeReason.RESERVATION_CONFLICT;
+            case MEMBER_COUPON_USE_NOT_ALLOWED -> CouponOutcomeReason.UNAVAILABLE;
+            default -> null;
+        };
     }
 
     private boolean isActiveReservationConstraintViolation(DataIntegrityViolationException exception) {

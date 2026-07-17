@@ -62,6 +62,7 @@ class CouponIssueApiTest extends IntegrationTestSupport {
         claim(token, campaignId).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value(firstCouponId));
         assertThat(countMemberCoupons(campaignId, memberId("coupon-claim@example.com"))).isEqualTo(1);
+        assertThat(issuedCount(campaignId)).isEqualTo(1);
     }
 
     @Test
@@ -306,6 +307,9 @@ class CouponIssueApiTest extends IntegrationTestSupport {
         assertThat(results).filteredOn(ClaimResult::success).hasSize(5);
         assertThat(issuedCount(campaignId)).isEqualTo(5);
         assertThat(memberCouponCount(campaignId)).isEqualTo(5);
+        assertThat(claimOutcomeCount("SUCCESS")).isEqualTo(5);
+        assertThat(claimOutcomeReasonCount("EXHAUSTED")).isEqualTo(15);
+        assertThat(claimOutcomeReasonCount("ALREADY_CLAIMED")).isZero();
     }
 
     private ResultActions claim(String token, Long campaignId) throws Exception {
@@ -441,6 +445,22 @@ class CouponIssueApiTest extends IntegrationTestSupport {
 
     private int memberCouponCount(Long campaignId) {
         return jdbcTemplate.queryForObject("select count(*) from member_coupons where coupon_campaign_id = ?", Integer.class, campaignId);
+    }
+
+    private int claimOutcomeCount(String result) {
+        return jdbcTemplate.queryForObject("""
+                select count(*) from operational_event_outbox
+                where event_type = 'COUPON_CLAIM_OUTCOME'
+                  and payload ->> 'result' = ?
+                """, Integer.class, result);
+    }
+
+    private int claimOutcomeReasonCount(String reason) {
+        return jdbcTemplate.queryForObject("""
+                select count(*) from operational_event_outbox
+                where event_type = 'COUPON_CLAIM_OUTCOME'
+                  and payload ->> 'reason' = ?
+                """, Integer.class, reason);
     }
 
     private record ClaimResult(boolean success) {

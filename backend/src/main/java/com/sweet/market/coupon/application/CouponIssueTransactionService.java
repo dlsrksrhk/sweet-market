@@ -10,6 +10,8 @@ import com.sweet.market.coupon.repository.CouponCampaignRepository;
 import com.sweet.market.coupon.repository.MemberCouponRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.operations.coupon.CouponOutcomeEventFactory;
+import com.sweet.market.operations.event.OperationalEventRecorder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,22 +23,29 @@ public class CouponIssueTransactionService {
     private final CouponCampaignRepository campaignRepository;
     private final MemberCouponRepository memberCouponRepository;
     private final MemberRepository memberRepository;
+    private final OperationalEventRecorder operationalEventRecorder;
+    private final CouponOutcomeEventFactory outcomeEventFactory;
 
     public CouponIssueTransactionService(
             CouponCampaignRepository campaignRepository,
             MemberCouponRepository memberCouponRepository,
-            MemberRepository memberRepository
+            MemberRepository memberRepository,
+            OperationalEventRecorder operationalEventRecorder,
+            CouponOutcomeEventFactory outcomeEventFactory
     ) {
         this.campaignRepository = campaignRepository;
         this.memberCouponRepository = memberCouponRepository;
         this.memberRepository = memberRepository;
+        this.operationalEventRecorder = operationalEventRecorder;
+        this.outcomeEventFactory = outcomeEventFactory;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public MemberCoupon issue(Long memberId, Long campaignId, Instant issuedAt) {
         CouponCampaign campaign = findCampaign(campaignId);
         requireClaimable(campaign, issuedAt);
-        return memberCouponRepository.saveAndFlush(MemberCoupon.issue(findMember(memberId), campaign, issuedAt));
+        recordIssue(campaign);
+        return saveIssuedCoupon(memberId, campaign, issuedAt);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -47,16 +56,37 @@ public class CouponIssueTransactionService {
             throw capacityOrLifecycleFailure(campaignId, issuedAt);
         }
         campaign = findCampaign(campaignId);
-        return memberCouponRepository.saveAndFlush(MemberCoupon.issue(findMember(memberId), campaign, issuedAt));
+        return saveIssuedCoupon(memberId, campaign, issuedAt);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public MemberCoupon issueWithPessimisticLock(Long memberId, Long campaignId, Instant issuedAt) {
+        return issueWithPessimisticLockOutcome(memberId, campaignId, issuedAt).coupon();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public PessimisticIssueResult issueWithPessimisticLockOutcome(
+            Long memberId,
+            Long campaignId,
+            Instant issuedAt
+    ) {
         CouponCampaign campaign = campaignRepository.findByIdForIssuance(campaignId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COUPON_CAMPAIGN_NOT_FOUND));
         MemberCoupon existing = memberCouponRepository.findByCampaignIdAndMemberId(campaignId, memberId).orElse(null);
-        if (existing != null) return existing;
+        if (existing != null) return new PessimisticIssueResult(existing, false);
         requireClaimable(campaign, issuedAt);
+        recordIssue(campaign);
+        return new PessimisticIssueResult(saveIssuedCoupon(memberId, campaign, issuedAt), true);
+    }
+
+    private MemberCoupon saveIssuedCoupon(Long memberId, CouponCampaign campaign, Instant issuedAt) {
+        MemberCoupon coupon = memberCouponRepository.saveAndFlush(
+                MemberCoupon.issue(findMember(memberId), campaign, issuedAt));
+        operationalEventRecorder.record(outcomeEventFactory.claimSucceeded(campaign, issuedAt));
+        return coupon;
+    }
+
+    private void recordIssue(CouponCampaign campaign) {
         try {
             campaign.recordIssue();
         } catch (DomainException exception) {
@@ -65,7 +95,6 @@ public class CouponIssueTransactionService {
             }
             throw exception;
         }
-        return memberCouponRepository.saveAndFlush(MemberCoupon.issue(findMember(memberId), campaign, issuedAt));
     }
 
     private CouponCampaign findCampaign(Long campaignId) {
@@ -94,5 +123,8 @@ public class CouponIssueTransactionService {
     private Member findMember(Long memberId) {
         return memberRepository.findById(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
+    }
+
+    public record PessimisticIssueResult(MemberCoupon coupon, boolean newlyIssued) {
     }
 }

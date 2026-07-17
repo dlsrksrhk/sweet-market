@@ -10,6 +10,9 @@ import com.sweet.market.coupon.domain.CouponDomainError;
 import com.sweet.market.coupon.domain.MemberCoupon;
 import com.sweet.market.coupon.repository.CouponCampaignRepository;
 import com.sweet.market.coupon.repository.MemberCouponRepository;
+import com.sweet.market.operations.coupon.CouponOutcomeEventFactory;
+import com.sweet.market.operations.coupon.CouponOutcomeReason;
+import com.sweet.market.operations.event.OperationalFailureRecorder;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -29,6 +32,8 @@ public class CouponIssueService {
     private final CouponIssueTransactionService issueTransactionService;
     private final CouponCampaignRepository campaignRepository;
     private final CouponIssuanceGate issuanceGate;
+    private final OperationalFailureRecorder operationalFailureRecorder;
+    private final CouponOutcomeEventFactory outcomeEventFactory;
     private final Clock clock;
 
     @Autowired
@@ -36,9 +41,12 @@ public class CouponIssueService {
             MemberCouponRepository memberCouponRepository,
             CouponIssueTransactionService issueTransactionService,
             CouponCampaignRepository campaignRepository,
-            CouponIssuanceGate issuanceGate
+            CouponIssuanceGate issuanceGate,
+            OperationalFailureRecorder operationalFailureRecorder,
+            CouponOutcomeEventFactory outcomeEventFactory
     ) {
-        this(memberCouponRepository, issueTransactionService, campaignRepository, issuanceGate, Clock.systemUTC());
+        this(memberCouponRepository, issueTransactionService, campaignRepository, issuanceGate,
+                operationalFailureRecorder, outcomeEventFactory, Clock.systemUTC());
     }
 
     CouponIssueService(
@@ -46,44 +54,61 @@ public class CouponIssueService {
             CouponIssueTransactionService issueTransactionService,
             CouponCampaignRepository campaignRepository,
             CouponIssuanceGate issuanceGate,
+            OperationalFailureRecorder operationalFailureRecorder,
+            CouponOutcomeEventFactory outcomeEventFactory,
             Clock clock
     ) {
         this.memberCouponRepository = memberCouponRepository;
         this.issueTransactionService = issueTransactionService;
         this.campaignRepository = campaignRepository;
         this.issuanceGate = issuanceGate;
+        this.operationalFailureRecorder = operationalFailureRecorder;
+        this.outcomeEventFactory = outcomeEventFactory;
         this.clock = clock;
     }
 
     public MemberCouponResponse claim(Long memberId, Long campaignId) {
         Instant now = clock.instant();
         MemberCoupon existing = memberCouponRepository.findByCampaignIdAndMemberId(campaignId, memberId).orElse(null);
-        if (existing != null) return MemberCouponResponse.from(existing, now);
+        if (existing != null) return alreadyClaimed(existing, now);
 
         CouponCampaign campaign = campaignRepository.findById(campaignId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COUPON_CAMPAIGN_NOT_FOUND));
-        if (campaign.getIssueLimit() != null) {
-            return claimLimited(memberId, campaign, now);
-        }
         try {
-            return MemberCouponResponse.from(issueTransactionService.issue(memberId, campaignId, now), now);
-        } catch (DataIntegrityViolationException exception) {
-            return MemberCouponResponse.from(findExistingDuplicate(campaignId, memberId, exception), now);
+            if (campaign.getIssueLimit() != null) {
+                return claimLimited(memberId, campaign, now);
+            }
+            try {
+                return MemberCouponResponse.from(issueTransactionService.issue(memberId, campaignId, now), now);
+            } catch (DataIntegrityViolationException exception) {
+                return alreadyClaimed(findExistingDuplicate(campaignId, memberId, exception), now);
+            }
+        } catch (BusinessException exception) {
+            CouponOutcomeReason reason = claimReason(exception.errorCode());
+            if (reason != null) {
+                recordClaimFailure(campaign, reason, clock.instant());
+            }
+            throw exception;
+        } catch (CouponIssuanceGateUnavailableException exception) {
+            recordClaimFailure(campaign, CouponOutcomeReason.UNAVAILABLE, clock.instant());
+            throw exception;
         }
     }
 
     private MemberCouponResponse claimLimited(Long memberId, CouponCampaign campaign, Instant now) {
-        CouponIssuanceGateResult reservationResult = reserve(campaign, memberId, now);
+        ClaimReservation claimReservation = reserve(campaign, memberId, now);
+        CouponIssuanceGateResult reservationResult = claimReservation.gateResult();
         Instant attemptNow = now;
         Instant retryDeadline = now.plus(CouponIssuanceGate.RESERVATION_DURATION);
         while (reservationResult.type() == ReservationType.IN_PROGRESS) {
             MemberCoupon existing = memberCouponRepository.findByCampaignIdAndMemberId(campaign.getId(), memberId).orElse(null);
-            if (existing != null) return MemberCouponResponse.from(existing, attemptNow);
+            if (existing != null) return alreadyClaimed(existing, attemptNow);
             if (!attemptNow.isBefore(retryDeadline)) break;
             waitForInProgressRetry();
             attemptNow = clock.instant();
             campaign = findCampaign(campaign.getId());
-            reservationResult = reserve(campaign, memberId, attemptNow);
+            claimReservation = reserve(campaign, memberId, attemptNow);
+            reservationResult = claimReservation.gateResult();
         }
 
         if (reservationResult.type() == ReservationType.SOLD_OUT) {
@@ -91,7 +116,13 @@ public class CouponIssueService {
             throw new BusinessException(ErrorCode.COUPON_ISSUE_LIMIT_EXCEEDED);
         }
         if (reservationResult.type() != ReservationType.RESERVED) {
-            return MemberCouponResponse.from(findExistingReservedCoupon(campaign.getId(), memberId), attemptNow);
+            if (claimReservation.fallbackResult() != null) {
+                MemberCoupon fallbackCoupon = claimReservation.fallbackResult().coupon();
+                return claimReservation.fallbackResult().newlyIssued()
+                        ? MemberCouponResponse.from(fallbackCoupon, attemptNow)
+                        : alreadyClaimed(fallbackCoupon, attemptNow);
+            }
+            return alreadyClaimed(findExistingReservedCoupon(campaign.getId(), memberId), attemptNow);
         }
 
         CouponIssuanceReservation reservation = reservationResult.reservation();
@@ -100,7 +131,7 @@ public class CouponIssueService {
             coupon = issueTransactionService.confirmLimitedIssue(memberId, campaign.getId(), attemptNow);
         } catch (DataIntegrityViolationException exception) {
             release(reservation, attemptNow, exception);
-            return MemberCouponResponse.from(findExistingDuplicate(campaign.getId(), memberId, exception), attemptNow);
+            return alreadyClaimed(findExistingDuplicate(campaign.getId(), memberId, exception), attemptNow);
         } catch (RuntimeException exception) {
             release(reservation, attemptNow, exception);
             throw exception;
@@ -114,13 +145,40 @@ public class CouponIssueService {
         return MemberCouponResponse.from(coupon, attemptNow);
     }
 
-    private CouponIssuanceGateResult reserve(CouponCampaign campaign, Long memberId, Instant now) {
+    private MemberCouponResponse alreadyClaimed(MemberCoupon coupon, Instant occurredAt) {
+        recordClaimFailure(coupon.getCampaign(), CouponOutcomeReason.ALREADY_CLAIMED, occurredAt);
+        return MemberCouponResponse.from(coupon, occurredAt);
+    }
+
+    private void recordClaimFailure(
+            CouponCampaign campaign,
+            CouponOutcomeReason reason,
+            Instant occurredAt
+    ) {
+        operationalFailureRecorder.recordSafely(
+                outcomeEventFactory.claimFailed(campaign, reason, occurredAt));
+    }
+
+    private CouponOutcomeReason claimReason(ErrorCode errorCode) {
+        return switch (errorCode) {
+            case COUPON_ISSUE_LIMIT_EXCEEDED -> CouponOutcomeReason.EXHAUSTED;
+            case COUPON_LIFECYCLE_NOT_ALLOWED -> CouponOutcomeReason.INACTIVE;
+            case MEMBER_NOT_FOUND -> CouponOutcomeReason.INELIGIBLE;
+            default -> null;
+        };
+    }
+
+    private ClaimReservation reserve(CouponCampaign campaign, Long memberId, Instant now) {
         try {
-            return issuanceGate.reserve(campaign.getId(), memberId, campaign.getIssueLimit(), campaign.getIssuedCount(),
-                    campaign.getIssueEndsAt(), now);
+            return new ClaimReservation(issuanceGate.reserve(
+                    campaign.getId(), memberId, campaign.getIssueLimit(), campaign.getIssuedCount(),
+                    campaign.getIssueEndsAt(), now), null);
         } catch (CouponIssuanceGateUnavailableException exception) {
-            issueTransactionService.issueWithPessimisticLock(memberId, campaign.getId(), now);
-            return CouponIssuanceGateResult.of(ReservationType.ALREADY_ISSUED);
+            CouponIssueTransactionService.PessimisticIssueResult fallbackResult =
+                    issueTransactionService.issueWithPessimisticLockOutcome(
+                            memberId, campaign.getId(), now);
+            return new ClaimReservation(
+                    CouponIssuanceGateResult.of(ReservationType.ALREADY_ISSUED), fallbackResult);
         }
     }
 
@@ -179,5 +237,11 @@ public class CouponIssueService {
             current = current.getCause();
         }
         return false;
+    }
+
+    private record ClaimReservation(
+            CouponIssuanceGateResult gateResult,
+            CouponIssueTransactionService.PessimisticIssueResult fallbackResult
+    ) {
     }
 }
