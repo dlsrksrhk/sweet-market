@@ -1,12 +1,25 @@
 package com.sweet.market.operations.inventory;
 
+import com.sweet.market.inventory.application.InventoryAdjustmentRequest;
+import com.sweet.market.inventory.application.InventoryService;
+import com.sweet.market.inventory.domain.InventoryAdjustmentReason;
+import com.sweet.market.member.domain.Member;
+import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.operations.event.OperationalEventRecorder;
 import com.sweet.market.operations.projection.OperationalProjectionCoordinator;
+import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.domain.ProductSalesPolicy;
+import com.sweet.market.product.repository.ProductRepository;
+import com.sweet.market.store.domain.Store;
+import com.sweet.market.store.domain.StoreMembership;
+import com.sweet.market.store.repository.StoreMembershipRepository;
+import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.support.IntegrationTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -22,6 +35,12 @@ class InventoryPressureProjectionTest extends IntegrationTestSupport {
     @Autowired private OperationalEventRecorder eventRecorder;
     @Autowired private OperationalProjectionCoordinator coordinator;
     @Autowired private InventoryPressureMaintenanceService maintenanceService;
+    @Autowired private InventoryService inventoryService;
+    @Autowired private MemberRepository memberRepository;
+    @Autowired private StoreRepository storeRepository;
+    @Autowired private StoreMembershipRepository storeMembershipRepository;
+    @Autowired private ProductRepository productRepository;
+    @Autowired private TransactionTemplate transactionTemplate;
 
     @BeforeEach
     void 재고_압력_projection_테이블을_준비한다() {
@@ -100,6 +119,32 @@ class InventoryPressureProjectionTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 운영자_재고조정은_0에서_10과_6에서_5의_상태를_projection에_반영한다() {
+        StockFixture restored = stockFixture("pressure-restored", 0);
+        StockFixture lowered = stockFixture("pressure-lowered", 6);
+        jdbcTemplate.execute("TRUNCATE TABLE operational_event_outbox RESTART IDENTITY CASCADE");
+
+        adjust(restored, 10);
+        adjust(lowered, 5);
+        project();
+
+        assertThat(jdbcTemplate.queryForMap("""
+                SELECT available_quantity, low_stock FROM inventory_pressure_projection
+                WHERE product_id = ?
+                """, restored.productId())).containsEntry("available_quantity", 10)
+                .containsEntry("low_stock", false);
+        assertThat(jdbcTemplate.queryForMap("""
+                SELECT available_quantity, low_stock FROM inventory_pressure_projection
+                WHERE product_id = ?
+                """, lowered.productId())).containsEntry("available_quantity", 5)
+                .containsEntry("low_stock", true);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM operational_event_outbox
+                WHERE event_type = 'INVENTORY_OUTCOME' AND payload ->> 'action' = 'ADJUST'
+                """, Long.class)).isEqualTo(2L);
+    }
+
+    @Test
     void SINGLE_ITEM은_저재고에서_제외하고_품절전환은_기록한다() {
         record("RESERVE", 2L, "SINGLE_ITEM", null, false, 1L, NOW);
         record("SOLD_OUT", 2L, "SINGLE_ITEM", null, true, 2L, NOW.plusSeconds(60));
@@ -131,6 +176,40 @@ class InventoryPressureProjectionTest extends IntegrationTestSupport {
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT COALESCE(SUM(failure_count), 0) FROM inventory_failure_hourly
                 WHERE product_id = 3
+                """, Long.class)).isOne();
+    }
+
+    @Test
+    void 수량이_0인_출하_event는_품절전환_시각을_덮어쓰지_않는다() {
+        Instant soldOutAt = NOW.plusSeconds(60);
+        record("SOLD_OUT", 5L, "STOCK_MANAGED", 0, true, 1L, soldOutAt);
+        record("SHIPMENT", 5L, "STOCK_MANAGED", 0, true, 2L, soldOutAt.plusSeconds(60));
+
+        project();
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT last_sold_out_at FROM inventory_pressure_projection WHERE product_id = 5
+                """, Timestamp.class).toInstant()).isEqualTo(soldOutAt);
+    }
+
+    @Test
+    void 최신_복구보다_version이_낮은_품절전환도_품절시각만_기록한다() {
+        Instant restoredAt = NOW.plusSeconds(120);
+        Instant soldOutAt = NOW.plusSeconds(60);
+        record("RESTORE", 6L, "STOCK_MANAGED", 10, false, 3L, restoredAt);
+        record("SOLD_OUT", 6L, "STOCK_MANAGED", 0, true, 2L, soldOutAt);
+
+        project();
+
+        assertThat(jdbcTemplate.queryForMap("""
+                SELECT available_quantity, aggregate_version, last_sold_out_at
+                FROM inventory_pressure_projection WHERE product_id = 6
+                """)).containsEntry("available_quantity", 10)
+                .containsEntry("aggregate_version", 3L)
+                .containsEntry("last_sold_out_at", Timestamp.from(soldOutAt));
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COALESCE(SUM(sold_out_transition_count), 0) FROM store_metric_hourly
+                WHERE store_id = 21
                 """, Long.class)).isOne();
     }
 
@@ -180,4 +259,26 @@ class InventoryPressureProjectionTest extends IntegrationTestSupport {
                 ) VALUES (1, ?, 4, 21, ?)
                 """, Timestamp.from(bucket), count);
     }
+
+    private StockFixture stockFixture(String prefix, int initialQuantity) {
+        return transactionTemplate.execute(status -> {
+            Member owner = memberRepository.save(Member.create(
+                    prefix + "@example.com", "encoded", "소유자"));
+            Store store = storeRepository.save(Store.createPersonal(owner, prefix + " 상점", "소개"));
+            storeMembershipRepository.save(StoreMembership.createOwner(store, owner));
+            Product product = productRepository.save(Product.create(
+                    store, prefix + " 상품", "설명", 10_000L,
+                    ProductSalesPolicy.STOCK_MANAGED, 5, initialQuantity));
+            inventoryService.initialize(product, initialQuantity, owner.getId());
+            return new StockFixture(owner.getId(), store.getId(), product.getId());
+        });
+    }
+
+    private void adjust(StockFixture fixture, int totalQuantity) {
+        inventoryService.adjust(
+                fixture.ownerId(), fixture.storeId(), fixture.productId(),
+                new InventoryAdjustmentRequest(totalQuantity, InventoryAdjustmentReason.RESTOCK, null));
+    }
+
+    private record StockFixture(long ownerId, long storeId, long productId) { }
 }

@@ -92,6 +92,7 @@ class CouponOutcomeProjectionTest extends IntegrationTestSupport {
                     redemption_success_count BIGINT NOT NULL DEFAULT 0,
                     redemption_failure_count BIGINT NOT NULL DEFAULT 0,
                     order_success_count BIGINT NOT NULL DEFAULT 0,
+                    purchase_failure_count BIGINT NOT NULL DEFAULT 0,
                     promotion_applied_amount BIGINT NOT NULL DEFAULT 0,
                     promotion_realized_amount BIGINT NOT NULL DEFAULT 0,
                     promotion_canceled_amount BIGINT NOT NULL DEFAULT 0,

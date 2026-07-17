@@ -58,15 +58,13 @@ public class InventoryPressureEventHandler implements OperationalEventHandler {
                     aggregate_version, updated_at
                 ) VALUES (
                     :generationId, :productId, :storeId, :salesPolicy, :availableQuantity,
-                    :lowStock, :soldOutAt, 0, :aggregateVersion, :occurredAt
+                    :lowStock, NULL, 0, :aggregateVersion, :occurredAt
                 )
                 ON CONFLICT (generation_id, product_id) DO UPDATE SET
                     store_id = EXCLUDED.store_id,
                     sales_policy = EXCLUDED.sales_policy,
                     available_quantity = EXCLUDED.available_quantity,
                     low_stock = EXCLUDED.low_stock,
-                    last_sold_out_at = COALESCE(EXCLUDED.last_sold_out_at,
-                        inventory_pressure_projection.last_sold_out_at),
                     aggregate_version = EXCLUDED.aggregate_version,
                     updated_at = EXCLUDED.updated_at
                 WHERE EXCLUDED.aggregate_version > inventory_pressure_projection.aggregate_version
@@ -91,6 +89,12 @@ public class InventoryPressureEventHandler implements OperationalEventHandler {
     }
 
     private void recordSoldOutTransition(MapSqlParameterSource parameters) {
+        jdbcTemplate.update("""
+                UPDATE inventory_pressure_projection
+                SET last_sold_out_at = GREATEST(
+                    COALESCE(last_sold_out_at, :occurredAt), :occurredAt)
+                WHERE generation_id = :generationId AND product_id = :productId
+                """, parameters);
         jdbcTemplate.update("""
                 INSERT INTO store_metric_hourly (
                     generation_id, bucket_start, store_id, outcome_reason, sold_out_transition_count
@@ -117,7 +121,6 @@ public class InventoryPressureEventHandler implements OperationalEventHandler {
                 .addValue("salesPolicy", payload.salesPolicy())
                 .addValue("availableQuantity", payload.availableQuantity())
                 .addValue("lowStock", lowStock)
-                .addValue("soldOutAt", payload.soldOut() ? occurredAt : null)
                 .addValue("aggregateVersion", event.aggregateVersion())
                 .addValue("occurredAt", occurredAt)
                 .addValue("bucketStart", Timestamp.from(event.occurredAt()

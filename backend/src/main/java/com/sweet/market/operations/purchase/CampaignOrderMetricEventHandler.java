@@ -42,10 +42,6 @@ public class CampaignOrderMetricEventHandler implements OperationalEventHandler 
     @Override
     public void handle(long generationId, OperationalEvent event) {
         PurchaseOutcomePayload payload = payload(event);
-        if (event.eventType() == OperationalEventType.PURCHASE_OUTCOME
-                && !"SUCCESS".equals(payload.result())) {
-            return;
-        }
         if (event.eventType() == OperationalEventType.ORDER_STATUS_CHANGED
                 && !isMetricStatus(payload.result())) {
             return;
@@ -73,14 +69,15 @@ public class CampaignOrderMetricEventHandler implements OperationalEventHandler 
                 INSERT INTO campaign_metric_hourly (
                     generation_id, bucket_start, commerce_store_id, campaign_kind,
                     campaign_id, campaign_owner_type, campaign_owner_store_id, outcome_reason,
-                    order_success_count, promotion_applied_amount, promotion_realized_amount,
+                    order_success_count, purchase_failure_count,
+                    promotion_applied_amount, promotion_realized_amount,
                     promotion_canceled_amount, promotion_refunded_amount,
                     coupon_applied_amount, coupon_realized_amount,
                     coupon_canceled_amount, coupon_refunded_amount
                 ) VALUES (
                     :generationId, :bucketStart, :storeId, :kind,
-                    :campaignId, :ownerType, :ownerStoreId, 'NONE',
-                    :orderSuccess, :promotionApplied, :promotionRealized,
+                    :campaignId, :ownerType, :ownerStoreId, :outcomeReason,
+                    :orderSuccess, :purchaseFailure, :promotionApplied, :promotionRealized,
                     :promotionCanceled, :promotionRefunded,
                     :couponApplied, :couponRealized, :couponCanceled, :couponRefunded
                 )
@@ -89,6 +86,7 @@ public class CampaignOrderMetricEventHandler implements OperationalEventHandler 
                     campaign_id, campaign_owner_type, campaign_owner_store_id, outcome_reason
                 ) DO UPDATE SET
                     order_success_count = campaign_metric_hourly.order_success_count + EXCLUDED.order_success_count,
+                    purchase_failure_count = campaign_metric_hourly.purchase_failure_count + EXCLUDED.purchase_failure_count,
                     promotion_applied_amount = campaign_metric_hourly.promotion_applied_amount + EXCLUDED.promotion_applied_amount,
                     promotion_realized_amount = campaign_metric_hourly.promotion_realized_amount + EXCLUDED.promotion_realized_amount,
                     promotion_canceled_amount = campaign_metric_hourly.promotion_canceled_amount + EXCLUDED.promotion_canceled_amount,
@@ -107,7 +105,10 @@ public class CampaignOrderMetricEventHandler implements OperationalEventHandler 
                 .addValue("campaignId", campaignId)
                 .addValue("ownerType", owner.type())
                 .addValue("ownerStoreId", owner.storeId())
+                .addValue("outcomeReason", "FAILURE".equals(payload.result())
+                        ? payload.reason().name() : "NONE")
                 .addValue("orderSuccess", amounts.orderSuccess())
+                .addValue("purchaseFailure", amounts.purchaseFailure())
                 .addValue("promotionApplied", amounts.promotionApplied())
                 .addValue("promotionRealized", amounts.promotionRealized())
                 .addValue("promotionCanceled", amounts.promotionCanceled())
@@ -122,12 +123,14 @@ public class CampaignOrderMetricEventHandler implements OperationalEventHandler 
         long promotion = "PROMOTION".equals(kind) ? payload.promotionDiscountAmount() : 0L;
         long coupon = "COUPON".equals(kind) ? payload.couponDiscountAmount() : 0L;
         if (eventType == OperationalEventType.PURCHASE_OUTCOME) {
-            return new Amounts(1, promotion, 0, 0, 0, coupon, 0, 0, 0);
+            return "SUCCESS".equals(payload.result())
+                    ? new Amounts(1, 0, promotion, 0, 0, 0, coupon, 0, 0, 0)
+                    : new Amounts(0, 1, 0, 0, 0, 0, 0, 0, 0, 0);
         }
         return switch (payload.result()) {
-            case "CONFIRMED" -> new Amounts(0, 0, promotion, 0, 0, 0, coupon, 0, 0);
-            case "CANCELED" -> new Amounts(0, 0, 0, promotion, 0, 0, 0, coupon, 0);
-            case "REFUNDED" -> new Amounts(0, 0, 0, 0, promotion, 0, 0, 0, coupon);
+            case "CONFIRMED" -> new Amounts(0, 0, 0, promotion, 0, 0, 0, coupon, 0, 0);
+            case "CANCELED" -> new Amounts(0, 0, 0, 0, promotion, 0, 0, 0, coupon, 0);
+            case "REFUNDED" -> new Amounts(0, 0, 0, 0, 0, promotion, 0, 0, 0, coupon);
             default -> throw new IllegalArgumentException("Unsupported order status: " + payload.result());
         };
     }
@@ -158,6 +161,7 @@ public class CampaignOrderMetricEventHandler implements OperationalEventHandler 
 
     private record Amounts(
             long orderSuccess,
+            long purchaseFailure,
             long promotionApplied, long promotionRealized, long promotionCanceled, long promotionRefunded,
             long couponApplied, long couponRealized, long couponCanceled, long couponRefunded
     ) { }

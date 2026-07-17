@@ -8,6 +8,7 @@ import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.operations.event.OperationalEvent;
 import com.sweet.market.operations.event.OperationalFailureRecorder;
+import com.sweet.market.operations.event.OperationalEventRecorder;
 import com.sweet.market.operations.purchase.PurchaseOutcomeEventFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -24,6 +25,7 @@ public class PaymentFailureCompensationService {
     private final CouponReservationRepository couponReservationRepository;
     private final InventoryService inventoryService;
     private final OperationalFailureRecorder operationalFailureRecorder;
+    private final OperationalEventRecorder operationalEventRecorder;
     private final PurchaseOutcomeEventFactory purchaseOutcomeEventFactory;
 
     public PaymentFailureCompensationService(
@@ -31,12 +33,14 @@ public class PaymentFailureCompensationService {
             CouponReservationRepository couponReservationRepository,
             InventoryService inventoryService,
             OperationalFailureRecorder operationalFailureRecorder,
+            OperationalEventRecorder operationalEventRecorder,
             PurchaseOutcomeEventFactory purchaseOutcomeEventFactory
     ) {
         this.orderRepository = orderRepository;
         this.couponReservationRepository = couponReservationRepository;
         this.inventoryService = inventoryService;
         this.operationalFailureRecorder = operationalFailureRecorder;
+        this.operationalEventRecorder = operationalEventRecorder;
         this.purchaseOutcomeEventFactory = purchaseOutcomeEventFactory;
     }
 
@@ -65,11 +69,11 @@ public class PaymentFailureCompensationService {
                 "CANCELED", order.getId(), order.getProduct().getStore().getId(), order.getProduct().getId(),
                 order.getPromotionCampaignId(), couponCampaignId,
                 order.getPromotionDiscountAmount(), order.getCouponDiscountAmount(), occurredAt);
+        operationalEventRecorder.record(canceled);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
                 operationalFailureRecorder.recordSafely(paymentFailed);
-                operationalFailureRecorder.recordSafely(canceled);
             }
         });
     }

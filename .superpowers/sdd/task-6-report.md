@@ -125,3 +125,40 @@ Result: `BUILD SUCCESSFUL` in 4m46s (287.5s wall time); all 769 tests passed.
 - `git diff --check` reported no whitespace errors; only the repository's existing LF-to-CRLF checkout warnings were printed.
 - Pre-existing modifications to `task-2-report.md`, `task-3-report.md`, and `task-4-report.md` were deliberately excluded from both commits.
 - No Kafka, broker, OLAP, authorization-by-projection, or remote calls inside commerce locks were introduced.
+
+## Release-blocking review follow-up
+
+The review findings were reproduced with source-boundary regression tests and fixed without changing the M29 reservation or money-separation rules.
+
+- Added a production hourly maintenance caller using the `Asia/Seoul` scheduling zone while retaining `refresh(Instant)` as the deterministic maintenance seam.
+- Operator adjustments now record `INVENTORY_OUTCOME` action `ADJUST` in the inventory/audit transaction. Source tests cover projection changes from 0 to 10 and 6 to 5, plus complete rollback when outbox recording fails.
+- Compensation records `ORDER_STATUS_CHANGED/CANCELED` inside its existing `REQUIRES_NEW` transaction. `PAYMENT_FAILED` remains post-commit best effort; cancellation recorder failure rolls back order, coupon, inventory, audit, and outbox state.
+- The V15 schema now includes campaign `purchase_failure_count` in prerequisite commit `df5efe5`. Failed purchases retain promotion and coupon campaign IDs across reservation rollback and increment each campaign row with the commerce store and exact failure reason.
+- `last_sold_out_at` is updated only for `SOLD_OUT` actions, with `GREATEST` independently of current-state version gating. Later zero-quantity shipment observations do not overwrite it, while a late lower-version transition can still contribute its timestamp.
+- Source coverage confirms an idempotent replay emits no second purchase outcome.
+
+### Follow-up RED evidence
+
+- `OperationsDashboardMigrationTest` failed at the new campaign-column assertion before V15 was amended.
+- The inventory covering command failed at test compilation because the production maintenance scheduler did not exist.
+- After the scheduler test compiled, the operator-adjustment projection test failed because no `ADJUST` outcome existed.
+- The compensation rollback test failed because cancellation recording still occurred only after commit.
+- The campaign source test initially observed null campaign IDs on the rolled-back `SOLD_OUT` failure.
+
+### Follow-up verification
+
+Fresh focused command:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.operations.purchase.*' --tests 'com.sweet.market.operations.inventory.*' --tests 'com.sweet.market.purchase.*' --tests 'com.sweet.market.inventory.*' --tests 'com.sweet.market.refund.RefundRequestApiTest' --tests 'com.sweet.market.coupon.CouponRedemptionConcurrencyTest'
+```
+
+Result: `BUILD SUCCESSFUL` in 58s.
+
+Fresh full-backend command:
+
+```powershell
+.\gradlew.bat test
+```
+
+Result: final fresh run `BUILD SUCCESSFUL` in 4m44s; 777 tests, 0 failures, 0 errors.

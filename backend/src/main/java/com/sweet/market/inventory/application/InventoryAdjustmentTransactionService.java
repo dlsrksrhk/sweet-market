@@ -10,9 +10,13 @@ import com.sweet.market.inventory.repository.InventoryAdjustmentRepository;
 import com.sweet.market.inventory.repository.InventoryRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.operations.event.OperationalEventRecorder;
+import com.sweet.market.operations.inventory.InventoryOutcomeEventFactory;
 import com.sweet.market.store.application.StoreAccessService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
 
 @Service
 public class InventoryAdjustmentTransactionService {
@@ -21,17 +25,23 @@ public class InventoryAdjustmentTransactionService {
     private final InventoryAdjustmentRepository inventoryAdjustmentRepository;
     private final MemberRepository memberRepository;
     private final StoreAccessService storeAccessService;
+    private final OperationalEventRecorder operationalEventRecorder;
+    private final InventoryOutcomeEventFactory inventoryOutcomeEventFactory;
 
     public InventoryAdjustmentTransactionService(
             InventoryRepository inventoryRepository,
             InventoryAdjustmentRepository inventoryAdjustmentRepository,
             MemberRepository memberRepository,
-            StoreAccessService storeAccessService
+            StoreAccessService storeAccessService,
+            OperationalEventRecorder operationalEventRecorder,
+            InventoryOutcomeEventFactory inventoryOutcomeEventFactory
     ) {
         this.inventoryRepository = inventoryRepository;
         this.inventoryAdjustmentRepository = inventoryAdjustmentRepository;
         this.memberRepository = memberRepository;
         this.storeAccessService = storeAccessService;
+        this.operationalEventRecorder = operationalEventRecorder;
+        this.inventoryOutcomeEventFactory = inventoryOutcomeEventFactory;
     }
 
     @Transactional
@@ -61,6 +71,16 @@ public class InventoryAdjustmentTransactionService {
             throw new BusinessException(errorCode, exception);
         }
         inventoryRepository.saveAndFlush(inventory);
-        return InventoryAdjustmentResponse.from(inventoryAdjustmentRepository.save(adjustment));
+        InventoryAdjustment savedAdjustment = inventoryAdjustmentRepository.save(adjustment);
+        operationalEventRecorder.record(inventoryOutcomeEventFactory.outcome(
+                "ADJUST",
+                inventory.getProduct().getId(),
+                inventory.getProduct().getStore().getId(),
+                inventory.getProduct().getSalesPolicy().name(),
+                inventory.getAvailableQuantity(),
+                inventory.getAvailableQuantity() == 0,
+                inventory.getVersion(),
+                Instant.now()));
+        return InventoryAdjustmentResponse.from(savedAdjustment);
     }
 }

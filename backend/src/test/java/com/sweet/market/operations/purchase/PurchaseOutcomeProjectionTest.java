@@ -6,6 +6,8 @@ import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.operations.event.OperationalEventRecorder;
+import com.sweet.market.operations.event.JdbcOperationalEventRecorder;
+import com.sweet.market.operations.event.OperationalEventType;
 import com.sweet.market.operations.projection.OperationalProjectionCoordinator;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.repository.OrderRepository;
@@ -24,6 +26,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.Timestamp;
@@ -37,6 +41,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 @TestPropertySource(properties = "market.operations-projector.enabled=false")
@@ -56,6 +63,8 @@ class PurchaseOutcomeProjectionTest extends IntegrationTestSupport {
     @Autowired private PaymentFailureCompensationService compensationService;
     @Autowired private JwtProvider jwtProvider;
     @Autowired private TransactionTemplate transactionTemplate;
+
+    @MockitoSpyBean private JdbcOperationalEventRecorder jdbcOperationalEventRecorder;
 
     @BeforeEach
     void 구매_성과_projection_테이블을_준비한다() {
@@ -109,6 +118,7 @@ class PurchaseOutcomeProjectionTest extends IntegrationTestSupport {
                     claim_success_count BIGINT NOT NULL DEFAULT 0, claim_failure_count BIGINT NOT NULL DEFAULT 0,
                     redemption_success_count BIGINT NOT NULL DEFAULT 0, redemption_failure_count BIGINT NOT NULL DEFAULT 0,
                     order_success_count BIGINT NOT NULL DEFAULT 0,
+                    purchase_failure_count BIGINT NOT NULL DEFAULT 0,
                     promotion_applied_amount BIGINT NOT NULL DEFAULT 0,
                     promotion_realized_amount BIGINT NOT NULL DEFAULT 0,
                     promotion_canceled_amount BIGINT NOT NULL DEFAULT 0,
@@ -214,6 +224,54 @@ class PurchaseOutcomeProjectionTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 멱등_재요청은_구매성과_event를_다시_발행하지_않는다() throws Exception {
+        long productId = createStockProduct("outcome-replay", 2);
+        String token = accessToken("outcome-replay-buyer@example.com", "구매자");
+        String idempotencyKey = UUID.randomUUID().toString();
+
+        int first = purchase(token, productId, idempotencyKey);
+        int replay = purchase(token, productId, idempotencyKey);
+
+        assertThat(first).isEqualTo(201);
+        assertThat(replay).isEqualTo(201);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM operational_event_outbox
+                WHERE event_type = 'PURCHASE_OUTCOME' AND payload ->> 'result' = 'SUCCESS'
+                """, Long.class)).isOne();
+    }
+
+    @Test
+    void 프로모션과_쿠폰이_적용된_품절실패를_각_campaign에_집계한다() throws Exception {
+        CampaignFailureFixture fixture = createCampaignFailureFixture();
+        jdbcTemplate.execute("TRUNCATE TABLE operational_event_outbox RESTART IDENTITY CASCADE");
+
+        int status = mockMvc.perform(post("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + fixture.token())
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productId\":%d,\"memberCouponId\":%d}".formatted(
+                                fixture.productId(), fixture.memberCouponId())))
+                .andReturn().getResponse().getStatus();
+
+        assertThat(status).isEqualTo(409);
+        assertThat(jdbcTemplate.queryForMap("""
+                SELECT store_id, payload ->> 'reason' AS reason,
+                       (payload ->> 'promotionCampaignId')::bigint AS promotion_campaign_id,
+                       (payload ->> 'couponCampaignId')::bigint AS coupon_campaign_id
+                FROM operational_event_outbox
+                WHERE event_type = 'PURCHASE_OUTCOME' AND payload ->> 'result' = 'FAILURE'
+                """)).containsEntry("store_id", fixture.storeId())
+                .containsEntry("reason", "SOLD_OUT")
+                .containsEntry("promotion_campaign_id", fixture.promotionCampaignId())
+                .containsEntry("coupon_campaign_id", fixture.couponCampaignId());
+
+        project();
+
+        assertCampaignFailure("PROMOTION", fixture.promotionCampaignId(), fixture.storeId());
+        assertCampaignFailure("COUPON", fixture.couponCampaignId(), fixture.storeId());
+    }
+
+    @Test
     void 결제실패_보상은_재고와_쿠폰을_한번만_복구한다() {
         CompensationFixture fixture = createCompensationFixture();
         jdbcTemplate.execute("TRUNCATE TABLE operational_event_outbox RESTART IDENTITY CASCADE");
@@ -234,6 +292,44 @@ class PurchaseOutcomeProjectionTest extends IntegrationTestSupport {
                 WHERE event_type = 'PURCHASE_OUTCOME'
                   AND payload ->> 'reason' = 'PAYMENT_FAILED'
                 """, Long.class)).isOne();
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM operational_event_outbox
+                WHERE event_type = 'ORDER_STATUS_CHANGED'
+                  AND payload ->> 'result' = 'CANCELED'
+                """, Long.class)).isOne();
+
+        project();
+
+        assertStoreMetric("PAYMENT_FAILED", "purchase_failure_count", 1L);
+        assertStoreMetric("PAYMENT_FAILED", "order_success_count", 0L);
+        assertCampaignMetric("COUPON", fixture.campaignId(), "coupon_canceled_amount", 1_000L);
+    }
+
+    @Test
+    void 취소_outbox_저장에_실패하면_결제실패_보상전체를_롤백한다() {
+        CompensationFixture fixture = createCompensationFixture();
+        jdbcTemplate.execute("TRUNCATE TABLE operational_event_outbox RESTART IDENTITY CASCADE");
+        doThrow(new DataIntegrityViolationException("취소 outbox 저장 실패"))
+                .when(jdbcOperationalEventRecorder)
+                .record(argThat(event -> event.eventType() == OperationalEventType.ORDER_STATUS_CHANGED
+                        && "CANCELED".equals(event.payload().path("result").asText())));
+
+        assertThatThrownBy(() -> compensationService.compensate(fixture.orderId()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThat(availableQuantity(fixture.productId())).isEqualTo(4);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM orders WHERE id = ?", String.class, fixture.orderId()))
+                .isEqualTo("CREATED");
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM coupon_reservations WHERE order_id = ?",
+                String.class, fixture.orderId())).isEqualTo("RESERVED");
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM inventory_adjustments
+                WHERE order_id = ? AND change_type = 'RELEASE'
+                """, Long.class, fixture.orderId())).isZero();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM operational_event_outbox", Long.class)).isZero();
     }
 
     private CompensationFixture createCompensationFixture() {
@@ -258,7 +354,7 @@ class PurchaseOutcomeProjectionTest extends IntegrationTestSupport {
                         member_coupon_id, order_id, status, reserved_at, expires_at
                     ) VALUES (?, ?, 'RESERVED', current_timestamp, current_timestamp + interval '30 minutes')
                     """, memberCouponId, order.getId());
-            return new CompensationFixture(order.getId(), product.getId());
+            return new CompensationFixture(order.getId(), product.getId(), campaignId);
         });
     }
 
@@ -291,6 +387,36 @@ class PurchaseOutcomeProjectionTest extends IntegrationTestSupport {
                 """, Long.class, buyerId, campaignId);
     }
 
+    private CampaignFailureFixture createCampaignFailureFixture() {
+        return transactionTemplate.execute(status -> {
+            Member seller = memberRepository.save(Member.create(
+                    "campaign-failure-seller@example.com", "encoded", "판매자"));
+            Member buyer = memberRepository.save(Member.create(
+                    "campaign-failure-buyer@example.com", "encoded", "구매자"));
+            Store store = storeRepository.save(Store.createPersonal(seller, "실패 집계 상점", "소개"));
+            Product product = productRepository.save(Product.create(
+                    store, "품절 상품", "설명", 10_000L,
+                    ProductSalesPolicy.STOCK_MANAGED, 5, 0));
+            inventoryService.initialize(product, 0, seller.getId());
+            jdbcTemplate.update("UPDATE stores SET type = 'BUSINESS', status = 'ACTIVE' WHERE id = ?", store.getId());
+            long promotionCampaignId = jdbcTemplate.queryForObject("""
+                    INSERT INTO promotion_campaigns (
+                        version, store_id, scope, discount_type, discount_value, priority, title,
+                        start_at, end_at, lifecycle_status, created_at, updated_at
+                    ) VALUES (0, ?, 'STORE_WIDE', 'FIXED_AMOUNT', 1500, 10, '품절 프로모션',
+                        current_timestamp - interval '1 minute', current_timestamp + interval '1 day',
+                        'SCHEDULED', current_timestamp, current_timestamp)
+                    RETURNING id
+                    """, Long.class, store.getId());
+            long couponCampaignId = insertCouponCampaign();
+            long memberCouponId = insertMemberCoupon(buyer.getId(), couponCampaignId);
+            String token = jwtProvider.createAccessToken(buyer.getId(), buyer.getEmail(), buyer.getRole());
+            return new CampaignFailureFixture(
+                    token, store.getId(), product.getId(), promotionCampaignId,
+                    couponCampaignId, memberCouponId);
+        });
+    }
+
     private long createStockProduct(String prefix, int stock) {
         return transactionTemplate.execute(status -> {
             Member seller = memberRepository.save(Member.create(
@@ -318,6 +444,15 @@ class PurchaseOutcomeProjectionTest extends IntegrationTestSupport {
         return mockMvc.perform(post("/api/orders")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                         .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productId\":%d}".formatted(productId)))
+                .andReturn().getResponse().getStatus();
+    }
+
+    private int purchase(String token, long productId, String idempotencyKey) throws Exception {
+        return mockMvc.perform(post("/api/orders")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .header("Idempotency-Key", idempotencyKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"productId\":%d}".formatted(productId)))
                 .andReturn().getResponse().getStatus();
@@ -367,6 +502,17 @@ class PurchaseOutcomeProjectionTest extends IntegrationTestSupport {
         assertThat(value).isEqualTo(expected);
     }
 
+    private void assertCampaignFailure(String kind, long campaignId, long storeId) {
+        assertThat(jdbcTemplate.queryForMap("""
+                SELECT commerce_store_id, purchase_failure_count, order_success_count, outcome_reason
+                FROM campaign_metric_hourly
+                WHERE campaign_kind = ? AND campaign_id = ?
+                """, kind, campaignId)).containsEntry("commerce_store_id", storeId)
+                .containsEntry("purchase_failure_count", 1L)
+                .containsEntry("order_success_count", 0L)
+                .containsEntry("outcome_reason", "SOLD_OUT");
+    }
+
     private long metricAt(String table, String column, Instant instant, String idColumn, long id) {
         return jdbcTemplate.queryForObject("""
                 SELECT COALESCE(SUM(%s), 0) FROM %s
@@ -375,5 +521,14 @@ class PurchaseOutcomeProjectionTest extends IntegrationTestSupport {
                 Timestamp.from(instant.truncatedTo(java.time.temporal.ChronoUnit.HOURS)));
     }
 
-    private record CompensationFixture(long orderId, long productId) { }
+    private record CompensationFixture(long orderId, long productId, long campaignId) { }
+
+    private record CampaignFailureFixture(
+            String token,
+            long storeId,
+            long productId,
+            long promotionCampaignId,
+            long couponCampaignId,
+            long memberCouponId
+    ) { }
 }

@@ -7,6 +7,8 @@ import com.sweet.market.inventory.domain.*;
 import com.sweet.market.inventory.repository.InventoryAdjustmentRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.operations.event.JdbcOperationalEventRecorder;
+import com.sweet.market.operations.event.OperationalEventType;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.store.domain.Store;
@@ -55,6 +57,9 @@ class InventoryServiceTransactionTest extends IntegrationTestSupport {
     @MockitoSpyBean
     private InventoryAdjustmentRepository inventoryAdjustmentRepository;
 
+    @MockitoSpyBean
+    private JdbcOperationalEventRecorder operationalEventRecorder;
+
     @Test
     void 감사_이력_저장에_실패하면_재고_변경도_롤백한다() {
         StockFixture fixture = 재고_준비("inventory-audit-failure@example.com", "777-77-77777");
@@ -67,6 +72,24 @@ class InventoryServiceTransactionTest extends IntegrationTestSupport {
                 .isInstanceOf(DataIntegrityViolationException.class);
 
         재고와_감사가_롤백된다(fixture.productId());
+    }
+
+    @Test
+    void 재고조정_outbox_저장에_실패하면_재고와_감사를_롤백한다() {
+        StockFixture fixture = 재고_준비("inventory-outbox-failure@example.com", "776-77-77777");
+        doThrow(new DataIntegrityViolationException("outbox 저장 실패"))
+                .when(operationalEventRecorder)
+                .record(argThat(event -> event.eventType() == OperationalEventType.INVENTORY_OUTCOME
+                        && "ADJUST".equals(event.payload().path("action").asText())));
+
+        assertThatThrownBy(() -> 재고_조정(fixture))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        재고와_감사가_롤백된다(fixture.productId());
+        assertThat(jdbcTemplate.queryForObject("""
+                select count(*) from operational_event_outbox
+                where event_type = 'INVENTORY_OUTCOME' and payload ->> 'action' = 'ADJUST'
+                """, Long.class)).isZero();
     }
 
     @Test

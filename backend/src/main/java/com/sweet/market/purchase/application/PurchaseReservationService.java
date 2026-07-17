@@ -124,8 +124,9 @@ public class PurchaseReservationService {
         }
 
         UUID executionToken = ((PurchaseRequestService.Claim.New) claim).executionToken();
+        PurchaseAttemptContext attempt = new PurchaseAttemptContext();
         try {
-            OrderResponse response = transactionTemplate.execute(status -> reserveDirect(command));
+            OrderResponse response = transactionTemplate.execute(status -> reserveDirect(command, attempt));
             requestService.completeSuccess(
                     command.buyerId(), idempotencyKey, executionToken, 201,
                     objectMapper.valueToTree(ApiResponse.ok(response)), Instant.now()
@@ -138,7 +139,7 @@ public class PurchaseReservationService {
                     objectMapper.valueToTree(ErrorResponse.of(exception.errorCode())),
                     Instant.now()
             );
-            recordPurchaseFailure(command.productId(), reason(exception.errorCode()));
+            recordPurchaseFailure(command.productId(), reason(exception.errorCode()), attempt);
             throw exception;
         }
     }
@@ -152,8 +153,9 @@ public class PurchaseReservationService {
         }
 
         UUID executionToken = ((PurchaseRequestService.Claim.New) claim).executionToken();
+        Map<Long, PurchaseAttemptContext> attempts = new java.util.HashMap<>();
         try {
-            CartCheckoutResponse response = transactionTemplate.execute(status -> reserveCart(command));
+            CartCheckoutResponse response = transactionTemplate.execute(status -> reserveCart(command, attempts));
             requestService.completeSuccess(
                     command.buyerId(), idempotencyKey, executionToken, 200,
                     objectMapper.valueToTree(ApiResponse.ok(response)), Instant.now()
@@ -168,7 +170,8 @@ public class PurchaseReservationService {
             exception.failure().items().forEach(item -> recordPurchaseFailure(
                     item.productId(), item.reason() == CartCheckoutFailureItem.Reason.SOLD_OUT
                             ? PurchaseOutcomeReason.SOLD_OUT
-                            : PurchaseOutcomeReason.PRODUCT_UNAVAILABLE));
+                            : PurchaseOutcomeReason.PRODUCT_UNAVAILABLE,
+                    attempts.get(item.productId())));
             throw exception;
         } catch (BusinessException exception) {
             requestService.completeBusinessFailure(
@@ -204,7 +207,10 @@ public class PurchaseReservationService {
         throw new BusinessException(ErrorCode.valueOf(replay.payload().path("code").asText()));
     }
 
-    private CartCheckoutResponse reserveCart(CartPurchaseCommand command) {
+    private CartCheckoutResponse reserveCart(
+            CartPurchaseCommand command,
+            Map<Long, PurchaseAttemptContext> attempts
+    ) {
         List<Long> cartItemIds = command.cartItemIds();
         validateCartItemIds(cartItemIds);
         List<CartItem> cartItems = cartItemRepository.findAllWithBuyerProductSellerImagesByIdIn(cartItemIds);
@@ -217,7 +223,8 @@ public class PurchaseReservationService {
         List<Long> orderIds = orderedCartItems.stream()
                 .map(cartItem -> createAndReserveCartOrder(
                         cartItem,
-                        lockedProductsById.get(cartItem.getProduct().getId())
+                        lockedProductsById.get(cartItem.getProduct().getId()),
+                        attempts.computeIfAbsent(cartItem.getProduct().getId(), ignored -> new PurchaseAttemptContext())
                 ))
                 .map(Order::getId)
                 .toList();
@@ -268,9 +275,14 @@ public class PurchaseReservationService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_UNAVAILABLE));
     }
 
-    private Order createAndReserveCartOrder(CartItem cartItem, Product product) {
+    private Order createAndReserveCartOrder(
+            CartItem cartItem,
+            Product product,
+            PurchaseAttemptContext attempt
+    ) {
         try {
             PromotionPrice price = promotionPricingService.quote(product);
+            attempt.capture(price.promotionId(), null);
             Order order = orderRepository.saveAndFlush(Order.create(cartItem.getBuyer(), product, price));
             recordOrderCreated(order, null, Instant.now());
             productReservationService.reserve(order);
@@ -306,7 +318,7 @@ public class PurchaseReservationService {
         );
     }
 
-    private OrderResponse reserveDirect(DirectPurchaseCommand command) {
+    private OrderResponse reserveDirect(DirectPurchaseCommand command, PurchaseAttemptContext attempt) {
         Member buyer = memberRepository.findById(command.buyerId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
         Product product = productRepository.findWithStoreAndImagesById(command.productId())
@@ -318,10 +330,14 @@ public class PurchaseReservationService {
                 throw new DomainException(OrderDomainError.PRODUCT_NOT_PURCHASABLE);
             }
             PromotionPrice promotionPrice = promotionPricingService.quote(lockedProduct);
+            attempt.capture(promotionPrice.promotionId(), null);
             CouponReservationQuote couponReservationQuote = command.memberCouponId() == null ? null
                     : couponRedemptionService.quoteForReservation(
                             command.buyerId(), command.memberCouponId(), lockedProduct, promotionPrice, Instant.now()
                     );
+            attempt.capture(
+                    promotionPrice.promotionId(),
+                    couponReservationQuote == null ? null : couponReservationQuote.memberCoupon().getCampaign().getId());
             Order order = couponReservationQuote == null
                     ? Order.create(buyer, lockedProduct, promotionPrice)
                     : Order.create(buyer, lockedProduct, promotionPrice, couponReservationQuote.discountQuote());
@@ -366,14 +382,21 @@ public class PurchaseReservationService {
                 order.getPromotionDiscountAmount(), order.getCouponDiscountAmount(), occurredAt));
     }
 
-    private void recordPurchaseFailure(Long productId, PurchaseOutcomeReason reason) {
+    private void recordPurchaseFailure(
+            Long productId,
+            PurchaseOutcomeReason reason,
+            PurchaseAttemptContext attempt
+    ) {
         if (reason == null) {
             return;
         }
         productRepository.findWithStoreById(productId).ifPresent(product -> {
             Instant occurredAt = Instant.now();
             operationalFailureRecorder.recordSafely(purchaseOutcomeEventFactory.purchaseFailed(
-                    product.getStore().getId(), product.getId(), reason, occurredAt));
+                    product.getStore().getId(), product.getId(),
+                    attempt == null ? null : attempt.promotionCampaignId,
+                    attempt == null ? null : attempt.couponCampaignId,
+                    reason, occurredAt));
             if (reason == PurchaseOutcomeReason.SOLD_OUT
                     || reason == PurchaseOutcomeReason.PRODUCT_UNAVAILABLE) {
                 Inventory inventory = product.isSingleItem() ? null
@@ -402,5 +425,16 @@ public class PurchaseReservationService {
                  MEMBER_COUPON_ALREADY_RESERVED -> PurchaseOutcomeReason.COUPON_REJECTED;
             default -> null;
         };
+    }
+
+    private static final class PurchaseAttemptContext {
+
+        private Long promotionCampaignId;
+        private Long couponCampaignId;
+
+        private void capture(Long promotionCampaignId, Long couponCampaignId) {
+            this.promotionCampaignId = promotionCampaignId;
+            this.couponCampaignId = couponCampaignId;
+        }
     }
 }

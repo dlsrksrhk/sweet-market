@@ -34,11 +34,13 @@ public class PurchaseOutcomeEventFactory {
     public OperationalEvent purchaseFailed(
             long storeId,
             long productId,
+            Long promotionCampaignId,
+            Long couponCampaignId,
             PurchaseOutcomeReason reason,
             Instant occurredAt
     ) {
         return event(OperationalEventType.PURCHASE_OUTCOME, "FAILURE", reason,
-                null, storeId, productId, null, null, 0L, 0L, occurredAt);
+                null, storeId, productId, promotionCampaignId, couponCampaignId, 0L, 0L, occurredAt);
     }
 
     public OperationalEvent paymentFailed(
