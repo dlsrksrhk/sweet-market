@@ -158,6 +158,21 @@ class RefundRequestApiTest extends IntegrationTestSupport {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + sellerToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("APPROVED"));
+
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT (payload ->> 'promotionCampaignId')::bigint
+                FROM operational_event_outbox
+                WHERE event_type = 'ORDER_STATUS_CHANGED'
+                  AND payload ->> 'result' = 'REFUNDED'
+                  AND (payload ->> 'orderId')::bigint = ?
+                """, Long.class, orderId)).isEqualTo(promotionId);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT (payload ->> 'promotionDiscountAmount')::bigint
+                FROM operational_event_outbox
+                WHERE event_type = 'ORDER_STATUS_CHANGED'
+                  AND payload ->> 'result' = 'REFUNDED'
+                  AND (payload ->> 'orderId')::bigint = ?
+                """, Long.class, orderId)).isEqualTo(500_000L);
     }
 
     @Test

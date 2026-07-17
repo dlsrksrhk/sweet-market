@@ -4,14 +4,20 @@ import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.inventory.application.InventoryService;
+import com.sweet.market.coupon.repository.MemberCouponRepository;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.repository.OrderRepository;
+import com.sweet.market.operations.event.OperationalEventRecorder;
+import com.sweet.market.operations.inventory.InventoryOutcomeEventFactory;
+import com.sweet.market.operations.purchase.PurchaseOutcomeEventFactory;
 import com.sweet.market.payment.api.PaymentResponse;
 import com.sweet.market.payment.domain.Payment;
 import com.sweet.market.payment.domain.PaymentStatus;
 import com.sweet.market.payment.repository.PaymentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Instant;
 
 @Service
 public class PaymentService {
@@ -22,6 +28,10 @@ public class PaymentService {
     private final InventoryService inventoryService;
     private final PaymentApprovalTransactionService paymentApprovalTransactionService;
     private final PaymentFailureCompensationService paymentFailureCompensationService;
+    private final MemberCouponRepository memberCouponRepository;
+    private final OperationalEventRecorder operationalEventRecorder;
+    private final PurchaseOutcomeEventFactory purchaseOutcomeEventFactory;
+    private final InventoryOutcomeEventFactory inventoryOutcomeEventFactory;
 
     public PaymentService(
             PaymentRepository paymentRepository,
@@ -29,7 +39,11 @@ public class PaymentService {
             PaymentGateway paymentGateway,
             InventoryService inventoryService,
             PaymentApprovalTransactionService paymentApprovalTransactionService,
-            PaymentFailureCompensationService paymentFailureCompensationService
+            PaymentFailureCompensationService paymentFailureCompensationService,
+            MemberCouponRepository memberCouponRepository,
+            OperationalEventRecorder operationalEventRecorder,
+            PurchaseOutcomeEventFactory purchaseOutcomeEventFactory,
+            InventoryOutcomeEventFactory inventoryOutcomeEventFactory
     ) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
@@ -37,6 +51,10 @@ public class PaymentService {
         this.inventoryService = inventoryService;
         this.paymentApprovalTransactionService = paymentApprovalTransactionService;
         this.paymentFailureCompensationService = paymentFailureCompensationService;
+        this.memberCouponRepository = memberCouponRepository;
+        this.operationalEventRecorder = operationalEventRecorder;
+        this.purchaseOutcomeEventFactory = purchaseOutcomeEventFactory;
+        this.inventoryOutcomeEventFactory = inventoryOutcomeEventFactory;
     }
 
     public PaymentResponse approve(Long memberId, Long orderId) {
@@ -69,6 +87,10 @@ public class PaymentService {
             payment.cancel();
             if (canCancel) {
                 inventoryService.releaseForPreShippingExit(order);
+                orderRepository.flush();
+                Instant occurredAt = Instant.now();
+                recordCanceled(order, occurredAt);
+                recordSingleItemRestore(order, occurredAt);
             }
         } catch (BusinessException exception) {
             throw exception;
@@ -77,5 +99,26 @@ public class PaymentService {
         }
 
         return PaymentResponse.from(payment);
+    }
+
+    private void recordCanceled(Order order, Instant occurredAt) {
+        Long couponCampaignId = order.getMemberCouponId() == null ? null
+                : memberCouponRepository.findById(order.getMemberCouponId())
+                        .map(memberCoupon -> memberCoupon.getCampaign().getId())
+                        .orElse(null);
+        operationalEventRecorder.record(purchaseOutcomeEventFactory.orderStatusChanged(
+                "CANCELED", order.getId(), order.getProduct().getStore().getId(), order.getProduct().getId(),
+                order.getPromotionCampaignId(), couponCampaignId,
+                order.getPromotionDiscountAmount(), order.getCouponDiscountAmount(), occurredAt));
+    }
+
+    private void recordSingleItemRestore(Order order, Instant occurredAt) {
+        if (!order.getProduct().isSingleItem()) {
+            return;
+        }
+        operationalEventRecorder.record(inventoryOutcomeEventFactory.outcome(
+                "RESTORE", order.getProduct().getId(), order.getProduct().getStore().getId(),
+                order.getProduct().getSalesPolicy().name(), null, false,
+                order.getProduct().getVersion(), occurredAt));
     }
 }

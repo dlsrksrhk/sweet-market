@@ -5,8 +5,11 @@ import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
+import com.sweet.market.coupon.repository.MemberCouponRepository;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.repository.OrderRepository;
+import com.sweet.market.operations.event.OperationalEventRecorder;
+import com.sweet.market.operations.purchase.PurchaseOutcomeEventFactory;
 import com.sweet.market.payment.domain.Payment;
 import com.sweet.market.payment.repository.PaymentRepository;
 import com.sweet.market.refund.api.RefundRequestResponse;
@@ -19,6 +22,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+
 @Service
 public class RefundRequestService {
 
@@ -26,17 +31,26 @@ public class RefundRequestService {
     private final OrderRepository orderRepository;
     private final MemberRepository memberRepository;
     private final PaymentRepository paymentRepository;
+    private final MemberCouponRepository memberCouponRepository;
+    private final OperationalEventRecorder operationalEventRecorder;
+    private final PurchaseOutcomeEventFactory purchaseOutcomeEventFactory;
 
     public RefundRequestService(
             RefundRequestRepository refundRequestRepository,
             OrderRepository orderRepository,
             MemberRepository memberRepository,
-            PaymentRepository paymentRepository
+            PaymentRepository paymentRepository,
+            MemberCouponRepository memberCouponRepository,
+            OperationalEventRecorder operationalEventRecorder,
+            PurchaseOutcomeEventFactory purchaseOutcomeEventFactory
     ) {
         this.refundRequestRepository = refundRequestRepository;
         this.orderRepository = orderRepository;
         this.memberRepository = memberRepository;
         this.paymentRepository = paymentRepository;
+        this.memberCouponRepository = memberCouponRepository;
+        this.operationalEventRecorder = operationalEventRecorder;
+        this.purchaseOutcomeEventFactory = purchaseOutcomeEventFactory;
     }
 
     @Transactional
@@ -125,6 +139,7 @@ public class RefundRequestService {
         try {
             refundRequest.approve(handler);
             payment.refund();
+            recordRefunded(refundRequest.getOrder(), Instant.now());
             return RefundRequestResponse.from(refundRequest);
         } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.REFUND_REQUEST_HANDLE_NOT_ALLOWED, exception);
@@ -152,5 +167,16 @@ public class RefundRequestService {
         if (refundRequest.getStatus() != RefundRequestStatus.REQUESTED) {
             throw new BusinessException(ErrorCode.REFUND_REQUEST_HANDLE_NOT_ALLOWED);
         }
+    }
+
+    private void recordRefunded(Order order, Instant occurredAt) {
+        Long couponCampaignId = order.getMemberCouponId() == null ? null
+                : memberCouponRepository.findById(order.getMemberCouponId())
+                        .map(memberCoupon -> memberCoupon.getCampaign().getId())
+                        .orElse(null);
+        operationalEventRecorder.record(purchaseOutcomeEventFactory.orderStatusChanged(
+                "REFUNDED", order.getId(), order.getProduct().getStore().getId(), order.getProduct().getId(),
+                order.getPromotionCampaignId(), couponCampaignId,
+                order.getPromotionDiscountAmount(), order.getCouponDiscountAmount(), occurredAt));
     }
 }

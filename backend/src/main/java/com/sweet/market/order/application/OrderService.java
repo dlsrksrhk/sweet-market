@@ -4,11 +4,15 @@ import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.coupon.application.CouponRedemptionService;
+import com.sweet.market.coupon.repository.MemberCouponRepository;
 import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.order.api.OrderResponse;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderStatus;
 import com.sweet.market.order.repository.OrderRepository;
+import com.sweet.market.operations.event.OperationalEventRecorder;
+import com.sweet.market.operations.inventory.InventoryOutcomeEventFactory;
+import com.sweet.market.operations.purchase.PurchaseOutcomeEventFactory;
 import com.sweet.market.payment.application.PaymentGateway;
 import com.sweet.market.payment.domain.Payment;
 import com.sweet.market.payment.domain.PaymentStatus;
@@ -26,19 +30,31 @@ public class OrderService {
     private final PaymentGateway paymentGateway;
     private final InventoryService inventoryService;
     private final CouponRedemptionService couponRedemptionService;
+    private final MemberCouponRepository memberCouponRepository;
+    private final OperationalEventRecorder operationalEventRecorder;
+    private final PurchaseOutcomeEventFactory purchaseOutcomeEventFactory;
+    private final InventoryOutcomeEventFactory inventoryOutcomeEventFactory;
 
     public OrderService(
             OrderRepository orderRepository,
             PaymentRepository paymentRepository,
             PaymentGateway paymentGateway,
             InventoryService inventoryService,
-            CouponRedemptionService couponRedemptionService
+            CouponRedemptionService couponRedemptionService,
+            MemberCouponRepository memberCouponRepository,
+            OperationalEventRecorder operationalEventRecorder,
+            PurchaseOutcomeEventFactory purchaseOutcomeEventFactory,
+            InventoryOutcomeEventFactory inventoryOutcomeEventFactory
     ) {
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
         this.paymentGateway = paymentGateway;
         this.inventoryService = inventoryService;
         this.couponRedemptionService = couponRedemptionService;
+        this.memberCouponRepository = memberCouponRepository;
+        this.operationalEventRecorder = operationalEventRecorder;
+        this.purchaseOutcomeEventFactory = purchaseOutcomeEventFactory;
+        this.inventoryOutcomeEventFactory = inventoryOutcomeEventFactory;
     }
 
     @Transactional
@@ -56,6 +72,10 @@ public class OrderService {
             couponRedemptionService.releaseForCanceledOrder(order, Instant.now());
             order.cancel();
             inventoryService.releaseForPreShippingExit(order);
+            orderRepository.flush();
+            Instant occurredAt = Instant.now();
+            recordStatus(order, "CANCELED", occurredAt);
+            recordSingleItemInventory(order, "RESTORE", false, occurredAt);
             return OrderResponse.from(order);
         }
         if (order.getStatus() != OrderStatus.PAID) {
@@ -74,6 +94,10 @@ public class OrderService {
             }
             payment.cancel();
             inventoryService.releaseForPreShippingExit(order);
+            orderRepository.flush();
+            Instant occurredAt = Instant.now();
+            recordStatus(order, "CANCELED", occurredAt);
+            recordSingleItemInventory(order, "RESTORE", false, occurredAt);
         } catch (BusinessException exception) {
             throw exception;
         } catch (DomainException exception) {
@@ -93,10 +117,45 @@ public class OrderService {
 
         try {
             order.confirm();
+            orderRepository.flush();
+            Instant occurredAt = Instant.now();
+            recordStatus(order, "CONFIRMED", occurredAt);
+            recordSingleItemInventory(order, "SOLD_OUT", true, occurredAt);
         } catch (DomainException exception) {
             throw new BusinessException(ErrorCode.ORDER_CONFIRM_NOT_ALLOWED, exception);
         }
 
         return OrderResponse.from(order);
+    }
+
+    private void recordStatus(Order order, String status, Instant occurredAt) {
+        operationalEventRecorder.record(purchaseOutcomeEventFactory.orderStatusChanged(
+                status, order.getId(), order.getProduct().getStore().getId(), order.getProduct().getId(),
+                order.getPromotionCampaignId(), couponCampaignId(order),
+                order.getPromotionDiscountAmount(), order.getCouponDiscountAmount(), occurredAt));
+    }
+
+    private void recordSingleItemInventory(
+            Order order,
+            String action,
+            boolean soldOut,
+            Instant occurredAt
+    ) {
+        if (!order.getProduct().isSingleItem()) {
+            return;
+        }
+        operationalEventRecorder.record(inventoryOutcomeEventFactory.outcome(
+                action, order.getProduct().getId(), order.getProduct().getStore().getId(),
+                order.getProduct().getSalesPolicy().name(), null, soldOut,
+                order.getProduct().getVersion(), occurredAt));
+    }
+
+    private Long couponCampaignId(Order order) {
+        if (order.getMemberCouponId() == null) {
+            return null;
+        }
+        return memberCouponRepository.findById(order.getMemberCouponId())
+                .map(memberCoupon -> memberCoupon.getCampaign().getId())
+                .orElse(null);
     }
 }

@@ -13,12 +13,19 @@ import com.sweet.market.cart.domain.CartItem;
 import com.sweet.market.cart.repository.CartItemRepository;
 import com.sweet.market.coupon.application.CouponRedemptionService;
 import com.sweet.market.coupon.application.CouponReservationQuote;
+import com.sweet.market.inventory.domain.Inventory;
+import com.sweet.market.inventory.repository.InventoryRepository;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.order.api.OrderResponse;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderDomainError;
 import com.sweet.market.order.repository.OrderRepository;
+import com.sweet.market.operations.event.OperationalEventRecorder;
+import com.sweet.market.operations.event.OperationalFailureRecorder;
+import com.sweet.market.operations.inventory.InventoryOutcomeEventFactory;
+import com.sweet.market.operations.purchase.PurchaseOutcomeEventFactory;
+import com.sweet.market.operations.purchase.PurchaseOutcomeReason;
 import com.sweet.market.payment.application.PaymentApprovalTransactionService;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.domain.ProductDomainError;
@@ -59,6 +66,11 @@ public class PurchaseReservationService {
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
     private final ApplicationEventPublisher eventPublisher;
+    private final InventoryRepository inventoryRepository;
+    private final OperationalEventRecorder operationalEventRecorder;
+    private final OperationalFailureRecorder operationalFailureRecorder;
+    private final PurchaseOutcomeEventFactory purchaseOutcomeEventFactory;
+    private final InventoryOutcomeEventFactory inventoryOutcomeEventFactory;
 
     public PurchaseReservationService(
             PurchaseRequestService requestService,
@@ -73,7 +85,12 @@ public class PurchaseReservationService {
             PaymentApprovalTransactionService paymentApprovalTransactionService,
             ObjectMapper objectMapper,
             PlatformTransactionManager transactionManager,
-            ApplicationEventPublisher eventPublisher
+            ApplicationEventPublisher eventPublisher,
+            InventoryRepository inventoryRepository,
+            OperationalEventRecorder operationalEventRecorder,
+            OperationalFailureRecorder operationalFailureRecorder,
+            PurchaseOutcomeEventFactory purchaseOutcomeEventFactory,
+            InventoryOutcomeEventFactory inventoryOutcomeEventFactory
     ) {
         this.requestService = requestService;
         this.cartItemRepository = cartItemRepository;
@@ -88,6 +105,11 @@ public class PurchaseReservationService {
         this.objectMapper = objectMapper;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.eventPublisher = eventPublisher;
+        this.inventoryRepository = inventoryRepository;
+        this.operationalEventRecorder = operationalEventRecorder;
+        this.operationalFailureRecorder = operationalFailureRecorder;
+        this.purchaseOutcomeEventFactory = purchaseOutcomeEventFactory;
+        this.inventoryOutcomeEventFactory = inventoryOutcomeEventFactory;
     }
 
     public OrderResponse purchaseDirect(DirectPurchaseCommand command, String idempotencyKey) {
@@ -116,6 +138,7 @@ public class PurchaseReservationService {
                     objectMapper.valueToTree(ErrorResponse.of(exception.errorCode())),
                     Instant.now()
             );
+            recordPurchaseFailure(command.productId(), reason(exception.errorCode()));
             throw exception;
         }
     }
@@ -142,6 +165,10 @@ public class PurchaseReservationService {
                     command.buyerId(), idempotencyKey, executionToken, 409,
                     objectMapper.valueToTree(response), Instant.now()
             );
+            exception.failure().items().forEach(item -> recordPurchaseFailure(
+                    item.productId(), item.reason() == CartCheckoutFailureItem.Reason.SOLD_OUT
+                            ? PurchaseOutcomeReason.SOLD_OUT
+                            : PurchaseOutcomeReason.PRODUCT_UNAVAILABLE));
             throw exception;
         } catch (BusinessException exception) {
             requestService.completeBusinessFailure(
@@ -245,6 +272,7 @@ public class PurchaseReservationService {
         try {
             PromotionPrice price = promotionPricingService.quote(product);
             Order order = orderRepository.saveAndFlush(Order.create(cartItem.getBuyer(), product, price));
+            recordOrderCreated(order, null, Instant.now());
             productReservationService.reserve(order);
             return order;
         } catch (BusinessException | DomainException exception) {
@@ -299,6 +327,10 @@ public class PurchaseReservationService {
                     : Order.create(buyer, lockedProduct, promotionPrice, couponReservationQuote.discountQuote());
             Order savedOrder = orderRepository.saveAndFlush(order);
 
+            Long couponCampaignId = couponReservationQuote == null
+                    ? null : couponReservationQuote.memberCoupon().getCampaign().getId();
+            recordOrderCreated(savedOrder, couponCampaignId, Instant.now());
+
             productReservationService.reserve(savedOrder);
             if (couponReservationQuote != null) {
                 CouponReservationQuote revalidatedCouponReservationQuote = couponRedemptionService.quoteForReservation(
@@ -325,5 +357,50 @@ public class PurchaseReservationService {
 
     private void invalidateDiscovery() {
         eventPublisher.publishEvent(new DiscoveryInvalidationEvent());
+    }
+
+    private void recordOrderCreated(Order order, Long couponCampaignId, Instant occurredAt) {
+        operationalEventRecorder.record(purchaseOutcomeEventFactory.orderCreated(
+                order.getId(), order.getProduct().getStore().getId(), order.getProduct().getId(),
+                order.getPromotionCampaignId(), couponCampaignId,
+                order.getPromotionDiscountAmount(), order.getCouponDiscountAmount(), occurredAt));
+    }
+
+    private void recordPurchaseFailure(Long productId, PurchaseOutcomeReason reason) {
+        if (reason == null) {
+            return;
+        }
+        productRepository.findWithStoreById(productId).ifPresent(product -> {
+            Instant occurredAt = Instant.now();
+            operationalFailureRecorder.recordSafely(purchaseOutcomeEventFactory.purchaseFailed(
+                    product.getStore().getId(), product.getId(), reason, occurredAt));
+            if (reason == PurchaseOutcomeReason.SOLD_OUT
+                    || reason == PurchaseOutcomeReason.PRODUCT_UNAVAILABLE) {
+                Inventory inventory = product.isSingleItem() ? null
+                        : inventoryRepository.findByProductId(productId).orElse(null);
+                Integer availableQuantity = inventory == null ? null : inventory.getAvailableQuantity();
+                long aggregateVersion = inventory == null ? product.getVersion() : inventory.getVersion();
+                boolean soldOut = product.isSingleItem()
+                        ? !product.isPurchasable()
+                        : availableQuantity != null && availableQuantity == 0;
+                operationalFailureRecorder.recordSafely(inventoryOutcomeEventFactory.outcome(
+                        "RESERVATION_FAILED", product.getId(), product.getStore().getId(),
+                        product.getSalesPolicy().name(), availableQuantity, soldOut,
+                        aggregateVersion, occurredAt));
+            }
+        });
+    }
+
+    private PurchaseOutcomeReason reason(ErrorCode errorCode) {
+        return switch (errorCode) {
+            case PRODUCT_SOLD_OUT -> PurchaseOutcomeReason.SOLD_OUT;
+            case PRODUCT_UNAVAILABLE, PRODUCT_NOT_ON_SALE -> PurchaseOutcomeReason.PRODUCT_UNAVAILABLE;
+            case MEMBER_COUPON_NOT_FOUND, MEMBER_COUPON_ACCESS_DENIED, MEMBER_COUPON_NOT_ISSUED,
+                 MEMBER_COUPON_EXPIRED, MEMBER_COUPON_TARGET_MISMATCH,
+                 MEMBER_COUPON_MINIMUM_PURCHASE_NOT_MET,
+                 MEMBER_COUPON_PROMOTION_STACKING_NOT_ALLOWED,
+                 MEMBER_COUPON_ALREADY_RESERVED -> PurchaseOutcomeReason.COUPON_REJECTED;
+            default -> null;
+        };
     }
 }

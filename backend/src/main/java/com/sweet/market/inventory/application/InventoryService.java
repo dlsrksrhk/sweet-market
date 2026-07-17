@@ -13,6 +13,8 @@ import com.sweet.market.inventory.repository.InventoryRepository;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderStatus;
 import com.sweet.market.order.repository.OrderRepository;
+import com.sweet.market.operations.event.OperationalEventRecorder;
+import com.sweet.market.operations.inventory.InventoryOutcomeEventFactory;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.store.application.StoreAccessService;
 import org.hibernate.StaleObjectStateException;
@@ -25,6 +27,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+
 @Service
 public class InventoryService {
 
@@ -34,6 +38,8 @@ public class InventoryService {
     private final InventoryAdjustmentTransactionService inventoryAdjustmentTransactionService;
     private final OrderRepository orderRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final OperationalEventRecorder operationalEventRecorder;
+    private final InventoryOutcomeEventFactory inventoryOutcomeEventFactory;
 
     @Autowired
     public InventoryService(
@@ -42,7 +48,9 @@ public class InventoryService {
             StoreAccessService storeAccessService,
             InventoryAdjustmentTransactionService inventoryAdjustmentTransactionService,
             OrderRepository orderRepository,
-            ApplicationEventPublisher eventPublisher
+            ApplicationEventPublisher eventPublisher,
+            OperationalEventRecorder operationalEventRecorder,
+            InventoryOutcomeEventFactory inventoryOutcomeEventFactory
     ) {
         this.inventoryRepository = inventoryRepository;
         this.inventoryAdjustmentRepository = inventoryAdjustmentRepository;
@@ -50,6 +58,21 @@ public class InventoryService {
         this.inventoryAdjustmentTransactionService = inventoryAdjustmentTransactionService;
         this.orderRepository = orderRepository;
         this.eventPublisher = eventPublisher;
+        this.operationalEventRecorder = operationalEventRecorder;
+        this.inventoryOutcomeEventFactory = inventoryOutcomeEventFactory;
+    }
+
+    public InventoryService(
+            InventoryRepository inventoryRepository,
+            InventoryAdjustmentRepository inventoryAdjustmentRepository,
+            StoreAccessService storeAccessService,
+            InventoryAdjustmentTransactionService inventoryAdjustmentTransactionService,
+            OrderRepository orderRepository,
+            ApplicationEventPublisher eventPublisher
+    ) {
+        this(inventoryRepository, inventoryAdjustmentRepository, storeAccessService,
+                inventoryAdjustmentTransactionService, orderRepository, eventPublisher,
+                event -> { }, null);
     }
 
     public InventoryService(
@@ -65,7 +88,9 @@ public class InventoryService {
 
     public void initialize(Product product, int initialTotalQuantity, Long memberId) {
         Inventory inventory = inventoryRepository.save(Inventory.initialize(product, initialTotalQuantity));
-        inventoryAdjustmentRepository.save(inventory.getInitializationAdjustment());
+        inventoryAdjustmentRepository.saveAndFlush(inventory.getInitializationAdjustment());
+        recordInventoryOutcome("INITIALIZE", inventory, inventory.getAvailableQuantity(),
+                inventory.getAvailableQuantity() == 0, Instant.now());
     }
 
     @Transactional(readOnly = true)
@@ -106,7 +131,9 @@ public class InventoryService {
                 || hasAdjustment(order, InventoryChangeType.RELEASE)) {
             return;
         }
-        inventoryAdjustmentRepository.save(findInventory(order.getProduct()).release(order));
+        Inventory inventory = findInventory(order.getProduct());
+        inventoryAdjustmentRepository.saveAndFlush(inventory.release(order));
+        recordInventoryOutcome("RELEASE", inventory, inventory.getAvailableQuantity(), false, Instant.now());
         eventPublisher.publishEvent(new DiscoveryInvalidationEvent());
     }
 
@@ -122,6 +149,10 @@ public class InventoryService {
             return;
         }
         order.cancel();
+        if (order.getProduct().isSingleItem()) {
+            orderRepository.flush();
+            recordProductOutcome("RESTORE", order.getProduct(), false, Instant.now());
+        }
         releaseForPreShippingExit(order);
     }
 
@@ -131,7 +162,10 @@ public class InventoryService {
                 || hasAdjustment(order, InventoryChangeType.SHIPMENT_COMMITMENT)) {
             return;
         }
-        inventoryAdjustmentRepository.save(findInventory(order.getProduct()).commitShipment(order));
+        Inventory inventory = findInventory(order.getProduct());
+        inventoryAdjustmentRepository.saveAndFlush(inventory.commitShipment(order));
+        recordInventoryOutcome("SHIPMENT", inventory, inventory.getAvailableQuantity(),
+                inventory.getAvailableQuantity() == 0, Instant.now());
     }
 
     public InventoryAdjustmentResponse adjust(
@@ -177,5 +211,30 @@ public class InventoryService {
 
     private boolean hasAdjustment(Order order, InventoryChangeType changeType) {
         return inventoryAdjustmentRepository.existsByOrderIdAndChangeType(order.getId(), changeType);
+    }
+
+    private void recordInventoryOutcome(
+            String action,
+            Inventory inventory,
+            Integer availableQuantity,
+            boolean soldOut,
+            Instant occurredAt
+    ) {
+        if (inventoryOutcomeEventFactory == null) {
+            return;
+        }
+        Product product = inventory.getProduct();
+        operationalEventRecorder.record(inventoryOutcomeEventFactory.outcome(
+                action, product.getId(), product.getStore().getId(), product.getSalesPolicy().name(),
+                availableQuantity, soldOut, inventory.getVersion(), occurredAt));
+    }
+
+    private void recordProductOutcome(String action, Product product, boolean soldOut, Instant occurredAt) {
+        if (inventoryOutcomeEventFactory == null) {
+            return;
+        }
+        operationalEventRecorder.record(inventoryOutcomeEventFactory.outcome(
+                action, product.getId(), product.getStore().getId(), product.getSalesPolicy().name(),
+                null, soldOut, product.getVersion(), occurredAt));
     }
 }
