@@ -39,6 +39,9 @@ public class OperationalProjectionCoordinator {
         if (batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be positive");
         }
+        if (batchSize > 100) {
+            throw new IllegalArgumentException("batchSize must not exceed 100");
+        }
         Integer projected = batchTransaction.execute(status -> projectLockedBatch(now, batchSize));
         return projected == null ? 0 : projected;
     }

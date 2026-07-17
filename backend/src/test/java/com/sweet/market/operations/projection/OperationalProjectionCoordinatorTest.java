@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 @TestPropertySource(properties = "market.operations-projector.enabled=false")
 class OperationalProjectionCoordinatorTest extends IntegrationTestSupport {
@@ -133,6 +134,12 @@ class OperationalProjectionCoordinatorTest extends IntegrationTestSupport {
         assertThat(mutationCount("first-projection", eventId)).isOne();
         assertThat(receiptCount(eventId)).isOne();
         assertThat(delivery(eventId).get("delivery_state")).isEqualTo("PROCESSED");
+    }
+
+    @Test
+    void projection_batch_size는_100을_초과할수없다() {
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                coordinator.projectNextBatch(NOW, 101));
     }
 
     @Test

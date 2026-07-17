@@ -11,6 +11,7 @@ import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -28,6 +29,12 @@ class DbOutboxProjectorSchedulingTest {
         projector.project();
 
         verify(coordinator).projectNextBatch(NOW, 23);
+    }
+
+    @Test
+    void projector_설정은_batch_size_100을_초과할수없다() {
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                new OperationsProjectorProperties(true, 1_000L, 101));
     }
 
     @Test
