@@ -34,6 +34,7 @@ class OperationsDashboardMigrationTest {
         assertThat(tableExists("projection_event_receipts")).isTrue();
         assertThat(tableExists("store_metric_hourly")).isTrue();
         assertThat(tableExists("campaign_metric_hourly")).isTrue();
+        assertThat(columnExists("campaign_metric_hourly", "purchase_failure_count")).isTrue();
         assertThat(tableExists("inventory_pressure_projection")).isTrue();
         assertThat(tableExists("inventory_failure_hourly")).isTrue();
         assertThat(tableExists("campaign_audit_projection")).isTrue();
@@ -53,6 +54,11 @@ class OperationsDashboardMigrationTest {
     private boolean indexExists(String indexName) throws SQLException {
         return queryBoolean("SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = '"
                 + indexName + "')");
+    }
+
+    private boolean columnExists(String tableName, String columnName) throws SQLException {
+        return queryBoolean("SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' "
+                + "AND table_name = '" + tableName + "' AND column_name = '" + columnName + "')");
     }
 
     private boolean uniqueConstraintExists(String constraintName) throws SQLException {
