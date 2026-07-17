@@ -16,6 +16,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -190,6 +192,78 @@ class AdminOperationsDashboardApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.data.content[0].campaignId").value(campaignId));
     }
 
+    @Test
+    void outcome은_모든_식별차원으로_결정적으로_페이지한다() throws Exception {
+        Member admin = saveAdmin("outcome-page-admin@example.com");
+        Store store = saveBusinessStore("outcome-page-owner@example.com", "결정적 페이지 상점");
+        long campaignId = 777L;
+        insertCampaignMetric(store.getId(), "PROMOTION", campaignId, "STORE", store.getId(),
+                "EXHAUSTED", 0, 1, 0);
+        insertCampaignMetric(store.getId(), "PROMOTION", campaignId, "PLATFORM", 0L,
+                "EXHAUSTED", 0, 1, 0);
+        insertCampaignMetric(store.getId(), "COUPON", campaignId, "STORE", store.getId(),
+                "EXHAUSTED", 0, 1, 0);
+        insertCampaignMetric(store.getId(), "COUPON", campaignId, "PLATFORM", 0L,
+                "EXHAUSTED", 0, 1, 0);
+
+        List<String> firstRead = outcomePageIdentities(admin, store, 4);
+        List<String> secondRead = outcomePageIdentities(admin, store, 4);
+
+        assertThat(firstRead).containsExactly(
+                "PROMOTION:STORE:" + store.getId(),
+                "PROMOTION:PLATFORM:null",
+                "COUPON:STORE:" + store.getId(),
+                "COUPON:PLATFORM:null");
+        assertThat(secondRead).containsExactlyElementsOf(firstRead);
+        assertThat(firstRead).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void 재고예약실패는_운영요약과_드릴다운에_동일하게_집계한다() throws Exception {
+        Member admin = saveAdmin("inventory-reason-admin@example.com");
+        Store store = saveBusinessStore("inventory-reason-owner@example.com", "재고 실패 상점");
+        insertInventory(store.getId(), 991L, false, 4);
+
+        mockMvc.perform(period(get("/api/admin/operations-dashboard"))
+                        .queryParam("storeId", store.getId().toString())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.leadingFailureReasons", hasSize(1)))
+                .andExpect(jsonPath("$.data.leadingFailureReasons[0].reason")
+                        .value("RESERVATION_FAILED"))
+                .andExpect(jsonPath("$.data.leadingFailureReasons[0].count").value(4));
+
+        mockMvc.perform(period(get("/api/admin/operations-dashboard/outcomes"))
+                        .queryParam("storeId", store.getId().toString())
+                        .queryParam("productId", "991")
+                        .queryParam("reason", "RESERVATION_FAILED")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].outcomeType").value("INVENTORY"))
+                .andExpect(jsonPath("$.data.content[0].failureCount").value(4));
+    }
+
+    private List<String> outcomePageIdentities(Member admin, Store store, int pageCount) throws Exception {
+        List<String> identities = new ArrayList<>();
+        for (int page = 0; page < pageCount; page++) {
+            String response = mockMvc.perform(period(get("/api/admin/operations-dashboard/outcomes"))
+                            .queryParam("storeId", store.getId().toString())
+                            .queryParam("reason", "EXHAUSTED")
+                            .queryParam("page", String.valueOf(page))
+                            .queryParam("size", "1")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(admin)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.totalElements").value(pageCount))
+                    .andReturn().getResponse().getContentAsString();
+            var row = objectMapper.readTree(response).path("data").path("content").get(0);
+            identities.add(row.path("campaignKind").asText() + ":"
+                    + row.path("ownerType").asText() + ":"
+                    + (row.path("ownerStoreId").isNull() ? "null" : row.path("ownerStoreId").asText()));
+        }
+        return identities;
+    }
+
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder period(
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request
     ) {
@@ -244,14 +318,23 @@ class AdminOperationsDashboardApiTest extends IntegrationTestSupport {
             long commerceStoreId, long campaignId, String ownerType, long ownerStoreId,
             String reason, long claims, long claimFailures, long redemptions
     ) {
+        insertCampaignMetric(commerceStoreId, "COUPON", campaignId, ownerType,
+                ownerStoreId, reason, claims, claimFailures, redemptions);
+    }
+
+    private void insertCampaignMetric(
+            long commerceStoreId, String campaignKind, long campaignId,
+            String ownerType, long ownerStoreId, String reason,
+            long claims, long claimFailures, long redemptions
+    ) {
         jdbcTemplate.update("""
                 INSERT INTO campaign_metric_hourly (
                     generation_id, bucket_start, commerce_store_id, campaign_kind,
                     campaign_id, campaign_owner_type, campaign_owner_store_id, outcome_reason,
                     claim_success_count, claim_failure_count, redemption_success_count
-                ) VALUES (?, ?, ?, 'COUPON', ?, ?, ?, ?, ?, ?, ?)
-                """, activeGenerationId, timestamp(BUCKET), commerceStoreId, campaignId,
-                ownerType, ownerStoreId, reason, claims, claimFailures, redemptions);
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, activeGenerationId, timestamp(BUCKET), commerceStoreId, campaignKind,
+                campaignId, ownerType, ownerStoreId, reason, claims, claimFailures, redemptions);
     }
 
     private void insertInventory(long storeId, long productId, boolean lowStock, long failures) {

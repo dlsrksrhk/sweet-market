@@ -56,6 +56,9 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
     private OperationalProjectionRepository projectionRepository;
 
     @Autowired
+    private OperationalProjectionCoordinator coordinator;
+
+    @Autowired
     private MemberRepository memberRepository;
 
     @Autowired
@@ -300,13 +303,29 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
         assertThat(activeGenerationId()).isEqualTo(result.generationId());
         assertThat(generation(previousId))
                 .containsEntry("status", "RETIRED")
-                .containsEntry("retired_at", Timestamp.from(NOW));
+                .containsEntry("retired_at", Timestamp.from(result.activatedAt()));
         assertThat(generation(result.generationId()))
                 .containsEntry("status", "ACTIVE")
-                .containsEntry("activated_at", Timestamp.from(NOW));
+                .containsEntry("activated_at", Timestamp.from(result.activatedAt()));
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM projection_generations WHERE status = 'BUILDING'
                 """, Long.class)).isZero();
+    }
+
+    @Test
+    void 재구축_활성화시각은_cutoff가_아닌_실제전환시각이다() {
+        service.ensureActiveGeneration(NOW.minusSeconds(60));
+        Instant activationTime = NOW.plusSeconds(5);
+        ProjectionGenerationService delayedService = new ProjectionGenerationService(
+                bootstrapRepository, projectionRepository, coordinator,
+                Clock.fixed(activationTime, KST));
+
+        ProjectionRebuildResult result = delayedService.rebuild(9L, NOW);
+
+        assertThat(result.cutoff()).isEqualTo(NOW);
+        assertThat(result.activatedAt()).isEqualTo(activationTime).isAfter(result.cutoff());
+        assertThat(generation(result.generationId()).get("activated_at"))
+                .isEqualTo(Timestamp.from(result.activatedAt()));
     }
 
     @Test

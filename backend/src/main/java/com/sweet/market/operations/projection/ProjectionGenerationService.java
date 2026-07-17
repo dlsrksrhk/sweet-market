@@ -2,9 +2,12 @@ package com.sweet.market.operations.projection;
 
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class ProjectionGenerationService {
@@ -16,15 +19,27 @@ public class ProjectionGenerationService {
     private final ProjectionBootstrapRepository bootstrapRepository;
     private final OperationalProjectionRepository repository;
     private final OperationalProjectionCoordinator coordinator;
+    private final Clock clock;
 
+    @Autowired
     public ProjectionGenerationService(
             ProjectionBootstrapRepository bootstrapRepository,
             OperationalProjectionRepository repository,
             OperationalProjectionCoordinator coordinator
     ) {
+        this(bootstrapRepository, repository, coordinator, Clock.systemUTC());
+    }
+
+    ProjectionGenerationService(
+            ProjectionBootstrapRepository bootstrapRepository,
+            OperationalProjectionRepository repository,
+            OperationalProjectionCoordinator coordinator,
+            Clock clock
+    ) {
         this.bootstrapRepository = bootstrapRepository;
         this.repository = repository;
         this.coordinator = coordinator;
+        this.clock = clock;
     }
 
     public long ensureActiveGeneration(Instant now) {
@@ -62,12 +77,15 @@ public class ProjectionGenerationService {
             coordinator.replayAfterOutboxId(generationId, snapshot.outboxHighWaterId());
             repository.verifyNoDuplicateReceipts(generationId);
             long finalGenerationId = generationId;
-            repository.withExclusiveAdvisoryLock(EVENT_WRITER_LOCK_KEY, () -> {
+            Instant activatedAt = repository.withExclusiveAdvisoryLock(EVENT_WRITER_LOCK_KEY, () -> {
                 coordinator.replayAfterCurrentCheckpoint(finalGenerationId);
                 repository.verifyNoDuplicateReceipts(finalGenerationId);
-                repository.activateAtomically(finalGenerationId, now);
+                Instant activationTime = clock.instant().truncatedTo(ChronoUnit.MICROS);
+                repository.activateAtomically(finalGenerationId, activationTime);
+                return activationTime;
             });
-            return new ProjectionRebuildResult(generationId, "ACTIVE", snapshot.cutoff(), now);
+            return new ProjectionRebuildResult(
+                    generationId, "ACTIVE", snapshot.cutoff(), activatedAt);
         } catch (RuntimeException exception) {
             if (generationId != 0L) {
                 repository.markBuildingFailed(generationId);

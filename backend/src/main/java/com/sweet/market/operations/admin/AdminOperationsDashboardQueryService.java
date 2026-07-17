@@ -145,6 +145,14 @@ public class AdminOperationsDashboardQueryService {
                            OR commerce_store_id = :storeId)
                       AND outcome_reason <> 'NONE'
                     GROUP BY outcome_reason
+                    UNION ALL
+                    SELECT 'RESERVATION_FAILED' AS reason,
+                           SUM(failure_count) AS failure_count
+                    FROM inventory_failure_hourly
+                    WHERE generation_id = :generationId
+                      AND bucket_start >= :fromInclusive
+                      AND bucket_start < :toExclusive
+                      AND (:storeId IS NULL OR store_id = :storeId)
                 ) failures
                 GROUP BY reason
                 HAVING SUM(failure_count) > 0
@@ -331,9 +339,16 @@ public class AdminOperationsDashboardQueryService {
                 """;
         List<AdminOperationsDashboardResponse.OutcomeResponse> content = jdbcTemplate.query(rowsCte + """
                 SELECT * FROM rows
-                ORDER BY latest_bucket_start DESC, outcome_type ASC,
-                         campaign_id DESC NULLS LAST, product_id DESC NULLS LAST,
-                         store_id DESC, outcome_reason DESC
+                ORDER BY latest_bucket_start DESC,
+                         failure_count DESC, success_count DESC,
+                         reservation_failure_count DESC,
+                         outcome_type ASC, store_id DESC,
+                         campaign_id DESC NULLS LAST,
+                         product_id DESC NULLS LAST,
+                         outcome_reason DESC,
+                         campaign_kind DESC NULLS LAST,
+                         owner_type DESC NULLS LAST,
+                         owner_store_id DESC NULLS LAST
                 LIMIT :limit OFFSET :offset
                 """, parameters, (resultSet, rowNumber) -> outcome(resultSet));
         long total = count(rowsCte + "SELECT COUNT(*) FROM rows", parameters);

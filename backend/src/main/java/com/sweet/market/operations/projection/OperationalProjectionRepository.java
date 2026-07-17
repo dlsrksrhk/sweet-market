@@ -184,6 +184,15 @@ public class OperationalProjectionRepository {
         });
     }
 
+    public <T> T withExclusiveAdvisoryLock(long lockKey, Supplier<T> action) {
+        return transaction.execute(status -> {
+            jdbcTemplate.queryForObject(
+                    "SELECT pg_advisory_xact_lock(:lockKey)",
+                    Map.of("lockKey", lockKey), Object.class);
+            return action.get();
+        });
+    }
+
     public <T> T withCoordinationAdvisoryLock(long lockKey, Supplier<T> action) {
         Connection connection = null;
         try {
