@@ -159,6 +159,26 @@ class CouponIssueApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 무제한_캠페인은_서로_다른_회원이_동시에_발급해도_모두_성공한다() throws Exception {
+        Long campaignId = activeCampaign();
+        List<Long> memberIds = createMembers(4, "unlimited-concurrent");
+        CountDownLatch issueAttempts = new CountDownLatch(memberIds.size());
+        doAnswer(invocation -> {
+            issueAttempts.countDown();
+            assertThat(issueAttempts.await(5, TimeUnit.SECONDS)).isTrue();
+            return invocation.callRealMethod();
+        }).when(issueTransactionService).issue(anyLong(), eq(campaignId), any());
+
+        List<ClaimResult> results = submitTogether(memberIds,
+                memberId -> claimResult(memberId, campaignId)).stream().map(this::await).toList();
+
+        assertThat(results).filteredOn(ClaimResult::success).hasSize(memberIds.size());
+        assertThat(memberCouponCount(campaignId)).isEqualTo(memberIds.size());
+        assertThat(issuedCount(campaignId)).isEqualTo(memberIds.size());
+        assertThat(claimOutcomeCount("SUCCESS")).isEqualTo(memberIds.size());
+    }
+
+    @Test
     void 소진후_기존_발급_회원은_기존_쿠폰을_성공으로_받는다() throws Exception {
         Long campaignId = activeCampaignWithLimit(1);
         signupAndLogin("first-come-owner@example.com");

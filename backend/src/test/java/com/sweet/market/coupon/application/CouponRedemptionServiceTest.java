@@ -1,20 +1,37 @@
 package com.sweet.market.coupon.application;
 
+import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.coupon.domain.CouponDiscountType;
+import com.sweet.market.coupon.domain.CouponDomainError;
+import com.sweet.market.coupon.domain.CouponReservation;
 import com.sweet.market.coupon.domain.CouponScope;
 import com.sweet.market.coupon.domain.MemberCoupon;
 import com.sweet.market.coupon.domain.MemberCouponStatus;
+import com.sweet.market.coupon.repository.CouponReservationRepository;
+import com.sweet.market.coupon.repository.MemberCouponRepository;
+import com.sweet.market.operations.coupon.CouponOutcomeEventFactory;
+import com.sweet.market.operations.coupon.CouponOutcomeReason;
+import com.sweet.market.operations.event.OperationalEvent;
+import com.sweet.market.operations.event.OperationalFailureRecorder;
+import com.sweet.market.order.domain.Order;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.promotion.application.PromotionPrice;
+import com.sweet.market.store.domain.Store;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.same;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CouponRedemptionServiceTest {
@@ -106,6 +123,57 @@ class CouponRedemptionServiceTest {
         assertThat(quote.finalPrice()).isEqualTo(9_000L);
     }
 
+    @Test
+    void 스케줄러가_만료한_예약이_활성조회에서_사라져도_RESERVATION_CONFLICT로_기록한다() {
+        MemberCouponRepository memberCouponRepository = mock(MemberCouponRepository.class);
+        CouponReservationRepository reservationRepository = mock(CouponReservationRepository.class);
+        OperationalFailureRecorder failureRecorder = mock(OperationalFailureRecorder.class);
+        CouponOutcomeEventFactory eventFactory = mock(CouponOutcomeEventFactory.class);
+        MemberCoupon coupon = mock(MemberCoupon.class);
+        Order order = order(91L, 7L, 4L);
+        OperationalEvent event = mock(OperationalEvent.class);
+        when(reservationRepository.findActiveByOrderIdForUpdate(91L)).thenReturn(Optional.empty());
+        when(memberCouponRepository.findRedemptionTargetByIdForUpdate(7L)).thenReturn(Optional.of(coupon));
+        when(eventFactory.redemptionFailed(
+                any(), eq(4L), eq(91L), eq(CouponOutcomeReason.RESERVATION_CONFLICT), eq(now)))
+                .thenReturn(event);
+        CouponRedemptionService redemptionService = redemptionService(
+                memberCouponRepository, reservationRepository, failureRecorder, eventFactory);
+
+        assertThatThrownBy(() -> redemptionService.prepareForPayment(order, now))
+                .isInstanceOf(DomainException.class)
+                .extracting(error -> ((DomainException) error).error())
+                .isEqualTo(CouponDomainError.RESERVATION_TRANSITION_NOT_ALLOWED);
+        verify(failureRecorder).recordSafely(same(event));
+    }
+
+    @Test
+    void 예약의_쿠폰_사용대상을_찾을수없으면_UNAVAILABLE로_기록한다() {
+        MemberCouponRepository memberCouponRepository = mock(MemberCouponRepository.class);
+        CouponReservationRepository reservationRepository = mock(CouponReservationRepository.class);
+        OperationalFailureRecorder failureRecorder = mock(OperationalFailureRecorder.class);
+        CouponOutcomeEventFactory eventFactory = mock(CouponOutcomeEventFactory.class);
+        MemberCoupon coupon = mock(MemberCoupon.class);
+        CouponReservation reservation = mock(CouponReservation.class);
+        Order order = order(92L, 8L, 5L);
+        OperationalEvent event = mock(OperationalEvent.class);
+        when(coupon.getId()).thenReturn(8L);
+        when(reservation.getMemberCoupon()).thenReturn(coupon);
+        when(reservationRepository.findActiveByOrderIdForUpdate(92L)).thenReturn(Optional.of(reservation));
+        when(memberCouponRepository.findRedemptionTargetByIdForUpdate(8L)).thenReturn(Optional.empty());
+        when(eventFactory.redemptionFailed(
+                any(), eq(5L), eq(92L), eq(CouponOutcomeReason.UNAVAILABLE), eq(now)))
+                .thenReturn(event);
+        CouponRedemptionService redemptionService = redemptionService(
+                memberCouponRepository, reservationRepository, failureRecorder, eventFactory);
+
+        assertThatThrownBy(() -> redemptionService.prepareForPayment(order, now))
+                .isInstanceOf(DomainException.class)
+                .extracting(error -> ((DomainException) error).error())
+                .isEqualTo(CouponDomainError.MEMBER_COUPON_USE_NOT_ALLOWED);
+        verify(failureRecorder).recordSafely(same(event));
+    }
+
     private MemberCoupon coupon(CouponDiscountType type, long value, Long maximum, long minimum, boolean stackable,
                                 CouponScope scope, Set<Long> targets) {
         MemberCoupon coupon = org.mockito.Mockito.mock(MemberCoupon.class);
@@ -126,6 +194,29 @@ class CouponRedemptionServiceTest {
         Product product = org.mockito.Mockito.mock(Product.class);
         when(product.getId()).thenReturn(id);
         return product;
+    }
+
+    private Order order(Long orderId, Long memberCouponId, Long storeId) {
+        Store store = mock(Store.class);
+        when(store.getId()).thenReturn(storeId);
+        Product product = mock(Product.class);
+        when(product.getStore()).thenReturn(store);
+        Order order = mock(Order.class);
+        when(order.getId()).thenReturn(orderId);
+        when(order.getMemberCouponId()).thenReturn(memberCouponId);
+        when(order.getProduct()).thenReturn(product);
+        return order;
+    }
+
+    private CouponRedemptionService redemptionService(
+            MemberCouponRepository memberCouponRepository,
+            CouponReservationRepository reservationRepository,
+            OperationalFailureRecorder failureRecorder,
+            CouponOutcomeEventFactory eventFactory
+    ) {
+        return new CouponRedemptionService(
+                memberCouponRepository, reservationRepository, null,
+                null, failureRecorder, eventFactory);
     }
 
     private void assertError(org.assertj.core.api.ThrowableAssert.ThrowingCallable action, ErrorCode errorCode) {

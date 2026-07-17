@@ -21,6 +21,18 @@ public interface CouponCampaignRepository extends JpaRepository<CouponCampaign, 
                set campaign.issuedCount = campaign.issuedCount + 1,
                    campaign.version = campaign.version + 1
              where campaign.id = :campaignId
+               and campaign.issueLimit is null
+               and campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.SCHEDULED
+               and campaign.issueStartsAt <= :now and campaign.issueEndsAt > :now
+            """)
+    int incrementUnlimitedIssuedCount(@Param("campaignId") Long campaignId, @Param("now") Instant now);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update CouponCampaign campaign
+               set campaign.issuedCount = campaign.issuedCount + 1,
+                   campaign.version = campaign.version + 1
+             where campaign.id = :campaignId
                and campaign.lifecycleStatus = com.sweet.market.coupon.domain.CouponLifecycleStatus.SCHEDULED
                and campaign.issueStartsAt <= :now and campaign.issueEndsAt > :now
                and campaign.issuedCount < campaign.issueLimit

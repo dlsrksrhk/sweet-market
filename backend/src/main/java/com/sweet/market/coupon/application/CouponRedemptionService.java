@@ -9,12 +9,15 @@ import com.sweet.market.coupon.repository.MemberCouponRepository;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.operations.coupon.CouponOutcomeEventFactory;
 import com.sweet.market.operations.coupon.CouponOutcomeReason;
+import com.sweet.market.operations.event.OperationalEvent;
 import com.sweet.market.operations.event.OperationalEventRecorder;
 import com.sweet.market.operations.event.OperationalFailureRecorder;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.promotion.application.PromotionPrice;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 
@@ -95,11 +98,20 @@ public class CouponRedemptionService {
         if (order.getMemberCouponId() == null) {
             return null;
         }
-        CouponReservation reservation = couponReservationRepository.findActiveByOrderIdForUpdate(order.getId())
-                .orElseThrow(() -> new DomainException(CouponDomainError.RESERVATION_TRANSITION_NOT_ALLOWED));
-        MemberCoupon memberCoupon = memberCouponRepository.findRedemptionTargetByIdForUpdate(reservation.getMemberCoupon().getId())
-                .orElseThrow(() -> new DomainException(CouponDomainError.MEMBER_COUPON_USE_NOT_ALLOWED));
+        MemberCoupon outcomeCoupon = null;
         try {
+            CouponReservation reservation = couponReservationRepository.findActiveByOrderIdForUpdate(order.getId())
+                    .orElse(null);
+            if (reservation == null) {
+                outcomeCoupon = memberCouponRepository.findRedemptionTargetByIdForUpdate(order.getMemberCouponId())
+                        .orElse(null);
+                throw new DomainException(CouponDomainError.RESERVATION_TRANSITION_NOT_ALLOWED);
+            }
+            outcomeCoupon = reservation.getMemberCoupon();
+            MemberCoupon memberCoupon = memberCouponRepository
+                    .findRedemptionTargetByIdForUpdate(reservation.getMemberCoupon().getId())
+                    .orElseThrow(() -> new DomainException(CouponDomainError.MEMBER_COUPON_USE_NOT_ALLOWED));
+            outcomeCoupon = memberCoupon;
             if (memberCoupon.getStatus() != MemberCouponStatus.ISSUED) {
                 throw new DomainException(CouponDomainError.MEMBER_COUPON_USE_NOT_ALLOWED);
             }
@@ -109,8 +121,8 @@ public class CouponRedemptionService {
             return reservation;
         } catch (DomainException exception) {
             CouponOutcomeReason reason = redemptionReason((CouponDomainError) exception.error());
-            if (reason != null) {
-                recordRedemptionFailure(memberCoupon, order.getProduct(), order.getId(), reason, now);
+            if (reason != null && outcomeCoupon != null) {
+                recordRedemptionFailure(outcomeCoupon, order.getProduct(), order.getId(), reason, now);
             }
             throw exception;
         }
@@ -192,8 +204,21 @@ public class CouponRedemptionService {
             CouponOutcomeReason reason,
             Instant occurredAt
     ) {
-        operationalFailureRecorder.recordSafely(outcomeEventFactory.redemptionFailed(
-                coupon.getCampaign(), product.getStore().getId(), orderId, reason, occurredAt));
+        OperationalEvent event = outcomeEventFactory.redemptionFailed(
+                coupon.getCampaign(), product.getStore().getId(), orderId, reason, occurredAt);
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status == STATUS_ROLLED_BACK) {
+                        operationalFailureRecorder.recordSafely(event);
+                    }
+                }
+            });
+            return;
+        }
+        operationalFailureRecorder.recordSafely(event);
     }
 
     private CouponOutcomeReason redemptionReason(ErrorCode errorCode) {

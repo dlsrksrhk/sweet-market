@@ -2,7 +2,13 @@ package com.sweet.market.operations.coupon;
 
 import com.sweet.market.auth.api.LoginRequest;
 import com.sweet.market.auth.api.SignupRequest;
+import com.sweet.market.common.error.BusinessException;
+import com.sweet.market.common.error.ErrorCode;
+import com.sweet.market.coupon.application.CouponRedemptionService;
+import com.sweet.market.operations.event.OperationalFailureRecorder;
 import com.sweet.market.operations.projection.OperationalProjectionCoordinator;
+import com.sweet.market.product.domain.Product;
+import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.support.IntegrationTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,12 +17,18 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -27,6 +39,18 @@ class CouponOutcomeProjectionTest extends IntegrationTestSupport {
 
     @Autowired
     private OperationalProjectionCoordinator coordinator;
+
+    @Autowired
+    private CouponRedemptionService couponRedemptionService;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
+    @MockitoSpyBean
+    private OperationalFailureRecorder operationalFailureRecorder;
 
     @BeforeEach
     void 쿠폰_성과_projection_테이블을_준비한다() {
@@ -153,6 +177,55 @@ class CouponOutcomeProjectionTest extends IntegrationTestSupport {
 
         project();
         assertThat(metric(campaignId, "INACTIVE", "claim_failure_count")).isOne();
+    }
+
+    @Test
+    void 쿠폰_실패_event는_원본_트랜잭션이_롤백된_뒤_저장한다() throws Exception {
+        RedemptionFixture fixture = redemptionFixture("coupon-outcome-rollback-boundary");
+        jdbcTemplate.update("""
+                UPDATE member_coupons
+                SET valid_until = current_timestamp - interval '1 minute'
+                WHERE id = ?
+                """, fixture.memberCouponId());
+        String originalTitle = jdbcTemplate.queryForObject(
+                "SELECT title FROM products WHERE id = ?", String.class, fixture.productId());
+        AtomicBoolean sourceRolledBackBeforeFailureRecord = new AtomicBoolean();
+        doAnswer(invocation -> {
+            String titleAtFailureRecord = jdbcTemplate.queryForObject(
+                    "SELECT title FROM products WHERE id = ?", String.class, fixture.productId());
+            sourceRolledBackBeforeFailureRecord.set(originalTitle.equals(titleAtFailureRecord));
+            return invocation.callRealMethod();
+        }).when(operationalFailureRecorder).recordSafely(any());
+
+        assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
+            jdbcTemplate.update(
+                    "UPDATE products SET title = '롤백되어야 할 제목' WHERE id = ?",
+                    fixture.productId());
+            Product product = productRepository.findWithStoreAndImagesById(fixture.productId())
+                    .orElseThrow();
+            try {
+                couponRedemptionService.quoteForReservation(
+                        memberId("coupon-outcome-rollback-boundary-buyer@example.com"),
+                        fixture.memberCouponId(), product,
+                        com.sweet.market.promotion.application.PromotionPrice.withoutPromotion(10_000L),
+                        Instant.now());
+            } catch (BusinessException exception) {
+                assertThat(outcomeEventCount("COUPON_REDEMPTION_OUTCOME")).isZero();
+                throw exception;
+            }
+        })).isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).errorCode())
+                .isEqualTo(ErrorCode.MEMBER_COUPON_EXPIRED);
+
+        assertThat(sourceRolledBackBeforeFailureRecord).isTrue();
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT title FROM products WHERE id = ?", String.class, fixture.productId()))
+                .isEqualTo(originalTitle);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM operational_event_outbox
+                WHERE event_type = 'COUPON_REDEMPTION_OUTCOME'
+                  AND payload ->> 'reason' = 'EXPIRED'
+                """, Long.class)).isOne();
     }
 
     @Test
@@ -313,6 +386,12 @@ class CouponOutcomeProjectionTest extends IntegrationTestSupport {
 
     private void clearOutcomeEvents() {
         jdbcTemplate.execute("TRUNCATE TABLE operational_event_outbox RESTART IDENTITY CASCADE");
+    }
+
+    private long outcomeEventCount(String eventType) {
+        return jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM operational_event_outbox WHERE event_type = ?",
+                Long.class, eventType);
     }
 
     private long metric(long campaignId, String reason, String column) {

@@ -44,7 +44,10 @@ public class CouponIssueTransactionService {
     public MemberCoupon issue(Long memberId, Long campaignId, Instant issuedAt) {
         CouponCampaign campaign = findCampaign(campaignId);
         requireClaimable(campaign, issuedAt);
-        recordIssue(campaign);
+        if (campaignRepository.incrementUnlimitedIssuedCount(campaignId, issuedAt) != 1) {
+            throw unlimitedIssueFailure(campaignId, issuedAt);
+        }
+        campaign = findCampaign(campaignId);
         return saveIssuedCoupon(memberId, campaign, issuedAt);
     }
 
@@ -118,6 +121,12 @@ public class CouponIssueTransactionService {
         CouponCampaign current = findCampaign(campaignId);
         requireClaimable(current, issuedAt);
         return new BusinessException(ErrorCode.COUPON_ISSUE_LIMIT_EXCEEDED);
+    }
+
+    private BusinessException unlimitedIssueFailure(Long campaignId, Instant issuedAt) {
+        CouponCampaign current = findCampaign(campaignId);
+        requireClaimable(current, issuedAt);
+        return new BusinessException(ErrorCode.COUPON_LIFECYCLE_NOT_ALLOWED);
     }
 
     private Member findMember(Long memberId) {

@@ -102,3 +102,41 @@ Modified:
 ## Concerns
 
 No known functional concerns. The existing test runtime emits the repository's pre-existing Mockito dynamic-agent and class-data-sharing warnings; they did not affect test results.
+
+## Review follow-up: concurrency and rollback boundaries
+
+### RED
+
+The initial combined review command failed 4 of 12 tests as expected. The first 10-party concurrency fixture exhausted the test connection pool before every worker reached its barrier, so it was reduced to 4 parties (still forcing overlap within the configured pool) and rerun independently:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.coupon.CouponIssueApiTest.무제한_캠페인은_서로_다른_회원이_동시에_발급해도_모두_성공한다'
+```
+
+Result: `BUILD FAILED` in 34 seconds with `ObjectOptimisticLockingFailureException` / `StaleObjectStateException`, demonstrating that ordinary `@Version` mutation lost valid distinct-member unlimited claims.
+
+The same RED cycle also established these boundary failures before the production change:
+
+- `스케줄러가_만료한_예약이_활성조회에서_사라져도_RESERVATION_CONFLICT로_기록한다`: failure recorder was never invoked.
+- `예약의_쿠폰_사용대상을_찾을수없으면_UNAVAILABLE로_기록한다`: failure recorder was never invoked.
+- `쿠폰_실패_event는_원본_트랜잭션이_롤백된_뒤_저장한다`: the outbox row already existed inside the still-active source transaction.
+
+### GREEN
+
+Exact covering command:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.coupon.CouponIssueApiTest.무제한_캠페인은_서로_다른_회원이_동시에_발급해도_모두_성공한다' --tests 'com.sweet.market.coupon.application.CouponRedemptionServiceTest' --tests 'com.sweet.market.operations.coupon.CouponOutcomeProjectionTest.쿠폰_실패_event는_원본_트랜잭션이_롤백된_뒤_저장한다'
+```
+
+Result: `BUILD SUCCESSFUL` in 45 seconds.
+
+Focused Task 5 suite rerun:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.operations.coupon.CouponOutcomeProjectionTest' --tests 'com.sweet.market.coupon.*' --tests 'com.sweet.market.coupon.application.*'
+```
+
+Result: `BUILD SUCCESSFUL` in 1 minute 14 seconds.
+
+The follow-up keeps the limited-campaign conditional quota update unchanged, adds a separate atomic increment for unlimited issuance, defers redemption-failure persistence until source rollback completion, and maps missing active reservations and missing redemption targets using the existing `RESERVATION_CONFLICT` and `UNAVAILABLE` reasons.
