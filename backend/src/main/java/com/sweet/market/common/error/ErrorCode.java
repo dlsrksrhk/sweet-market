@@ -80,7 +80,10 @@ public enum ErrorCode {
     MEMBER_COUPON_PROMOTION_STACKING_NOT_ALLOWED(HttpStatus.CONFLICT, "프로모션과 중복 적용할 수 없는 쿠폰입니다."),
     MEMBER_COUPON_ALREADY_RESERVED(HttpStatus.CONFLICT, "쿠폰이 다른 주문에서 예약되어 있습니다."),
     CATALOG_CURSOR_INVALID(HttpStatus.BAD_REQUEST, "상품 목록 커서가 올바르지 않습니다."),
-    CATALOG_CURSOR_STALE(HttpStatus.BAD_REQUEST, "상품 목록 커서가 만료되었습니다.");
+    CATALOG_CURSOR_STALE(HttpStatus.BAD_REQUEST, "상품 목록 커서가 만료되었습니다."),
+    OPERATIONAL_EVENT_NOT_FOUND(HttpStatus.NOT_FOUND, "운영 이벤트를 찾을 수 없습니다."),
+    OPERATIONAL_EVENT_RETRY_NOT_ALLOWED(HttpStatus.CONFLICT, "DEAD 운영 이벤트만 재시도할 수 있습니다."),
+    PROJECTION_REBUILD_IN_PROGRESS(HttpStatus.CONFLICT, "프로젝션 재구축이 이미 진행 중입니다.");
 
     private final HttpStatus status;
     private final String message;

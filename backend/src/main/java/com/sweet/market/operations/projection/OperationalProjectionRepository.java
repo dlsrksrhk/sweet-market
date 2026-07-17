@@ -68,6 +68,15 @@ public class OperationalProjectionRepository {
         return trackingStartedAt.stream().findFirst();
     }
 
+    public boolean hasBuildingGeneration() {
+        Boolean exists = jdbcTemplate.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM projection_generations WHERE status = 'BUILDING'
+                )
+                """, Map.of(), Boolean.class);
+        return Boolean.TRUE.equals(exists);
+    }
+
     public long findBootstrapHighWaterId(long generationId) {
         Long highWaterId = jdbcTemplate.queryForObject("""
                 SELECT bootstrap_high_water_id
@@ -197,6 +206,33 @@ public class OperationalProjectionRepository {
             throw new IllegalStateException("Failed to coordinate projection generation", exception);
         } finally {
             JdbcUtils.closeConnection(connection);
+        }
+    }
+
+    public <T> Optional<T> tryWithCoordinationAdvisoryLock(long lockKey, Supplier<T> action) {
+        try (Connection connection = dataSource.getConnection()) {
+            boolean acquired;
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT pg_try_advisory_lock(?)")) {
+                statement.setLong(1, lockKey);
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    acquired = resultSet.next() && resultSet.getBoolean(1);
+                }
+            }
+            if (!acquired) {
+                return Optional.empty();
+            }
+            try {
+                return Optional.of(action.get());
+            } finally {
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "SELECT pg_advisory_unlock(?)")) {
+                    statement.setLong(1, lockKey);
+                    statement.execute();
+                }
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to coordinate projection rebuild", exception);
         }
     }
 
