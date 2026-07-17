@@ -1,9 +1,9 @@
 {
-  "measurementId": "bbd48853-c163-4b38-9ac1-0bc16d499905",
+  "measurementId": "385b4525-21a2-4f4a-875f-364449f59957",
   "artifactDirectory": "performance/results/m30-v1",
   "off": {
     "cacheMode": "OFF",
-    "gitCommit": "24719ef70dd59b0e1dadac53cb9a49aea5046985",
+    "gitCommit": "985c8ccf406ed84e51ec76512b0c1a84b28a8bdb",
     "dirtyWorktree": true,
     "fixtureVersion": "m30-v1",
     "scenarioVersion": "m30-catalog-reads-v1",
@@ -11,12 +11,12 @@
     "hardwareDescription": "Intel Core i7-14700KF (20 cores / 28 logical), 63.7 GiB RAM",
     "warmupSeconds": 60,
     "measuredSeconds": 300,
-    "startedAt": "2026-07-17T12:56:39.1308601+00:00",
-    "completedAt": "2026-07-17T13:02:40.6826094+00:00"
+    "startedAt": "2026-07-17T13:43:49.0987471+00:00",
+    "completedAt": "2026-07-17T13:49:50.7728183+00:00"
   },
   "on": {
     "cacheMode": "ON",
-    "gitCommit": "24719ef70dd59b0e1dadac53cb9a49aea5046985",
+    "gitCommit": "985c8ccf406ed84e51ec76512b0c1a84b28a8bdb",
     "dirtyWorktree": true,
     "fixtureVersion": "m30-v1",
     "scenarioVersion": "m30-catalog-reads-v1",
@@ -24,7 +24,7 @@
     "hardwareDescription": "Intel Core i7-14700KF (20 cores / 28 logical), 63.7 GiB RAM",
     "warmupSeconds": 60,
     "measuredSeconds": 300,
-    "startedAt": "2026-07-17T13:06:19.9848133+00:00",
-    "completedAt": "2026-07-17T13:12:21.4575968+00:00"
+    "startedAt": "2026-07-17T13:52:15.8938519+00:00",
+    "completedAt": "2026-07-17T13:58:17.7301360+00:00"
   }
 }

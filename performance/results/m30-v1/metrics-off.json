@@ -1,61 +1,85 @@
 {
   "cacheMode": "OFF",
-  "startedAt": "2026-07-17T12:56:39.1308601+00:00",
-  "completedAt": "2026-07-17T13:02:40.6826094+00:00",
+  "serverInfo": {
+    "before": {
+      "serverProcessId": 35888,
+      "activeProfiles": [
+        "local",
+        "performance-fixture",
+        "local-experiment",
+        "cache-off"
+      ],
+      "fixedClock": "2026-07-17T00:00:00Z",
+      "cacheMode": "OFF"
+    },
+    "after": {
+      "serverProcessId": 35888,
+      "activeProfiles": [
+        "local",
+        "performance-fixture",
+        "local-experiment",
+        "cache-off"
+      ],
+      "fixedClock": "2026-07-17T00:00:00Z",
+      "cacheMode": "OFF"
+    }
+  },
+  "startedAt": "2026-07-17T13:43:49.0987471+00:00",
+  "completedAt": "2026-07-17T13:49:50.7728183+00:00",
   "k6ExitCode": 0,
   "measuredScenario": "measured_catalog_reads",
   "measuredSeconds": 300,
   "productId": 10000,
   "jdbcStatementCountMethod": "authorized Actuator whole-run delta; the untagged real total is retained on each endpoint",
-  "jdbcStatementDelta": 100340,
+  "jdbcStatementDelta": 102403,
   "endpointMetrics": [
     {
       "endpoint": "catalog",
-      "p50Millis": 162.83,
-      "p95Millis": 313.342,
-      "throughputPerSecond": 57.49,
-      "errorRate": 0.0,
-      "jdbcStatementCount": 100340,
+      "p50Millis": 142.166,
+      "p95Millis": 273.525,
+      "throughputPerSecond": 58.54,
+      "errorRate": 0.0011958,
+      "jdbcStatementCount": 102403,
       "cacheHitCount": null,
       "cacheMissCount": null,
       "cacheEvictionCount": null,
-      "measuredRequestCount": 17247
+      "measuredRequestCount": 17562
     },
     {
       "endpoint": "events",
-      "p50Millis": 218.951,
-      "p95Millis": 368.748,
-      "throughputPerSecond": 57.49,
-      "errorRate": 0.0,
-      "jdbcStatementCount": 100340,
+      "p50Millis": 196.519,
+      "p95Millis": 328.187,
+      "throughputPerSecond": 58.54,
+      "errorRate": 0.0003416,
+      "jdbcStatementCount": 102403,
       "cacheHitCount": null,
       "cacheMissCount": null,
       "cacheEvictionCount": null,
-      "measuredRequestCount": 17247
+      "measuredRequestCount": 17562
     },
     {
       "endpoint": "popularity",
-      "p50Millis": 246.182,
-      "p95Millis": 397.984,
-      "throughputPerSecond": 57.49,
-      "errorRate": 0.0,
-      "jdbcStatementCount": 100340,
+      "p50Millis": 223.638,
+      "p95Millis": 355.743,
+      "throughputPerSecond": 58.54,
+      "errorRate": 0.0009111,
+      "jdbcStatementCount": 102403,
       "cacheHitCount": null,
       "cacheMissCount": null,
       "cacheEvictionCount": null,
-      "measuredRequestCount": 17247
+      "measuredRequestCount": 17562
     },
     {
       "endpoint": "detail",
-      "p50Millis": 156.013,
-      "p95Millis": 304.797,
-      "throughputPerSecond": 24.173,
-      "errorRate": 0.0,
-      "jdbcStatementCount": 100340,
+      "p50Millis": 136.182,
+      "p95Millis": 266.473,
+      "throughputPerSecond": 24.863,
+      "errorRate": 0.0004022,
+      "jdbcStatementCount": 102403,
       "cacheHitCount": null,
       "cacheMissCount": null,
       "cacheEvictionCount": null,
-      "measuredRequestCount": 7252
+      "measuredRequestCount": 7459
     }
   ],
   "actuator": {
@@ -66,7 +90,7 @@
         "measurements": [
           {
             "statistic": "COUNT",
-            "value": 763.0
+            "value": 103.0
           }
         ],
         "availableTags": [
@@ -94,7 +118,7 @@
         "measurements": [
           {
             "statistic": "COUNT",
-            "value": 101103.0
+            "value": 102506.0
           }
         ],
         "availableTags": [
@@ -113,15 +137,15 @@
         "measurements": [
           {
             "statistic": "COUNT",
-            "value": 54123.0
+            "value": 55091.0
           },
           {
             "statistic": "TOTAL_TIME",
-            "value": 11162.234111099999
+            "value": 10014.634406021
           },
           {
             "statistic": "MAX",
-            "value": 0.7693142
+            "value": 0.787818601
           }
         ],
         "availableTags": [
@@ -149,15 +173,15 @@
           "measurements": [
             {
               "statistic": "COUNT",
-              "value": 18041.0
+              "value": 18357.0
             },
             {
               "statistic": "TOTAL_TIME",
-              "value": 2890.5611486
+              "value": 2505.797522231
             },
             {
               "statistic": "MAX",
-              "value": 0.5996254
+              "value": 0.5073255
             }
           ],
           "availableTags": [
@@ -176,15 +200,15 @@
           "measurements": [
             {
               "statistic": "COUNT",
-              "value": 18041.0
+              "value": 18372.0
             },
             {
               "statistic": "TOTAL_TIME",
-              "value": 3885.7117729
+              "value": 3507.871268721
             },
             {
               "statistic": "MAX",
-              "value": 0.6730239
+              "value": 0.787818601
             }
           ],
           "availableTags": [
@@ -203,15 +227,15 @@
           "measurements": [
             {
               "statistic": "COUNT",
-              "value": 18041.0
+              "value": 18362.0
             },
             {
               "statistic": "TOTAL_TIME",
-              "value": 4385.9611896
+              "value": 4000.965615069
             },
             {
               "statistic": "MAX",
-              "value": 0.7693142
+              "value": 0.5932296
             }
           ],
           "availableTags": [

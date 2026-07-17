@@ -1,15 +1,15 @@
 {
   "schemaVersion": "m30-registration-response-v1",
-  "registeredAt": "2026-07-17T13:15:03.868547Z",
+  "registeredAt": "2026-07-17T14:03:06.8887888+00:00",
   "httpStatus": 201,
   "responseProvenance": "POST /api/admin/performance-measurements",
   "requestArtifact": "performance/results/m30-v1/measurement.json",
-  "requestFileSha256": "0d29d09519d111d0f1cee1221ad2c401f762db8dca9a5f18b57a9490e43e4d63",
+  "requestFileSha256": "73c095ba399e30dfe249840be2cadab91b5c05c880294ceefcdc44ce21518f5e",
   "server": {
-    "runId": 3,
-    "measurementId": "bbd48853-c163-4b38-9ac1-0bc16d499905",
+    "runId": 4,
+    "measurementId": "385b4525-21a2-4f4a-875f-364449f59957",
     "valid": true,
     "comparable": true,
-    "canonicalPayloadSha256": "293922cf37a6eaeb8a47fadff10c10c6dbb012ba636b6b9faeb98535da9e00aa"
+    "canonicalPayloadSha256": "122d6823d9c8fccea5678228dcb8d417ae0be5b8535e02c6a6da7d422c8b791c"
   }
 }

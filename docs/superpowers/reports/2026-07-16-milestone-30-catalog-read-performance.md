@@ -167,3 +167,56 @@ OFF plans were captured at `2026-07-17T13:05:11.2818154Z` and ON plans at `2026-
 ### Corrected registration
 
 The local ADMIN endpoint returned `201 Created`, run ID `3`, `valid=true`, and `comparable=true`, persisting all eight endpoint metrics and eight query records. The request file SHA-256 is `0d29d09519d111d0f1cee1221ad2c401f762db8dca9a5f18b57a9490e43e4d63`; the server's canonical payload SHA-256 is `293922cf37a6eaeb8a47fadff10c10c6dbb012ba636b6b9faeb98535da9e00aa`. Their different meanings are explicit in the sanitized `registration-response.json`; no credential or token is stored.
+
+## 2026-07-17 live provenance 최종 보정
+
+직전 보정 UUID `bbd48853-c163-4b38-9ac1-0bc16d499905`도 역사 기록으로만 남깁니다. 당시 plan PID는 기록했지만 collector가 k6 직전·직후 서버 identity를 인증 수집하지 않았고, SQL 증적도 이전 `query-evidence.json`의 template를 변환해 만들었기 때문입니다. 기존 등록을 새 실행으로 다시 표기하지 않고, `performance/results/m30-v1`을 새 UUID `385b4525-21a2-4f4a-875f-364449f59957`의 실제 재실행으로 교체했습니다.
+
+재실행은 commit `985c8ccf406ed84e51ec76512b0c1a84b28a8bdb`에서 수행했으며 worktree는 증적 파일과 다른 task 보고서 때문에 `dirty=true`였습니다. fixture initializer는 끈 채 기존 DB와 동일 fixture를 사용했고, OFF와 ON 사이에 DB reset이나 fixture 재실행은 없었습니다. 두 모드 모두 fixed clock은 `2026-07-17T00:00:00Z`입니다.
+
+| Mode | Profiles | Collector before / after PID | Plan PID |
+| --- | --- | ---: | ---: |
+| OFF | `local,performance-fixture,local-experiment,cache-off` | 35888 / 35888 | 35888 |
+| ON | `local,performance-fixture,local-experiment` | 56244 / 56244 | 56244 |
+
+Normalizer는 각 모드에서 before/after의 PID, profile, fixed clock, cache mode가 같고 plan capture의 서버 정보까지 세 방향으로 일치하지 않으면 중단합니다.
+
+세 threshold `catalog_read_errors<1%`, `http_req_failed<1%`, `http_req_duration p(95)<1000ms`는 모두 통과했습니다. OFF의 46건 일시적 실패는 숨기거나 제거하지 않고 route sample과 error rate에 그대로 보존했습니다.
+
+| Mode | Requests | RPS | Aggregate p50 | Aggregate p95 | Error rate | JDBC delta |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| OFF | 62,914 | 174.241 | 175.219 ms | 323.813 ms | 0.0731% | 102,403 |
+| ON | 70,583 | 195.481 | 4.784 ms | 91.286 ms | 0% | 94,440 |
+
+| Endpoint | OFF p50 / p95 | ON p50 / p95 | OFF / ON RPS |
+| --- | ---: | ---: | ---: |
+| catalog | 142.166 / 273.525 ms | 3.758 / 21.753 ms | 58.540 / 65.940 |
+| events | 196.519 / 328.187 ms | 1.247 / 13.590 ms | 58.540 / 65.940 |
+| popularity | 223.638 / 355.743 ms | 82.430 / 103.847 ms | 58.540 / 65.940 |
+| detail | 136.182 / 266.473 ms | 10.457 / 22.547 ms | 24.863 / 28.130 |
+
+ON cache counters는 hit 20,600, miss 12, eviction 11입니다.
+
+### Live JDBC trace query evidence
+
+각 모드의 k6가 끝난 뒤 같은 서버에서 Spring JDBC TRACE를 동적으로 켜고 네 HTTP shape를 호출했습니다. Task-local 로그에서 호출 직전·직후 byte range만 읽어 HTTP worker thread의 prepared SQL과 positional bind를 결합했으며 scheduler SQL은 제외했습니다. `TemplatePath`나 과거 증적 변환은 사용하지 않았습니다. Bind 수는 global catalog 3, 나머지 세 shape 4로 검증했습니다.
+
+| Mode | Task-local source | Byte range | Raw range SHA-256 | Sanitized statements SHA-256 |
+| --- | --- | ---: | --- | --- |
+| OFF | `m30-live-sql-off-f84a223504dd45209f8ec3972a5de718.log` | 2,771,421–2,807,953 | `50c4c61285e7e30d7cb17d5f40a14d7f3e57835fe6722d92faa6f74d8cc773bb` | `6640388851099b6463a77f9329624207cc1a3fa60a7fb58a8d66f862044d314b` |
+| ON | `m30-live-sql-on-717146e3a49f4dd6855352ec5f7fbdcf.log` | 9,655,034–9,691,620 | `6c95f9e25581bfe229f89371548db130a016ac697a62992b9c7037964d62e490` | `e91683f12234ebdc78df084d56bd0e0db336922bd78c2b55c75316926d6a4063` |
+
+| Shape | OFF execution | ON execution | Rows | Buffers hit/read |
+| --- | ---: | ---: | ---: | ---: |
+| global catalog | 0.444 ms | 0.406 ms | 21 | 179 / 0 |
+| fixed-store catalog | 0.469 ms | 0.466 ms | 21 | 189 / 0 |
+| active events | 68.986 ms | 66.201 ms | 40 | 107,767 / 0 |
+| popularity | 94.922 ms | 90.830 ms | 8 | 85,817 / 0 |
+
+Reconstructed exact SQL에 대해 `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`을 실행했고 full JSON plan을 보존했습니다. Raw task-local 로그는 경로·운영 로그를 포함할 수 있어 commit하지 않으며, artifact에는 basename, offset, hash와 sanitized statement만 남깁니다.
+
+### 최종 등록
+
+새 payload는 ADMIN endpoint에서 `201 Created`, run ID `4`, `valid=true`, `comparable=true`로 등록됐고 endpoint metrics 8개와 query evidence 8개가 저장됐습니다. Request file SHA-256은 `73c095ba399e30dfe249840be2cadab91b5c05c880294ceefcdc44ce21518f5e`, 서버 canonical payload SHA-256은 `122d6823d9c8fccea5678228dcb8d417ae0be5b8535e02c6a6da7d422c8b791c`입니다. Sanitized 등록 응답에는 credential이나 token을 저장하지 않았습니다.
+
+최종 검증으로 JDK 21 전체 backend suite가 `BUILD SUCCESSFUL`(5분 30초), Node normalizer/live trace parser 23개 테스트가 모두 통과했습니다. PowerShell parser, normalizer 재생 SHA-256, 모든 JSON parse, three-way identity/query/privacy audit와 `git diff --check`도 통과했습니다.

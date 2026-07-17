@@ -188,3 +188,76 @@ ON cache counters는 hit 20,527, miss 12, eviction 11입니다. Sanitized `route
 - collector/capture PowerShell parser 통과
 - 모든 JSON parse, route sample 비식별 필드 검사, 등록 payload 내부 증적 필드 누출 검사, secret/absolute-path/placeholder scan 통과
 - `git diff --check` 통과 후 Task 11 파일만 선별 stage
+
+## 2026-07-17 live provenance 최종 보정
+
+직전 보정 UUID `bbd48853-c163-4b38-9ac1-0bc16d499905`은 collector의 k6 직전·직후 인증 server identity가 없고 SQL이 과거 증적 template에서 파생됐으므로 역사 기록으로만 남깁니다. 기존 등록을 재사용하거나 새 실행으로 다시 표기하지 않고 새 UUID `385b4525-21a2-4f4a-875f-364449f59957`로 완전히 재실행했습니다.
+
+### 구현과 gate
+
+- Collector는 k6 직전과 직후 인증된 `/actuator/info`에서 PID, active profiles, fixed clock, cache mode만 sanitized 저장하며 값이 바뀌면 artifact를 남긴 뒤 실패합니다.
+- Normalizer는 collector before/after와 plan capture의 PID/config가 세 방향으로 일치해야만 등록 payload를 만듭니다.
+- Capture는 `TemplatePath`를 받지 않습니다. 같은 서버의 Spring JDBC TRACE를 동적으로 켠 뒤 네 HTTP shape를 호출하고 task-local 로그 byte range의 prepared SQL과 bind trace를 파싱합니다.
+- Parser는 HTTP thread만 허용하고 scheduler SQL을 제외하며, shape별 bind 계약 3/4/4/4와 typed exact SQL reconstruction을 검증합니다.
+- Exact SQL에 `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`을 실행해 full plan을 저장합니다.
+
+구현 commit은 `985c8ccf406ed84e51ec76512b0c1a84b28a8bdb`이며 측정 당시 `dirty=true`를 그대로 기록했습니다. Fixture initializer는 끈 상태였고 기존 DB를 재사용했으며 OFF와 ON 사이에 DB reset/fixture 재실행은 없었습니다.
+
+| Mode | Profiles | Before / after / plan PID | Fixed clock |
+| --- | --- | ---: | --- |
+| OFF | `local,performance-fixture,local-experiment,cache-off` | 35888 / 35888 / 35888 | `2026-07-17T00:00:00Z` |
+| ON | `local,performance-fixture,local-experiment` | 56244 / 56244 / 56244 | `2026-07-17T00:00:00Z` |
+
+### 최종 실측
+
+세 k6 threshold는 모두 통과했습니다. OFF의 46건 일시적 failure는 제거하지 않고 route sample과 error rate에 보존했습니다.
+
+| Mode | Requests | RPS | Aggregate p50 | Aggregate p95 | Error rate | JDBC delta |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| OFF | 62,914 | 174.241 | 175.219 ms | 323.813 ms | 0.0731% | 102,403 |
+| ON | 70,583 | 195.481 | 4.784 ms | 91.286 ms | 0% | 94,440 |
+
+| Endpoint | OFF p50 / p95 | ON p50 / p95 | OFF / ON RPS |
+| --- | ---: | ---: | ---: |
+| catalog | 142.166 / 273.525 ms | 3.758 / 21.753 ms | 58.540 / 65.940 |
+| events | 196.519 / 328.187 ms | 1.247 / 13.590 ms | 58.540 / 65.940 |
+| popularity | 223.638 / 355.743 ms | 82.430 / 103.847 ms | 58.540 / 65.940 |
+| detail | 136.182 / 266.473 ms | 10.457 / 22.547 ms | 24.863 / 28.130 |
+
+ON cache counters는 hit 20,600, miss 12, eviction 11입니다.
+
+### Live query provenance
+
+| Mode | Capture | Byte range | Raw SHA-256 | Sanitized SHA-256 |
+| --- | --- | ---: | --- | --- |
+| OFF | `2026-07-17T13:51:18.3075622+00:00` | 2,771,421–2,807,953 | `50c4c61285e7e30d7cb17d5f40a14d7f3e57835fe6722d92faa6f74d8cc773bb` | `6640388851099b6463a77f9329624207cc1a3fa60a7fb58a8d66f862044d314b` |
+| ON | `2026-07-17T14:00:03.1022613+00:00` | 9,655,034–9,691,620 | `6c95f9e25581bfe229f89371548db130a016ac697a62992b9c7037964d62e490` | `e91683f12234ebdc78df084d56bd0e0db336922bd78c2b55c75316926d6a4063` |
+
+| Shape | OFF / ON execution | Rows | Buffers hit/read | Binds |
+| --- | ---: | ---: | ---: | ---: |
+| global catalog | 0.444 / 0.406 ms | 21 | 179 / 0 | 3 |
+| fixed-store catalog | 0.469 / 0.466 ms | 21 | 189 / 0 | 4 |
+| active events | 68.986 / 66.201 ms | 40 | 107,767 / 0 | 4 |
+| popularity | 94.922 / 90.830 ms | 8 | 85,817 / 0 | 4 |
+
+Task-local raw 로그는 commit하지 않고 source basename, offsets, raw range hash와 sanitized statement hash만 저장했습니다. Artifact에는 로컬 절대 경로가 없습니다.
+
+### 등록
+
+- HTTP status / run ID: `201 Created` / `4`
+- measurement ID: `385b4525-21a2-4f4a-875f-364449f59957`
+- validation: `valid=true`, `comparable=true`
+- persisted: endpoint metrics 8, query evidence 8
+- request file SHA-256: `73c095ba399e30dfe249840be2cadab91b5c05c880294ceefcdc44ce21518f5e`
+- server canonical payload SHA-256: `122d6823d9c8fccea5678228dcb8d417ae0be5b8535e02c6a6da7d422c8b791c`
+
+두 hash는 계산 대상이 다르며 sanitized `registration-response.json`에는 credential과 token을 저장하지 않았습니다.
+
+### 최종 검증
+
+- JDK 21 backend 전체 `gradlew test --no-daemon`: `BUILD SUCCESSFUL` (5분 30초)
+- Node normalizer/live trace parser: 23개 통과
+- Collector/capture PowerShell parser 통과
+- Normalizer 재생 request SHA-256이 등록 파일 hash와 일치
+- 모든 JSON parse와 collector-before/after/plan identity, live SQL/bind/trace, payload field stripping, route sample 비식별 audit 통과
+- Task 11 파일의 secret/absolute-path/placeholder scan과 `git diff --check` 통과
