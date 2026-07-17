@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.Timestamp;
@@ -48,6 +49,12 @@ class OperationalProjectionCoordinatorTest extends IntegrationTestSupport {
 
     @Autowired
     private SecondTestProjectionHandler secondHandler;
+
+    @MockitoBean(name = "storeMetricEventHandler")
+    private OperationalEventHandler storeMetricEventHandler;
+
+    @MockitoBean(name = "campaignOrderMetricEventHandler")
+    private OperationalEventHandler campaignOrderMetricEventHandler;
 
     private long generationId;
 
