@@ -270,8 +270,7 @@ public class ProjectionBootstrapRepository {
                        CASE WHEN p.sales_policy = 'STOCK_MANAGED'
                             THEN i.total_quantity - i.reserved_quantity END,
                        CASE WHEN p.sales_policy = 'STOCK_MANAGED'
-                            THEN i.total_quantity - i.reserved_quantity
-                                 <= COALESCE(p.low_stock_threshold, 5)
+                            THEN i.total_quantity - i.reserved_quantity <= 5
                             ELSE FALSE END,
                        0,
                        CASE WHEN p.sales_policy = 'STOCK_MANAGED'

@@ -8,6 +8,7 @@ import java.time.Instant;
 public class ProjectionGenerationService {
 
     private static final long EVENT_WRITER_LOCK_KEY = 310031L;
+    private static final long COLD_START_LOCK_KEY = 310032L;
 
     private final ProjectionBootstrapRepository bootstrapRepository;
     private final OperationalProjectionRepository repository;
@@ -28,7 +29,13 @@ public class ProjectionGenerationService {
         if (activeGeneration.isPresent()) {
             return activeGeneration.getAsLong();
         }
-        return rebuild(null, now).generationId();
+        return repository.withCoordinationAdvisoryLock(COLD_START_LOCK_KEY, () -> {
+            var initializedGeneration = repository.findActiveGenerationId();
+            if (initializedGeneration.isPresent()) {
+                return initializedGeneration.getAsLong();
+            }
+            return rebuild(null, now).generationId();
+        });
     }
 
     public ProjectionRebuildResult rebuild(Long actorMemberId, Instant now) {

@@ -8,10 +8,13 @@ import com.sweet.market.operations.event.OperationalEventType;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.support.JdbcUtils;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -22,12 +25,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Repository
 public class OperationalProjectionRepository {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final DataSource dataSource;
     private final TransactionTemplate transaction;
 
     public OperationalProjectionRepository(
@@ -37,6 +42,7 @@ public class OperationalProjectionRepository {
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
+        this.dataSource = dataSource;
         this.transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
     }
 
@@ -167,6 +173,31 @@ public class OperationalProjectionRepository {
                     Map.of("lockKey", lockKey), Object.class);
             action.run();
         });
+    }
+
+    public <T> T withCoordinationAdvisoryLock(long lockKey, Supplier<T> action) {
+        Connection connection = null;
+        try {
+            connection = dataSource.getConnection();
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT pg_advisory_xact_lock(?)")) {
+                statement.setLong(1, lockKey);
+                statement.execute();
+            }
+            try {
+                T result = action.get();
+                connection.commit();
+                return result;
+            } catch (RuntimeException | Error exception) {
+                connection.rollback();
+                throw exception;
+            }
+        } catch (SQLException exception) {
+            throw new IllegalStateException("Failed to coordinate projection generation", exception);
+        } finally {
+            JdbcUtils.closeConnection(connection);
+        }
     }
 
     public void activateAtomically(long generationId, Instant activatedAt) {

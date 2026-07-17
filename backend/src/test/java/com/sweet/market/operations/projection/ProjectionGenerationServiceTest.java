@@ -22,6 +22,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
@@ -89,8 +91,15 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
     @Test
     void 초기_bootstrap은_cutoff까지_최근90일_성공사실을_집계한다() {
         CommerceFixture fixture = createCommerceFixture();
+        Instant windowStart = NOW.atZone(KST)
+                .minusDays(89)
+                .toLocalDate()
+                .atStartOfDay(KST)
+                .toInstant();
         createOrder(fixture, NOW.minusSeconds(1_800), NOW.minusSeconds(900), 1_500L, 700L);
-        createOrder(fixture, NOW.minusSeconds(100L * 86_400), null, 900L, 0L);
+        createOrder(fixture, windowStart, null, 0L, 0L);
+        createOrder(fixture, windowStart.minusSeconds(1), null, 900L, 0L);
+        createOrder(fixture, NOW, null, 900L, 0L);
         insertOutbox("INVENTORY_OUTCOME", NOW.minusSeconds(60), """
                 {"action":"INITIALIZE","productId":%d,"storeId":%d,
                  "salesPolicy":"STOCK_MANAGED","availableQuantity":7,"soldOut":false}
@@ -109,7 +118,7 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
                 .containsEntry("tracking_started_at", Timestamp.from(NOW))
                 .containsEntry("bootstrap_high_water_id", expectedHighWater);
         assertThat(metricSum("store_metric_hourly", snapshot.generationId(), "order_success_count"))
-                .isOne();
+                .isEqualTo(2L);
         assertThat(metricSum("store_metric_hourly", snapshot.generationId(), "promotion_applied_amount"))
                 .isEqualTo(1_500L);
         assertThat(metricSum("store_metric_hourly", snapshot.generationId(), "promotion_realized_amount"))
@@ -119,7 +128,7 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
         assertThat(metricSum("store_metric_hourly", snapshot.generationId(), "coupon_realized_amount"))
                 .isEqualTo(700L);
         assertThat(campaignMetricSum(snapshot.generationId(), "PROMOTION", "order_success_count"))
-                .isOne();
+                .isEqualTo(2L);
         assertThat(campaignMetricSum(snapshot.generationId(), "COUPON", "claim_success_count"))
                 .isOne();
         assertThat(jdbcTemplate.queryForObject("""
@@ -158,15 +167,59 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 동시_애플리케이션_시작은_하나의_generation과_같은_tracking_시각을_사용한다() throws Exception {
+        Instant firstCutoff = NOW.minusSeconds(60);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try (Connection lockHolder = dataSource.getConnection()) {
+            advisoryLock(lockHolder, true);
+            try {
+                Future<Long> first = executor.submit(() ->
+                        service.ensureActiveGeneration(firstCutoff));
+                awaitColdStartWaiters(1);
+                insertOutbox("CAMPAIGN_COMMAND_COMPLETED", NOW.minusSeconds(30), """
+                        {"campaignKind":"COUPON","campaignId":77,
+                         "ownerType":"STORE","ownerStoreId":10,"actorMemberId":1,
+                         "command":"CREATE","beforeSummary":null,"afterSummary":{}}
+                        """, 77L, 10L);
+                Future<Long> second = executor.submit(() ->
+                        service.ensureActiveGeneration(NOW));
+                awaitColdStartWaiters(2);
+
+                advisoryLock(lockHolder, false);
+
+                long firstGenerationId = first.get(10, TimeUnit.SECONDS);
+                long secondGenerationId = second.get(10, TimeUnit.SECONDS);
+                assertThat(secondGenerationId).isEqualTo(firstGenerationId);
+                assertThat(activeGenerationId()).isEqualTo(firstGenerationId);
+                assertThat(jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM projection_generations", Long.class)).isOne();
+                assertThat(generation(firstGenerationId).get("tracking_started_at"))
+                        .isEqualTo(Timestamp.from(firstCutoff));
+                assertThat(jdbcTemplate.queryForObject("""
+                        SELECT COUNT(*) FROM campaign_audit_projection
+                        WHERE generation_id = ? AND campaign_id = 77
+                        """, Long.class, firstGenerationId)).isOne();
+            } finally {
+                advisoryLock(lockHolder, false);
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void bootstrap_high_water이후_event를_replay해_배포중_변경을_놓치지_않는다() throws Exception {
         long previousId = service.ensureActiveGeneration(NOW.minusSeconds(120));
         CommerceFixture fixture = createCommerceFixture();
         CountDownLatch writerReady = new CountDownLatch(1);
+        CountDownLatch appendAfterHighWater = new CountDownLatch(1);
+        CountDownLatch afterHighWaterInserted = new CountDownLatch(1);
         CountDownLatch releaseWriter = new CountDownLatch(1);
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
-            Future<UUID> writer = executor.submit(() -> writeOrderAndEventWhileHoldingSharedLock(
-                    fixture, writerReady, releaseWriter));
+            Future<WriterEvents> writer = executor.submit(() -> writeOrderAndEventsWhileHoldingSharedLock(
+                    fixture, writerReady, appendAfterHighWater,
+                    afterHighWaterInserted, releaseWriter));
             assertThat(writerReady.await(10, TimeUnit.SECONDS)).isTrue();
             insertOutbox("INVENTORY_OUTCOME", NOW.minusSeconds(20), """
                     {"action":"INITIALIZE","productId":%d,"storeId":%d,
@@ -176,19 +229,19 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
 
             Future<ProjectionRebuildResult> rebuild = executor.submit(() -> service.rebuild(1L, NOW));
             long buildingId = awaitBuildingGeneration(previousId);
+            appendAfterHighWater.countDown();
+            assertThat(afterHighWaterInserted.await(10, TimeUnit.SECONDS)).isTrue();
             releaseWriter.countDown();
 
-            UUID eventId = writer.get(10, TimeUnit.SECONDS);
+            WriterEvents events = writer.get(10, TimeUnit.SECONDS);
             ProjectionRebuildResult result = rebuild.get(10, TimeUnit.SECONDS);
             assertThat(result.generationId()).isEqualTo(buildingId);
             assertThat(metricSum("store_metric_hourly", result.generationId(), "order_success_count"))
-                    .isOne();
-            assertThat(jdbcTemplate.queryForObject("""
-                    SELECT COUNT(*) FROM projection_event_receipts
-                    WHERE generation_id = ? AND projection_name = 'store-commerce-metrics'
-                      AND event_id = ?
-                    """, Long.class, result.generationId(), eventId)).isOne();
+                    .isEqualTo(2L);
+            assertStoreReceipt(result.generationId(), events.lateCommittedEventId());
+            assertStoreReceipt(result.generationId(), events.afterHighWaterEventId());
         } finally {
+            appendAfterHighWater.countDown();
             releaseWriter.countDown();
             executor.shutdownNow();
         }
@@ -314,7 +367,7 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
             Store store = storeRepository.save(Store.createPersonal(seller, "운영 상점", "소개"));
             Product product = productRepository.saveAndFlush(Product.create(
                     store, "운영 상품", "설명", 10_000L,
-                    ProductSalesPolicy.STOCK_MANAGED, 5, 7));
+                    ProductSalesPolicy.STOCK_MANAGED, 10, 7));
             inventoryService.initialize(product, 7, seller.getId());
             long promotionId = insertPromotionCampaign(store.getId());
             long couponCampaignId = insertCouponCampaign(store.getId());
@@ -354,9 +407,11 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
         });
     }
 
-    private UUID writeOrderAndEventWhileHoldingSharedLock(
+    private WriterEvents writeOrderAndEventsWhileHoldingSharedLock(
             CommerceFixture fixture,
             CountDownLatch writerReady,
+            CountDownLatch appendAfterHighWater,
+            CountDownLatch afterHighWaterInserted,
             CountDownLatch releaseWriter
     ) {
         TransactionTemplate transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
@@ -372,7 +427,7 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
                     RETURNING id
                     """, Long.class, fixture.buyerId(), fixture.productId(), fixture.sellerId(),
                     LocalDateTime.ofInstant(NOW.minusSeconds(30), KST));
-            UUID eventId = insertOutbox("PURCHASE_OUTCOME", NOW.minusSeconds(30), """
+            UUID lateCommittedEventId = insertOutbox("PURCHASE_OUTCOME", NOW.minusSeconds(30), """
                     {"result":"SUCCESS","reason":"NONE","orderId":%d,
                      "storeId":%d,"productId":%d,"promotionCampaignId":null,
                      "couponCampaignId":null,"promotionDiscountAmount":0,
@@ -380,9 +435,50 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
                     """.formatted(orderId, fixture.storeId(), fixture.productId()),
                     orderId, fixture.storeId());
             writerReady.countDown();
+            await(appendAfterHighWater);
+            UUID afterHighWaterEventId = insertOutbox("PURCHASE_OUTCOME", NOW.minusSeconds(10), """
+                    {"result":"SUCCESS","reason":"NONE","orderId":%d,
+                     "storeId":%d,"productId":%d,"promotionCampaignId":null,
+                     "couponCampaignId":null,"promotionDiscountAmount":0,
+                     "couponDiscountAmount":0}
+                    """.formatted(orderId + 1, fixture.storeId(), fixture.productId()),
+                    orderId + 1, fixture.storeId());
+            afterHighWaterInserted.countDown();
             await(releaseWriter);
-            return eventId;
+            return new WriterEvents(lateCommittedEventId, afterHighWaterEventId);
         });
+    }
+
+    private void assertStoreReceipt(long generationId, UUID eventId) {
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM projection_event_receipts
+                WHERE generation_id = ? AND projection_name = 'store-commerce-metrics'
+                  AND event_id = ?
+                """, Long.class, generationId, eventId)).isOne();
+    }
+
+    private void advisoryLock(Connection connection, boolean acquire) throws Exception {
+        String function = acquire ? "pg_advisory_lock" : "pg_advisory_unlock";
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT " + function + "(?)")) {
+            statement.setLong(1, 310032L);
+            statement.execute();
+        }
+    }
+
+    private void awaitColdStartWaiters(long expected) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            Long waiters = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*) FROM pg_locks
+                    WHERE locktype = 'advisory' AND NOT granted AND objid = 310032
+                    """, Long.class);
+            if (waiters != null && waiters >= expected) {
+                return;
+            }
+            Thread.sleep(20);
+        }
+        throw new AssertionError("cold-start advisory lock 대기자 확인 시간이 초과되었습니다.");
     }
 
     private void holdSharedLock(CountDownLatch lockReady, CountDownLatch releaseLock) {
@@ -637,6 +733,12 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
             long promotionId,
             long couponCampaignId,
             long memberCouponId
+    ) {
+    }
+
+    private record WriterEvents(
+            UUID lateCommittedEventId,
+            UUID afterHighWaterEventId
     ) {
     }
 }

@@ -44,6 +44,34 @@ Focused result: 8 tests, 2 expected assertion failures reproducing those defects
 - Focused Task 7 result: 8/8 passed, `BUILD SUCCESSFUL`.
 - Read-only re-review: no Critical or Important findings; verdict `Ready`.
 
+### Follow-up Review RED
+
+A later correctness review identified two additional issues. Production code was left unchanged while the focused test was extended with:
+
+1. Two concurrent cold-start callers queued behind a real PostgreSQL advisory lock, with an audit event between their attempted cutoffs.
+2. A stock-managed product with commerce low-stock threshold `10` and available quantity `7`, which must still use the fixed M31 threshold `<= 5`.
+
+The same test update also covered an ordinary outbox ID above bootstrap high-water and exact KST lower-bound/cutoff behavior.
+
+Command:
+
+```powershell
+.\gradlew.bat test --tests 'com.sweet.market.operations.projection.ProjectionGenerationServiceTest'
+```
+
+Exact RED result: `9 tests completed, 2 failed`.
+
+- `동시_애플리케이션_시작은_하나의_generation과_같은_tracking_시각을_사용한다`: timed out because no caller waited on the dedicated cold-start advisory lock.
+- `초기_bootstrap은_cutoff까지_최근90일_성공사실을_집계한다`: classified quantity `7` as low stock from the product threshold `10`, instead of the fixed M31 threshold `5`.
+
+### Follow-up Review GREEN
+
+- Added a dedicated PostgreSQL transaction advisory lock `310032` around the cold-start re-check and initialization. It uses a separate JDBC connection, so the long bootstrap does not hold the `310031` event-writer cutover lock or alter bootstrap transaction isolation.
+- Re-checked ACTIVE generation after acquiring `310032`, so concurrent callers return the same generation and preserve the first tracking start.
+- Changed inventory bootstrap low-stock classification to `available_quantity <= 5`, matching `InventoryPressureEventHandler`.
+- Focused result: `BUILD SUCCESSFUL`, 9/9 tests passed.
+- Projection package result: `BUILD SUCCESSFUL`.
+
 ## Verification
 
 ```powershell
@@ -51,6 +79,7 @@ Focused result: 8 tests, 2 expected assertion failures reproducing those defects
 ```
 
 - Result: `BUILD SUCCESSFUL`, 8 tests passed.
+- Follow-up result: `BUILD SUCCESSFUL`, 9 tests passed.
 
 ```powershell
 .\gradlew.bat test --tests 'com.sweet.market.operations.projection.*'
@@ -70,6 +99,8 @@ Focused result: 8 tests, 2 expected assertion failures reproducing those defects
 
 - Result: `BUILD SUCCESSFUL in 4m 39s`.
 - XML totals: 117 suite files, 785 tests, 0 failures, 0 errors, 0 skipped.
+- Follow-up fresh result: `BUILD SUCCESSFUL in 5m 2s`.
+- Follow-up XML totals: 117 suite files, 786 tests, 0 failures, 0 errors, 0 skipped.
 
 ```powershell
 git diff --check
@@ -99,5 +130,5 @@ Modified:
 ## Concerns / Notes
 
 - Bootstrap visibility tracking adds one generation-scoped receipt per retained outbox row visible at the snapshot. V15 cascade deletion and the seven-day retired-generation cleanup bound this data to retained generations.
-- The 90-day window implementation uses the required KST-derived lower bound and half-open cutoff. Review found no implementation defect; exact boundary instants are not separately asserted beyond the broader cutoff/window test.
+- The 90-day window test now asserts inclusion at the exact KST-derived lower bound and exclusion one second before it and exactly at cutoff.
 - Pre-existing uncommitted changes in Task 2–4 report files were preserved and excluded from this task's commit.
