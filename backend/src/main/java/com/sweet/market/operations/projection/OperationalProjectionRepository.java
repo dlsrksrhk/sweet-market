@@ -7,8 +7,11 @@ import com.sweet.market.operations.event.OperationalEvent;
 import com.sweet.market.operations.event.OperationalEventType;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import javax.sql.DataSource;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -16,6 +19,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
 
@@ -24,13 +28,16 @@ public class OperationalProjectionRepository {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final TransactionTemplate transaction;
 
     public OperationalProjectionRepository(
             NamedParameterJdbcTemplate jdbcTemplate,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            DataSource dataSource
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.objectMapper = objectMapper;
+        this.transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
     }
 
     public OptionalLong findActiveGenerationId() {
@@ -43,6 +50,166 @@ public class OperationalProjectionRepository {
             return OptionalLong.empty();
         }
         return OptionalLong.of(generationIds.getFirst());
+    }
+
+    public Optional<Instant> findActiveTrackingStartedAt() {
+        List<Instant> trackingStartedAt = jdbcTemplate.query("""
+                SELECT tracking_started_at
+                FROM projection_generations
+                WHERE status = 'ACTIVE'
+                """, Map.of(), (resultSet, rowNumber) ->
+                resultSet.getTimestamp("tracking_started_at").toInstant());
+        return trackingStartedAt.stream().findFirst();
+    }
+
+    public long findBootstrapHighWaterId(long generationId) {
+        Long highWaterId = jdbcTemplate.queryForObject("""
+                SELECT bootstrap_high_water_id
+                FROM projection_generations
+                WHERE id = :generationId
+                """, Map.of("generationId", generationId), Long.class);
+        if (highWaterId == null) {
+            throw new IllegalStateException("Projection generation not found: " + generationId);
+        }
+        return highWaterId;
+    }
+
+    public List<OperationalEventEnvelopeRow> findNonDerivableEvents(
+            Instant trackingStartedAt,
+            long throughOutboxId
+    ) {
+        return jdbcTemplate.query("""
+                SELECT id, event_id, event_type, schema_version, aggregate_type,
+                       aggregate_id, aggregate_version, store_id, campaign_id,
+                       partition_key, occurred_at, payload::text AS payload, attempt_count
+                FROM operational_event_outbox
+                WHERE id <= :throughOutboxId
+                  AND occurred_at >= :trackingStartedAt
+                  AND (
+                      event_type = 'CAMPAIGN_COMMAND_COMPLETED'
+                      OR (event_type = 'COUPON_CLAIM_OUTCOME'
+                          AND payload ->> 'result' = 'FAILURE')
+                      OR event_type = 'COUPON_REDEMPTION_OUTCOME'
+                      OR (event_type = 'PURCHASE_OUTCOME'
+                          AND payload ->> 'result' = 'FAILURE')
+                      OR (event_type = 'ORDER_STATUS_CHANGED'
+                          AND payload ->> 'result' IN ('CANCELED', 'REFUNDED'))
+                      OR (event_type = 'INVENTORY_OUTCOME'
+                          AND payload ->> 'action' IN ('RESERVATION_FAILED', 'SOLD_OUT'))
+                  )
+                ORDER BY id
+                """, new MapSqlParameterSource()
+                .addValue("throughOutboxId", throughOutboxId)
+                .addValue("trackingStartedAt", Timestamp.from(trackingStartedAt)),
+                (resultSet, rowNumber) -> envelope(resultSet));
+    }
+
+    public List<OperationalEventEnvelopeRow> findEventsAfterOutboxId(long outboxId) {
+        return jdbcTemplate.query("""
+                SELECT id, event_id, event_type, schema_version, aggregate_type,
+                       aggregate_id, aggregate_version, store_id, campaign_id,
+                       partition_key, occurred_at, payload::text AS payload, attempt_count
+                FROM operational_event_outbox
+                WHERE id > :outboxId
+                ORDER BY id
+                """, Map.of("outboxId", outboxId),
+                (resultSet, rowNumber) -> envelope(resultSet));
+    }
+
+    public List<OperationalEventEnvelopeRow> findLateCommittedEvents(
+            long generationId,
+            long throughOutboxId
+    ) {
+        return jdbcTemplate.query("""
+                SELECT outbox.id, outbox.event_id, outbox.event_type,
+                       outbox.schema_version, outbox.aggregate_type,
+                       outbox.aggregate_id, outbox.aggregate_version,
+                       outbox.store_id, outbox.campaign_id, outbox.partition_key,
+                       outbox.occurred_at, outbox.payload::text AS payload,
+                       outbox.attempt_count
+                FROM operational_event_outbox outbox
+                WHERE outbox.id <= :throughOutboxId
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM projection_event_receipts receipt
+                      WHERE receipt.generation_id = :generationId
+                        AND receipt.projection_name = 'bootstrap-outbox-visibility'
+                        AND receipt.event_id = outbox.event_id
+                  )
+                ORDER BY outbox.id
+                """, new MapSqlParameterSource()
+                .addValue("generationId", generationId)
+                .addValue("throughOutboxId", throughOutboxId),
+                (resultSet, rowNumber) -> envelope(resultSet));
+    }
+
+    public void verifyNoDuplicateReceipts(long generationId) {
+        Long duplicateCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM (
+                    SELECT projection_name, event_id
+                    FROM projection_event_receipts
+                    WHERE generation_id = :generationId
+                    GROUP BY projection_name, event_id
+                    HAVING COUNT(*) > 1
+                ) duplicates
+                """, Map.of("generationId", generationId), Long.class);
+        if (duplicateCount != null && duplicateCount > 0) {
+            throw new IllegalStateException(
+                    "Duplicate projection receipts for generation: " + generationId);
+        }
+    }
+
+    public void withExclusiveAdvisoryLock(long lockKey, Runnable action) {
+        transaction.executeWithoutResult(status -> {
+            jdbcTemplate.queryForObject(
+                    "SELECT pg_advisory_xact_lock(:lockKey)",
+                    Map.of("lockKey", lockKey), Object.class);
+            action.run();
+        });
+    }
+
+    public void activateAtomically(long generationId, Instant activatedAt) {
+        Timestamp timestamp = Timestamp.from(activatedAt);
+        jdbcTemplate.update("""
+                UPDATE projection_generations
+                SET status = 'RETIRED', retired_at = :activatedAt
+                WHERE status = 'ACTIVE'
+                """, Map.of("activatedAt", timestamp));
+        int activated = jdbcTemplate.update("""
+                UPDATE projection_generations
+                SET status = 'ACTIVE', activated_at = :activatedAt
+                WHERE id = :generationId AND status = 'BUILDING'
+                """, new MapSqlParameterSource()
+                .addValue("generationId", generationId)
+                .addValue("activatedAt", timestamp));
+        if (activated != 1) {
+            throw new IllegalStateException(
+                    "Building projection generation not found: " + generationId);
+        }
+    }
+
+    public void markBuildingFailed(long generationId) {
+        jdbcTemplate.update("""
+                UPDATE projection_generations
+                SET status = 'FAILED'
+                WHERE id = :generationId AND status = 'BUILDING'
+                """, Map.of("generationId", generationId));
+    }
+
+    public int deleteExpiredRetiredGenerations(Instant cutoff) {
+        return jdbcTemplate.update("""
+                DELETE FROM projection_generations generation
+                WHERE generation.status = 'RETIRED'
+                  AND generation.retired_at < :cutoff
+                  AND generation.id <> (
+                      SELECT newest.id
+                      FROM projection_generations newest
+                      WHERE newest.status = 'RETIRED'
+                      ORDER BY newest.retired_at DESC, newest.id DESC
+                      LIMIT 1
+                  )
+                """, Map.of("cutoff", Timestamp.from(cutoff)));
     }
 
     public List<OperationalEventEnvelopeRow> lockNextBatch(Instant now, int batchSize) {

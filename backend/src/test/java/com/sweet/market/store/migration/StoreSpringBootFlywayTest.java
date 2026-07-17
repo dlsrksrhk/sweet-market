@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
                 "spring.sql.init.mode=never",
                 "spring.batch.jdbc.initialize-schema=never",
                 "market.scheduling.enabled=false",
+                "market.operations-projector.enabled=false",
                 "jwt.secret=sweet-market-test-secret-key-32bytes-minimum"
         }
 )
