@@ -1,9 +1,9 @@
 {
-  "measurementId": "3a59bcfe-afdd-4d3e-8e1c-64e8bf4adc08",
+  "measurementId": "bbd48853-c163-4b38-9ac1-0bc16d499905",
   "artifactDirectory": "performance/results/m30-v1",
   "off": {
     "cacheMode": "OFF",
-    "gitCommit": "492b216e60d0c14fd517a8387f5f4bfc1bf95775",
+    "gitCommit": "24719ef70dd59b0e1dadac53cb9a49aea5046985",
     "dirtyWorktree": true,
     "fixtureVersion": "m30-v1",
     "scenarioVersion": "m30-catalog-reads-v1",
@@ -11,17 +11,17 @@
     "hardwareDescription": "Intel Core i7-14700KF (20 cores / 28 logical), 63.7 GiB RAM",
     "warmupSeconds": 60,
     "measuredSeconds": 300,
-    "startedAt": "2026-07-17T20:01:00.7513607+09:00",
-    "completedAt": "2026-07-17T20:07:02.396045+09:00",
+    "startedAt": "2026-07-17T12:56:39.1308601+00:00",
+    "completedAt": "2026-07-17T13:02:40.6826094+00:00",
     "endpointMetrics": [
       {
         "cacheMode": "OFF",
         "endpoint": "catalog",
-        "p50Millis": 235.078,
-        "p95Millis": 366.819,
-        "throughputPerSecond": 54.093,
+        "p50Millis": 162.83,
+        "p95Millis": 313.342,
+        "throughputPerSecond": 57.49,
         "errorRate": 0,
-        "jdbcStatementCount": 94477,
+        "jdbcStatementCount": 100340,
         "cacheHitCount": null,
         "cacheMissCount": null,
         "cacheEvictionCount": null
@@ -29,11 +29,11 @@
       {
         "cacheMode": "OFF",
         "endpoint": "events",
-        "p50Millis": 293.877,
-        "p95Millis": 425.403,
-        "throughputPerSecond": 54.093,
+        "p50Millis": 218.951,
+        "p95Millis": 368.748,
+        "throughputPerSecond": 57.49,
         "errorRate": 0,
-        "jdbcStatementCount": 94477,
+        "jdbcStatementCount": 100340,
         "cacheHitCount": null,
         "cacheMissCount": null,
         "cacheEvictionCount": null
@@ -41,11 +41,11 @@
       {
         "cacheMode": "OFF",
         "endpoint": "popularity",
-        "p50Millis": 322.281,
-        "p95Millis": 454.57,
-        "throughputPerSecond": 54.093,
+        "p50Millis": 246.182,
+        "p95Millis": 397.984,
+        "throughputPerSecond": 57.49,
         "errorRate": 0,
-        "jdbcStatementCount": 94477,
+        "jdbcStatementCount": 100340,
         "cacheHitCount": null,
         "cacheMissCount": null,
         "cacheEvictionCount": null
@@ -53,11 +53,11 @@
       {
         "cacheMode": "OFF",
         "endpoint": "detail",
-        "p50Millis": 230.039,
-        "p95Millis": 358.929,
-        "throughputPerSecond": 23.123,
+        "p50Millis": 156.013,
+        "p95Millis": 304.797,
+        "throughputPerSecond": 24.173,
         "errorRate": 0,
-        "jdbcStatementCount": 94477,
+        "jdbcStatementCount": 100340,
         "cacheHitCount": null,
         "cacheMissCount": null,
         "cacheEvictionCount": null
@@ -67,9 +67,9 @@
       {
         "cacheMode": "OFF",
         "queryShape": "GLOBAL_CATALOG",
-        "bindSummary": "limitPlusOne=21",
-        "planSummary": "Limit  (cost=17.26..729.39 rows=21 width=663) (actual time=0.091..0.295 rows=21 loops=1); Execution Time: 0.498 ms",
-        "executionMillis": 0.498,
+        "bindSummary": "now=2026-07-17T00:00:00Z, limitPlusOne=21",
+        "planSummary": "Limit; Planning Time: 2.412 ms; Execution Time: 0.426 ms",
+        "executionMillis": 0.426,
         "actualRows": 21,
         "sharedHitBlocks": 179,
         "sharedReadBlocks": 0
@@ -77,9 +77,9 @@
       {
         "cacheMode": "OFF",
         "queryShape": "FIXED_STORE_CATALOG",
-        "bindSummary": "storeId=1, limitPlusOne=21",
-        "planSummary": "Limit  (cost=17.40..618.12 rows=21 width=663) (actual time=0.099..0.331 rows=21 loops=1); Execution Time: 0.467 ms",
-        "executionMillis": 0.467,
+        "bindSummary": "now=2026-07-17T00:00:00Z, storeId=1, limitPlusOne=21",
+        "planSummary": "Limit; Planning Time: 2.4 ms; Execution Time: 0.473 ms",
+        "executionMillis": 0.473,
         "actualRows": 21,
         "sharedHitBlocks": 189,
         "sharedReadBlocks": 0
@@ -87,9 +87,9 @@
       {
         "cacheMode": "OFF",
         "queryShape": "ACTIVE_EVENTS",
-        "bindSummary": "no binds",
-        "planSummary": "Sort  (cost=4463.65..4463.65 rows=2 width=961) (actual time=68.082..68.091 rows=40 loops=1); Execution Time: 68.384 ms",
-        "executionMillis": 68.384,
+        "bindSummary": "now=2026-07-17T00:00:00Z",
+        "planSummary": "Sort; Planning Time: 3.259 ms; Execution Time: 68.89 ms",
+        "executionMillis": 68.89,
         "actualRows": 40,
         "sharedHitBlocks": 107767,
         "sharedReadBlocks": 0
@@ -97,9 +97,9 @@
       {
         "cacheMode": "OFF",
         "queryShape": "POPULARITY",
-        "bindSummary": "since=2026-07-10T20:19:54.632851900+09:00",
-        "planSummary": "Limit  (cost=9101.75..9101.77 rows=8 width=671) (actual time=91.994..92.002 rows=8 loops=1); Execution Time: 92.745 ms",
-        "executionMillis": 92.745,
+        "bindSummary": "since=2026-07-10T00:00:00Z, now=2026-07-17T00:00:00Z",
+        "planSummary": "Limit; Planning Time: 3.032 ms; Execution Time: 96.506 ms",
+        "executionMillis": 96.506,
         "actualRows": 8,
         "sharedHitBlocks": 85817,
         "sharedReadBlocks": 0
@@ -108,7 +108,7 @@
   },
   "on": {
     "cacheMode": "ON",
-    "gitCommit": "492b216e60d0c14fd517a8387f5f4bfc1bf95775",
+    "gitCommit": "24719ef70dd59b0e1dadac53cb9a49aea5046985",
     "dirtyWorktree": true,
     "fixtureVersion": "m30-v1",
     "scenarioVersion": "m30-catalog-reads-v1",
@@ -116,17 +116,17 @@
     "hardwareDescription": "Intel Core i7-14700KF (20 cores / 28 logical), 63.7 GiB RAM",
     "warmupSeconds": 60,
     "measuredSeconds": 300,
-    "startedAt": "2026-07-17T20:11:13.7641651+09:00",
-    "completedAt": "2026-07-17T20:17:15.2646691+09:00",
+    "startedAt": "2026-07-17T13:06:19.9848133+00:00",
+    "completedAt": "2026-07-17T13:12:21.4575968+00:00",
     "endpointMetrics": [
       {
         "cacheMode": "ON",
         "endpoint": "catalog",
-        "p50Millis": 4.314,
-        "p95Millis": 29.099,
-        "throughputPerSecond": 65.6,
-        "errorRate": 0.0029472,
-        "jdbcStatementCount": 93958,
+        "p50Millis": 3.939,
+        "p95Millis": 24.932,
+        "throughputPerSecond": 65.837,
+        "errorRate": 0,
+        "jdbcStatementCount": 94543,
         "cacheHitCount": null,
         "cacheMissCount": null,
         "cacheEvictionCount": null
@@ -134,23 +134,23 @@
       {
         "cacheMode": "ON",
         "endpoint": "events",
-        "p50Millis": 1.591,
-        "p95Millis": 21.886,
-        "throughputPerSecond": 65.6,
-        "errorRate": 0.0010163,
-        "jdbcStatementCount": 93958,
-        "cacheHitCount": 20455,
+        "p50Millis": 1.516,
+        "p95Millis": 16.499,
+        "throughputPerSecond": 65.837,
+        "errorRate": 0,
+        "jdbcStatementCount": 94543,
+        "cacheHitCount": 20527,
         "cacheMissCount": 12,
         "cacheEvictionCount": 11
       },
       {
         "cacheMode": "ON",
         "endpoint": "popularity",
-        "p50Millis": 88.83,
-        "p95Millis": 119.163,
-        "throughputPerSecond": 65.6,
-        "errorRate": 0.0027439,
-        "jdbcStatementCount": 93958,
+        "p50Millis": 83.922,
+        "p95Millis": 108.102,
+        "throughputPerSecond": 65.837,
+        "errorRate": 0,
+        "jdbcStatementCount": 94543,
         "cacheHitCount": null,
         "cacheMissCount": null,
         "cacheEvictionCount": null
@@ -158,11 +158,11 @@
       {
         "cacheMode": "ON",
         "endpoint": "detail",
-        "p50Millis": 11.356,
-        "p95Millis": 28,
-        "throughputPerSecond": 28.02,
-        "errorRate": 0.0005948,
-        "jdbcStatementCount": 93958,
+        "p50Millis": 10.468,
+        "p95Millis": 23.695,
+        "throughputPerSecond": 28.123,
+        "errorRate": 0,
+        "jdbcStatementCount": 94543,
         "cacheHitCount": null,
         "cacheMissCount": null,
         "cacheEvictionCount": null
@@ -172,9 +172,9 @@
       {
         "cacheMode": "ON",
         "queryShape": "GLOBAL_CATALOG",
-        "bindSummary": "limitPlusOne=21",
-        "planSummary": "Limit  (cost=17.26..729.39 rows=21 width=663) (actual time=0.089..0.292 rows=21 loops=1); Execution Time: 0.429 ms",
-        "executionMillis": 0.429,
+        "bindSummary": "now=2026-07-17T00:00:00Z, limitPlusOne=21",
+        "planSummary": "Limit; Planning Time: 2.426 ms; Execution Time: 0.428 ms",
+        "executionMillis": 0.428,
         "actualRows": 21,
         "sharedHitBlocks": 179,
         "sharedReadBlocks": 0
@@ -182,9 +182,9 @@
       {
         "cacheMode": "ON",
         "queryShape": "FIXED_STORE_CATALOG",
-        "bindSummary": "storeId=1, limitPlusOne=21",
-        "planSummary": "Limit  (cost=17.40..618.12 rows=21 width=663) (actual time=0.117..0.348 rows=21 loops=1); Execution Time: 0.474 ms",
-        "executionMillis": 0.474,
+        "bindSummary": "now=2026-07-17T00:00:00Z, storeId=1, limitPlusOne=21",
+        "planSummary": "Limit; Planning Time: 2.348 ms; Execution Time: 0.471 ms",
+        "executionMillis": 0.471,
         "actualRows": 21,
         "sharedHitBlocks": 189,
         "sharedReadBlocks": 0
@@ -192,9 +192,9 @@
       {
         "cacheMode": "ON",
         "queryShape": "ACTIVE_EVENTS",
-        "bindSummary": "no binds",
-        "planSummary": "Sort  (cost=4463.65..4463.65 rows=2 width=961) (actual time=66.971..66.983 rows=40 loops=1); Execution Time: 67.231 ms",
-        "executionMillis": 67.231,
+        "bindSummary": "now=2026-07-17T00:00:00Z",
+        "planSummary": "Sort; Planning Time: 3.206 ms; Execution Time: 67.117 ms",
+        "executionMillis": 67.117,
         "actualRows": 40,
         "sharedHitBlocks": 107767,
         "sharedReadBlocks": 0
@@ -202,9 +202,9 @@
       {
         "cacheMode": "ON",
         "queryShape": "POPULARITY",
-        "bindSummary": "since=2026-07-10T20:19:54.632851900+09:00",
-        "planSummary": "Limit  (cost=9101.75..9101.77 rows=8 width=671) (actual time=98.478..98.489 rows=8 loops=1); Execution Time: 99.239 ms",
-        "executionMillis": 99.239,
+        "bindSummary": "since=2026-07-10T00:00:00Z, now=2026-07-17T00:00:00Z",
+        "planSummary": "Limit; Planning Time: 3.398 ms; Execution Time: 92.44 ms",
+        "executionMillis": 92.44,
         "actualRows": 8,
         "sharedHitBlocks": 85817,
         "sharedReadBlocks": 0

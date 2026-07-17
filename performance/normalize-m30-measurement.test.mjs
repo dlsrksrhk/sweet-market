@@ -6,6 +6,8 @@ import {normalizeMeasurement} from './normalize-m30-measurement.mjs';
 
 const fixture = JSON.parse(await readFile(new URL('./fixtures/normalizer-input.json', import.meta.url), 'utf8'));
 const collectionScript = await readFile(new URL('./collect-m30-measurement.ps1', import.meta.url), 'utf8');
+const captureScript = await readFile(new URL('./capture-m30-query-evidence.ps1', import.meta.url), 'utf8')
+        .catch(() => '');
 
 test('Task 10 등록 계약으로 정규화하고 밀리초와 비율을 보존한다', () => {
     const measurement = normalizeMeasurement(structuredClone(fixture));
@@ -112,6 +114,20 @@ test('route_sample에서_재계산한_endpoint_metric이_다르면_거부한다'
     assert.throws(() => normalizeMeasurement(input), /OFF catalog route samples do not reproduce p95Millis/);
 });
 
+test('PowerShell_Math_Round와_같은_midpoint_to_even을_사용한다', () => {
+    const input = structuredClone(fixture);
+    input.onSamples.endpoints[0].durationsMillis = [3.7325, 3.7325];
+    input.onSamples.endpoints[0].failureFlags = [0, 0];
+    Object.assign(input.onMetrics.endpointMetrics[0], {
+        p50Millis: 3.732,
+        p95Millis: 3.732,
+        throughputPerSecond: 0.007,
+        errorRate: 0,
+    });
+
+    assert.doesNotThrow(() => normalizeMeasurement(input));
+});
+
 test('duration과_failure_flag의_sample수가_다르면_거부한다', () => {
     const input = structuredClone(fixture);
     input.onSamples.endpoints[1].failureFlags.pop();
@@ -124,4 +140,18 @@ test('collector는_sanitized_route_sample을_쓴뒤_raw만_삭제한다', () => 
     assert.match(collectionScript, /durationsMillis/);
     assert.match(collectionScript, /failureFlags/);
     assert.match(collectionScript, /Remove-Item -LiteralPath \$rawPath -Force/);
+});
+
+test('plan_capture는_실행중인_서버_provenance와_네_HTTP_shape와_full_explain을_사용한다', () => {
+    assert.match(captureScript, /\/actuator\/info/);
+    assert.match(captureScript, /m30Experiment\.cacheMode/);
+    assert.match(captureScript, /\/api\/catalog\/products\?size=20/);
+    assert.match(captureScript, /\/api\/stores\/1\/catalog\/products\?size=20/);
+    assert.match(captureScript, /\/api\/discovery\/events/);
+    assert.match(captureScript, /\/api\/discovery\/popular-products/);
+    assert.match(captureScript, /EXPLAIN \(ANALYZE, BUFFERS, FORMAT JSON\)/);
+    assert.match(captureScript, /\(\?:TIMESTAMPTZ\\s\*\)\?/);
+    assert.match(captureScript, /timestampLiteralPattern/);
+    assert.match(captureScript, /timestamptz\|timestamp\(\?: with time zone\)\?/);
+    assert.doesNotMatch(captureScript, /\[a-z \]\+/);
 });

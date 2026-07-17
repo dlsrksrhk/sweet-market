@@ -1,61 +1,61 @@
 {
   "cacheMode": "ON",
-  "startedAt": "2026-07-17T11:11:13.7641651+00:00",
-  "completedAt": "2026-07-17T11:17:15.2646691+00:00",
+  "startedAt": "2026-07-17T13:06:19.9848133+00:00",
+  "completedAt": "2026-07-17T13:12:21.4575968+00:00",
   "k6ExitCode": 0,
   "measuredScenario": "measured_catalog_reads",
   "measuredSeconds": 300,
   "productId": 10000,
   "jdbcStatementCountMethod": "authorized Actuator whole-run delta; the untagged real total is retained on each endpoint",
-  "jdbcStatementDelta": 93958,
+  "jdbcStatementDelta": 94543,
   "endpointMetrics": [
     {
       "endpoint": "catalog",
-      "p50Millis": 4.314,
-      "p95Millis": 29.099,
-      "throughputPerSecond": 65.6,
-      "errorRate": 0.0029472,
-      "jdbcStatementCount": 93958,
+      "p50Millis": 3.939,
+      "p95Millis": 24.932,
+      "throughputPerSecond": 65.837,
+      "errorRate": 0.0,
+      "jdbcStatementCount": 94543,
       "cacheHitCount": null,
       "cacheMissCount": null,
       "cacheEvictionCount": null,
-      "measuredRequestCount": 19680
+      "measuredRequestCount": 19751
     },
     {
       "endpoint": "events",
-      "p50Millis": 1.591,
-      "p95Millis": 21.886,
-      "throughputPerSecond": 65.6,
-      "errorRate": 0.0010163,
-      "jdbcStatementCount": 93958,
-      "cacheHitCount": 20455,
+      "p50Millis": 1.516,
+      "p95Millis": 16.499,
+      "throughputPerSecond": 65.837,
+      "errorRate": 0.0,
+      "jdbcStatementCount": 94543,
+      "cacheHitCount": 20527,
       "cacheMissCount": 12,
       "cacheEvictionCount": 11,
-      "measuredRequestCount": 19680
+      "measuredRequestCount": 19751
     },
     {
       "endpoint": "popularity",
-      "p50Millis": 88.83,
-      "p95Millis": 119.163,
-      "throughputPerSecond": 65.6,
-      "errorRate": 0.0027439,
-      "jdbcStatementCount": 93958,
+      "p50Millis": 83.922,
+      "p95Millis": 108.102,
+      "throughputPerSecond": 65.837,
+      "errorRate": 0.0,
+      "jdbcStatementCount": 94543,
       "cacheHitCount": null,
       "cacheMissCount": null,
       "cacheEvictionCount": null,
-      "measuredRequestCount": 19680
+      "measuredRequestCount": 19751
     },
     {
       "endpoint": "detail",
-      "p50Millis": 11.356,
-      "p95Millis": 28.0,
-      "throughputPerSecond": 28.02,
-      "errorRate": 0.0005948,
-      "jdbcStatementCount": 93958,
+      "p50Millis": 10.468,
+      "p95Millis": 23.695,
+      "throughputPerSecond": 28.123,
+      "errorRate": 0.0,
+      "jdbcStatementCount": 94543,
       "cacheHitCount": null,
       "cacheMissCount": null,
       "cacheEvictionCount": null,
-      "measuredRequestCount": 8406
+      "measuredRequestCount": 8437
     }
   ],
   "actuator": {
@@ -66,7 +66,7 @@
         "measurements": [
           {
             "statistic": "COUNT",
-            "value": 310.0
+            "value": 135.0
           }
         ],
         "availableTags": [
@@ -149,7 +149,7 @@
         "measurements": [
           {
             "statistic": "COUNT",
-            "value": 94268.0
+            "value": 94678.0
           }
         ],
         "availableTags": [
@@ -168,15 +168,15 @@
         "measurements": [
           {
             "statistic": "COUNT",
-            "value": 61329.0
+            "value": 61617.0
           },
           {
             "statistic": "TOTAL_TIME",
-            "value": 2074.9434812
+            "value": 1955.840240573
           },
           {
             "statistic": "MAX",
-            "value": 0.1886518
+            "value": 0.1633491
           }
         ],
         "availableTags": [
@@ -204,15 +204,15 @@
           "measurements": [
             {
               "statistic": "COUNT",
-              "value": 20429.0
+              "value": 20539.0
             },
             {
               "statistic": "TOTAL_TIME",
-              "value": 130.747658
+              "value": 120.306644352
             },
             {
               "statistic": "MAX",
-              "value": 0.0668838
+              "value": 0.0654807
             }
           ],
           "availableTags": [
@@ -231,15 +231,15 @@
           "measurements": [
             {
               "statistic": "COUNT",
-              "value": 20467.0
+              "value": 20539.0
             },
             {
               "statistic": "TOTAL_TIME",
-              "value": 72.2165212
+              "value": 59.748054071
             },
             {
               "statistic": "MAX",
-              "value": 0.065728
+              "value": 0.0863126
             }
           ],
           "availableTags": [
@@ -258,15 +258,15 @@
           "measurements": [
             {
               "statistic": "COUNT",
-              "value": 20433.0
+              "value": 20539.0
             },
             {
               "statistic": "TOTAL_TIME",
-              "value": 1871.979302
+              "value": 1775.78554215
             },
             {
               "statistic": "MAX",
-              "value": 0.1886518
+              "value": 0.1633491
             }
           ],
           "availableTags": [
@@ -287,7 +287,7 @@
           "measurements": [
             {
               "statistic": "COUNT",
-              "value": 20455.0
+              "value": 20527.0
             }
           ],
           "availableTags": [

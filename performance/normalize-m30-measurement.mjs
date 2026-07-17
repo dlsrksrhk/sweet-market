@@ -241,7 +241,14 @@ function percentile(values, percentileValue) {
 
 function round(value, digits) {
     const scale = 10 ** digits;
-    return Math.round((value + Number.EPSILON) * scale) / scale;
+    const scaled = value * scale;
+    const lower = Math.floor(scaled);
+    const fraction = scaled - lower;
+    const midpointTolerance = Number.EPSILON * Math.max(1, Math.abs(scaled)) * 4;
+    if (Math.abs(fraction - 0.5) <= midpointTolerance) {
+        return (lower % 2 === 0 ? lower : lower + 1) / scale;
+    }
+    return Math.round(scaled) / scale;
 }
 
 function normalizeQueryEvidenceBundle(bundle, expectedMode, condition, expectedSequence) {

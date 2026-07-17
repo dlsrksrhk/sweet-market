@@ -1,61 +1,61 @@
 {
   "cacheMode": "OFF",
-  "startedAt": "2026-07-17T11:01:00.7513607+00:00",
-  "completedAt": "2026-07-17T11:07:02.3960450+00:00",
+  "startedAt": "2026-07-17T12:56:39.1308601+00:00",
+  "completedAt": "2026-07-17T13:02:40.6826094+00:00",
   "k6ExitCode": 0,
   "measuredScenario": "measured_catalog_reads",
   "measuredSeconds": 300,
   "productId": 10000,
   "jdbcStatementCountMethod": "authorized Actuator whole-run delta; the untagged real total is retained on each endpoint",
-  "jdbcStatementDelta": 94477,
+  "jdbcStatementDelta": 100340,
   "endpointMetrics": [
     {
       "endpoint": "catalog",
-      "p50Millis": 235.078,
-      "p95Millis": 366.819,
-      "throughputPerSecond": 54.093,
+      "p50Millis": 162.83,
+      "p95Millis": 313.342,
+      "throughputPerSecond": 57.49,
       "errorRate": 0.0,
-      "jdbcStatementCount": 94477,
+      "jdbcStatementCount": 100340,
       "cacheHitCount": null,
       "cacheMissCount": null,
       "cacheEvictionCount": null,
-      "measuredRequestCount": 16228
+      "measuredRequestCount": 17247
     },
     {
       "endpoint": "events",
-      "p50Millis": 293.877,
-      "p95Millis": 425.403,
-      "throughputPerSecond": 54.093,
+      "p50Millis": 218.951,
+      "p95Millis": 368.748,
+      "throughputPerSecond": 57.49,
       "errorRate": 0.0,
-      "jdbcStatementCount": 94477,
+      "jdbcStatementCount": 100340,
       "cacheHitCount": null,
       "cacheMissCount": null,
       "cacheEvictionCount": null,
-      "measuredRequestCount": 16228
+      "measuredRequestCount": 17247
     },
     {
       "endpoint": "popularity",
-      "p50Millis": 322.281,
-      "p95Millis": 454.57,
-      "throughputPerSecond": 54.093,
+      "p50Millis": 246.182,
+      "p95Millis": 397.984,
+      "throughputPerSecond": 57.49,
       "errorRate": 0.0,
-      "jdbcStatementCount": 94477,
+      "jdbcStatementCount": 100340,
       "cacheHitCount": null,
       "cacheMissCount": null,
       "cacheEvictionCount": null,
-      "measuredRequestCount": 16228
+      "measuredRequestCount": 17247
     },
     {
       "endpoint": "detail",
-      "p50Millis": 230.039,
-      "p95Millis": 358.929,
-      "throughputPerSecond": 23.123,
+      "p50Millis": 156.013,
+      "p95Millis": 304.797,
+      "throughputPerSecond": 24.173,
       "errorRate": 0.0,
-      "jdbcStatementCount": 94477,
+      "jdbcStatementCount": 100340,
       "cacheHitCount": null,
       "cacheMissCount": null,
       "cacheEvictionCount": null,
-      "measuredRequestCount": 6937
+      "measuredRequestCount": 7252
     }
   ],
   "actuator": {
@@ -66,7 +66,7 @@
         "measurements": [
           {
             "statistic": "COUNT",
-            "value": 31372.0
+            "value": 763.0
           }
         ],
         "availableTags": [
@@ -78,123 +78,11 @@
           }
         ]
       },
-      "readDuration": {
-        "name": "discovery.read.duration",
-        "description": "Discovery read endpoint duration",
-        "baseUnit": "seconds",
-        "measurements": [
-          {
-            "statistic": "COUNT",
-            "value": 3.0
-          },
-          {
-            "statistic": "TOTAL_TIME",
-            "value": 3.8200647
-          },
-          {
-            "statistic": "MAX",
-            "value": 3.6809406
-          }
-        ],
-        "availableTags": [
-          {
-            "tag": "endpoint",
-            "values": [
-              "events",
-              "catalog",
-              "popularity"
-            ]
-          },
-          {
-            "tag": "profile",
-            "values": [
-              "local-experiment"
-            ]
-          }
-        ]
-      },
+      "readDuration": null,
       "readDurationByEndpoint": {
-        "catalog": {
-          "name": "discovery.read.duration",
-          "description": "Discovery read endpoint duration",
-          "baseUnit": "seconds",
-          "measurements": [
-            {
-              "statistic": "COUNT",
-              "value": 1.0
-            },
-            {
-              "statistic": "TOTAL_TIME",
-              "value": 0.0611861
-            },
-            {
-              "statistic": "MAX",
-              "value": 0.0611861
-            }
-          ],
-          "availableTags": [
-            {
-              "tag": "profile",
-              "values": [
-                "local-experiment"
-              ]
-            }
-          ]
-        },
-        "events": {
-          "name": "discovery.read.duration",
-          "description": "Discovery read endpoint duration",
-          "baseUnit": "seconds",
-          "measurements": [
-            {
-              "statistic": "COUNT",
-              "value": 1.0
-            },
-            {
-              "statistic": "TOTAL_TIME",
-              "value": 0.077938
-            },
-            {
-              "statistic": "MAX",
-              "value": 0.077938
-            }
-          ],
-          "availableTags": [
-            {
-              "tag": "profile",
-              "values": [
-                "local-experiment"
-              ]
-            }
-          ]
-        },
-        "popularity": {
-          "name": "discovery.read.duration",
-          "description": "Discovery read endpoint duration",
-          "baseUnit": "seconds",
-          "measurements": [
-            {
-              "statistic": "COUNT",
-              "value": 1.0
-            },
-            {
-              "statistic": "TOTAL_TIME",
-              "value": 3.6809406
-            },
-            {
-              "statistic": "MAX",
-              "value": 3.6809406
-            }
-          ],
-          "availableTags": [
-            {
-              "tag": "profile",
-              "values": [
-                "local-experiment"
-              ]
-            }
-          ]
-        },
+        "catalog": null,
+        "events": null,
+        "popularity": null,
         "detail": null
       },
       "cache": null
@@ -206,7 +94,7 @@
         "measurements": [
           {
             "statistic": "COUNT",
-            "value": 125849.0
+            "value": 101103.0
           }
         ],
         "availableTags": [
@@ -225,15 +113,15 @@
         "measurements": [
           {
             "statistic": "COUNT",
-            "value": 50646.0
+            "value": 54123.0
           },
           {
             "statistic": "TOTAL_TIME",
-            "value": 14196.5490517
+            "value": 11162.234111099999
           },
           {
             "statistic": "MAX",
-            "value": 0.8916317
+            "value": 0.7693142
           }
         ],
         "availableTags": [
@@ -261,15 +149,15 @@
           "measurements": [
             {
               "statistic": "COUNT",
-              "value": 16882.0
+              "value": 18041.0
             },
             {
               "statistic": "TOTAL_TIME",
-              "value": 3858.3266571
+              "value": 2890.5611486
             },
             {
               "statistic": "MAX",
-              "value": 0.7916206
+              "value": 0.5996254
             }
           ],
           "availableTags": [
@@ -288,15 +176,15 @@
           "measurements": [
             {
               "statistic": "COUNT",
-              "value": 16882.0
+              "value": 18041.0
             },
             {
               "statistic": "TOTAL_TIME",
-              "value": 4864.9599204
+              "value": 3885.7117729
             },
             {
               "statistic": "MAX",
-              "value": 0.7893187
+              "value": 0.6730239
             }
           ],
           "availableTags": [
@@ -315,15 +203,15 @@
           "measurements": [
             {
               "statistic": "COUNT",
-              "value": 16882.0
+              "value": 18041.0
             },
             {
               "statistic": "TOTAL_TIME",
-              "value": 5473.2624742
+              "value": 4385.9611896
             },
             {
               "statistic": "MAX",
-              "value": 0.8916317
+              "value": 0.7693142
             }
           ],
           "availableTags": [
