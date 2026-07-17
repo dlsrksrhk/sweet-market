@@ -50,18 +50,18 @@ class OperationsDashboardMigrationTest {
         assertThat(tableExists("performance_query_evidence")).isTrue();
         assertThat(indexExists("idx_operational_event_outbox_poll")).isTrue();
         assertThat(indexMetadata("idx_projection_event_receipts_generation_processed_at"))
-                .isEqualTo(index(
+                .isEqualTo(index("projection_event_receipts",
                         column("generation_id", "ASC", "LAST"),
                         column("processed_at", "DESC", "FIRST")));
         assertThat(indexMetadata("idx_campaign_metric_hourly_store_bucket"))
-                .isEqualTo(index(
+                .isEqualTo(index("campaign_metric_hourly",
                         column("generation_id", "ASC", "LAST"),
                         column("commerce_store_id", "ASC", "LAST"),
                         column("bucket_start", "ASC", "LAST"),
                         column("campaign_kind", "ASC", "LAST"),
                         column("campaign_id", "ASC", "LAST")));
         assertThat(indexMetadata("idx_campaign_metric_hourly_owner_store_bucket"))
-                .isEqualTo(index(
+                .isEqualTo(index("campaign_metric_hourly",
                         column("generation_id", "ASC", "LAST"),
                         column("campaign_owner_store_id", "ASC", "LAST"),
                         column("bucket_start", "ASC", "LAST"),
@@ -69,7 +69,7 @@ class OperationsDashboardMigrationTest {
                         column("campaign_id", "ASC", "LAST")));
         assertThat(indexExists("idx_inventory_pressure_store_attention")).isTrue();
         assertThat(indexMetadata("idx_campaign_audit_projection_owner_time"))
-                .isEqualTo(index(
+                .isEqualTo(index("campaign_audit_projection",
                         column("generation_id", "ASC", "LAST"),
                         column("owner_store_id", "ASC", "LAST"),
                         column("occurred_at", "DESC", "FIRST"),
@@ -134,6 +134,8 @@ class OperationsDashboardMigrationTest {
     private IndexMetadata indexMetadata(String indexName) throws SQLException {
         String sql = """
                 SELECT access_method.amname,
+                       table_class.relname AS table_name,
+                       index_metadata.indisunique,
                        keys.ordinality,
                        attribute.attname,
                        (COALESCE(keys.index_option, 0) & 1) = 1 AS descending,
@@ -143,6 +145,7 @@ class OperationsDashboardMigrationTest {
                 FROM pg_class index_class
                 JOIN pg_namespace namespace ON namespace.oid = index_class.relnamespace
                 JOIN pg_index index_metadata ON index_metadata.indexrelid = index_class.oid
+                JOIN pg_class table_class ON table_class.oid = index_metadata.indrelid
                 JOIN pg_am access_method ON access_method.oid = index_class.relam
                 CROSS JOIN LATERAL unnest(
                     index_metadata.indkey::smallint[],
@@ -161,9 +164,13 @@ class OperationsDashboardMigrationTest {
                 List<IndexColumn> keyColumns = new java.util.ArrayList<>();
                 List<String> includeColumns = new java.util.ArrayList<>();
                 String accessMethod = null;
+                String tableName = null;
+                boolean unique = false;
                 String predicate = null;
                 while (resultSet.next()) {
                     accessMethod = resultSet.getString("amname");
+                    tableName = resultSet.getString("table_name");
+                    unique = resultSet.getBoolean("indisunique");
                     predicate = resultSet.getString("predicate");
                     String columnName = resultSet.getString("attname");
                     if (resultSet.getBoolean("key_column")) {
@@ -176,13 +183,13 @@ class OperationsDashboardMigrationTest {
                     }
                 }
                 assertThat(accessMethod).as(indexName + " exists").isNotNull();
-                return new IndexMetadata(accessMethod, keyColumns, includeColumns, predicate);
+                return new IndexMetadata(tableName, unique, accessMethod, keyColumns, includeColumns, predicate);
             }
         }
     }
 
-    private IndexMetadata index(IndexColumn... columns) {
-        return new IndexMetadata("btree", List.of(columns), List.of(), null);
+    private IndexMetadata index(String tableName, IndexColumn... columns) {
+        return new IndexMetadata(tableName, false, "btree", List.of(columns), List.of(), null);
     }
 
     private IndexColumn column(String name, String direction, String nulls) {
@@ -299,6 +306,8 @@ class OperationsDashboardMigrationTest {
     }
 
     private record IndexMetadata(
+            String tableName,
+            boolean unique,
             String accessMethod,
             List<IndexColumn> keyColumns,
             List<String> includeColumns,
