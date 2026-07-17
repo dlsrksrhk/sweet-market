@@ -31,6 +31,7 @@ const authenticatedPrivateQueryKeys = [
   ['my-wishlist'],
   ['my-cart'],
   ['store-operations'],
+  ['store-operations-dashboard'],
   ['stores', 'me'],
   ['stores', 'public'],
   ['products'],

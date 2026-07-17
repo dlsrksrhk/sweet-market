@@ -73,7 +73,7 @@ export function MyStorePage() {
         <SummaryStrip store={selectedStore} summaryQuery={summaryQuery} />
 
         <nav className="store-owner-links" aria-label="상점 운영 메뉴">
-          <Link to="/me/store/dashboard">운영 대시보드</Link>
+          <Link to={`/me/store/dashboard?storeId=${selectedStore.storeId}`}>운영 대시보드</Link>
           {isOwner ? <Link to="/me/sales">판매 관리</Link> : null}
           {isOwner ? <Link to="/me/sales/refunds">환불 관리</Link> : null}
           {isOwner ? <Link to="/me/settlements">정산</Link> : null}

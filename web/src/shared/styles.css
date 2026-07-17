@@ -4120,7 +4120,7 @@ a.wishlist-card-main:hover h2 {
 
 .operations-amount-panel dl {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
 }
@@ -4157,61 +4157,48 @@ a.wishlist-card-main:hover h2 {
   background: #fff7e8;
 }
 
-.operations-table {
+.operations-table-scroll {
   min-width: 0;
   overflow: hidden;
   border: 1px solid #dfe6ee;
   border-radius: 8px;
 }
 
-.operations-table-head,
-.operations-table-row {
-  display: grid;
-  gap: 12px;
-  align-items: center;
-  min-width: 0;
-  padding: 12px 14px;
+.operations-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
 
-.operations-table-head {
+.operations-table th {
+  padding: 12px 14px;
   background: #f2f5f8;
   color: #52616f;
   font-size: 12px;
   font-weight: 900;
+  text-align: left;
 }
 
-.operations-table-row + .operations-table-row {
+.operations-table td {
+  min-width: 0;
+  padding: 12px 14px;
+  color: #52616f;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  vertical-align: middle;
+}
+
+.operations-table tbody tr + tr td {
   border-top: 1px solid #e7edf3;
 }
 
-.operations-table-row > span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: #52616f;
-  font-size: 13px;
+.operations-table td:first-child strong {
+  margin-right: 8px;
 }
 
-.operations-table-row > span:first-child {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.operations-table-row a {
+.operations-table a {
   color: #0f6d6a;
   font-weight: 800;
-}
-
-.campaign-grid {
-  grid-template-columns: minmax(145px, 1.2fr) 100px minmax(130px, 1fr) minmax(130px, 1fr) minmax(95px, .8fr) minmax(105px, .8fr);
-}
-
-.coupon-outcome-grid,
-.inventory-pressure-grid,
-.purchase-outcome-grid,
-.audit-grid {
-  grid-template-columns: repeat(5, minmax(110px, 1fr));
 }
 
 .operations-pagination {
@@ -4228,12 +4215,11 @@ a.wishlist-card-main:hover h2 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .operations-table {
+  .operations-table-scroll {
     overflow-x: auto;
   }
 
-  .operations-table-head,
-  .operations-table-row {
+  .operations-table {
     min-width: 850px;
   }
 }
@@ -4268,44 +4254,50 @@ a.wishlist-card-main:hover h2 {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .operations-table {
+  .operations-table-scroll {
     overflow: visible;
     border: 0;
   }
 
-  .operations-table-head {
-    display: none;
+  .operations-table {
+    display: block;
+    min-width: 0;
   }
 
-  .operations-table-row,
-  .campaign-grid,
-  .coupon-outcome-grid,
-  .inventory-pressure-grid,
-  .purchase-outcome-grid,
-  .audit-grid {
+  .operations-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .operations-table tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .operations-table tbody tr {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    min-width: 0;
-    gap: 8px;
     margin-bottom: 10px;
     border: 1px solid #dfe6ee;
     border-radius: 8px;
     padding: 13px;
   }
 
-  .operations-table-row + .operations-table-row {
-    border-top: 1px solid #dfe6ee;
-  }
-
-  .operations-table-row > span {
+  .operations-table td {
     display: grid;
     grid-template-columns: 95px minmax(0, 1fr);
     align-items: start;
-    justify-content: initial;
     gap: 8px;
+    border: 0 !important;
+    padding: 5px 0;
   }
 
-  .operations-table-row > span::before {
+  .operations-table td::before {
     content: attr(data-label);
     color: #758391;
     font-size: 11px;

@@ -38,14 +38,14 @@ function CountCard({ label, value, trackingStarted, tone }: { label: string; val
 }
 
 function AmountSummary({ title, summary, trackingStarted }: { title: string; summary: DiscountAmountSummary; trackingStarted: boolean }) {
-  const reversal = summary.canceled + summary.refunded;
   return (
     <section className="operations-amount-panel" aria-label={title}>
       <h3>{title}</h3>
       <dl>
         <AmountCard label="적용" value={summary.applied} trackingStarted={trackingStarted} />
         <AmountCard label="실현" value={summary.realized} trackingStarted={trackingStarted} />
-        <AmountCard label="취소·환불" value={reversal} trackingStarted={trackingStarted} />
+        <AmountCard label="취소" value={summary.canceled} trackingStarted={trackingStarted} />
+        <AmountCard label="환불" value={summary.refunded} trackingStarted={trackingStarted} />
       </dl>
     </section>
   );

@@ -62,7 +62,7 @@ describe('dashboard drilldown tables', () => {
       </MemoryRouter>,
     );
 
-    expect(html.match(/role="columnheader"/g)).toHaveLength(6);
-    expect(html.match(/role="cell"/g)).toHaveLength(6);
+    expect(html.match(/<th(?:\s|>)/g)).toHaveLength(7);
+    expect(html.match(/<td/g)).toHaveLength(7);
   });
 });

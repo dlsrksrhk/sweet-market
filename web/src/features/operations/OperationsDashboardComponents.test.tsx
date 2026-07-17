@@ -36,6 +36,9 @@ describe('OperationsSummaryCards', () => {
     expect(html).toContain('측정된 0건');
     expect(html).toContain('측정된 0원');
     expect(html).not.toContain('추적을 시작하지 않았습니다');
+    expect(html).toContain('>취소<');
+    expect(html).toContain('>환불<');
+    expect(html).not.toContain('취소·환불');
   });
 
   it('추적시작시각이_없으면_0이_아닌_미추적상태로_표시한다', () => {
@@ -45,6 +48,19 @@ describe('OperationsSummaryCards', () => {
 
     expect(html).toContain('추적을 시작하지 않았습니다');
     expect(html).not.toContain('측정된 0건');
+  });
+
+  it('취소액과_환불액을_합치지_않고_각각_표시한다', () => {
+    const html = renderToStaticMarkup(<OperationsSummaryCards dashboard={{
+      ...dashboard,
+      promotionDiscounts: { applied: 100, realized: 70, canceled: 20, refunded: 10 },
+      couponDiscounts: { applied: 50, realized: 30, canceled: 15, refunded: 5 },
+    }} />);
+
+    expect(html).toContain('<dt>취소</dt><dd>20원</dd>');
+    expect(html).toContain('<dt>환불</dt><dd>10원</dd>');
+    expect(html).toContain('<dt>취소</dt><dd>15원</dd>');
+    expect(html).toContain('<dt>환불</dt><dd>5원</dd>');
   });
 });
 

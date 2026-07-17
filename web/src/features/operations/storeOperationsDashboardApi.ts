@@ -53,7 +53,7 @@ export type StoreCampaignMetric = {
   campaignKind: string;
   campaignId: number;
   ownerType: string;
-  ownerStoreId: number;
+  ownerStoreId: number | null;
   status: string;
   claimSuccessCount: number;
   claimFailureCount: number;
@@ -70,7 +70,7 @@ export type StoreCouponOutcome = {
   latestBucketStart: string;
   campaignId: number;
   ownerType: string;
-  ownerStoreId: number;
+  ownerStoreId: number | null;
   reason: string;
   claimSuccessCount: number;
   claimFailureCount: number;
@@ -105,7 +105,7 @@ export type StoreCampaignAudit = {
   campaignKind: string;
   campaignId: number;
   ownerType: string;
-  ownerStoreId: number;
+  ownerStoreId: number | null;
   actorMemberId: number | null;
   command: string;
   occurredAt: string;
