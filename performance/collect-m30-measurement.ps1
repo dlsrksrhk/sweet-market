@@ -104,6 +104,25 @@ function Get-ActuatorSnapshot {
     }
 }
 
+function Get-SanitizedServerInfo {
+    $response = Invoke-WebRequest "$resolvedBaseUrl/actuator/info" -Headers $headers
+    $content = if ($response.Content -is [byte[]]) {
+        [System.Text.Encoding]::UTF8.GetString($response.Content)
+    } else {
+        [string]$response.Content
+    }
+    $experiment = ($content | ConvertFrom-Json -DateKind String).m30Experiment
+    if ($null -eq $experiment) {
+        throw 'authenticated server info is missing m30Experiment'
+    }
+    return [ordered]@{
+        serverProcessId = [long]$experiment.serverProcessId
+        activeProfiles = @($experiment.activeProfiles)
+        fixedClock = [string]$experiment.fixedNow
+        cacheMode = [string]$experiment.cacheMode
+    }
+}
+
 function Get-Percentile {
     param(
         [double[]]$Values,
@@ -170,6 +189,7 @@ function Get-CacheDelta {
 }
 
 $before = Get-ActuatorSnapshot
+$serverInfoBefore = Get-SanitizedServerInfo
 $startedAt = [DateTimeOffset]::UtcNow
 $k6ExitCode = -1
 try {
@@ -178,6 +198,7 @@ try {
     $k6ExitCode = $LASTEXITCODE
 } finally {
     $completedAt = [DateTimeOffset]::UtcNow
+    $serverInfoAfter = Get-SanitizedServerInfo
     $after = Get-ActuatorSnapshot
 }
 
@@ -241,6 +262,7 @@ $routeSamples = [ordered]@{
 
 $metrics = [ordered]@{
     cacheMode = $cacheMode
+    serverInfo = [ordered]@{ before = $serverInfoBefore; after = $serverInfoAfter }
     startedAt = $startedAt.ToString('o')
     completedAt = $completedAt.ToString('o')
     k6ExitCode = $k6ExitCode
@@ -256,6 +278,10 @@ $metrics = [ordered]@{
 $metrics | ConvertTo-Json -Depth 30 | Set-Content -Path $metricsPath -Encoding utf8
 $routeSamples | ConvertTo-Json -Depth 10 -Compress | Set-Content -Path $samplesPath -Encoding utf8
 Remove-Item -LiteralPath $rawPath -Force
+
+if (($serverInfoBefore | ConvertTo-Json -Compress) -ne ($serverInfoAfter | ConvertTo-Json -Compress)) {
+    throw "$cacheMode server identity changed during k6; metrics evidence was retained"
+}
 
 if ($k6ExitCode -ne 0) {
     throw "k6 exited with code $k6ExitCode; summary and metrics snapshots were retained"

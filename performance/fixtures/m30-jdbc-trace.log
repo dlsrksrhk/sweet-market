@@ -1,0 +1,50 @@
+2026-07-17T22:00:00.000+09:00 DEBUG 101 --- [market] [scheduling-1] o.s.jdbc.core.JdbcTemplate : Executing prepared SQL statement [SELECT id FROM operational_events WHERE next_attempt_at <= ? LIMIT ?]
+2026-07-17T22:00:00.001+09:00 TRACE 101 --- [market] [scheduling-1] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 1, parameter value [2026-07-17 22:00:00], value class [java.sql.Timestamp], SQL type unknown
+2026-07-17T22:00:00.002+09:00 TRACE 101 --- [market] [scheduling-1] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 2, parameter value [100], value class [java.lang.Integer], SQL type unknown
+2026-07-17T22:00:01.000+09:00 DEBUG 101 --- [market] [http-nio-18080-exec-1] o.s.jdbc.core.JdbcTemplate : Executing prepared SQL statement [SELECT p.id AS product_id,
+       p.title,
+       promotion.discounted_price
+FROM products p
+LEFT JOIN promotion_campaigns promotion ON promotion.start_at <= ? AND promotion.end_at > ?
+ORDER BY p.id DESC
+LIMIT ?]
+2026-07-17T22:00:01.001+09:00 TRACE 101 --- [market] [http-nio-18080-exec-1] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 1, parameter value [2026-07-17T00:00Z], value class [java.time.OffsetDateTime], SQL type unknown
+2026-07-17T22:00:01.002+09:00 TRACE 101 --- [market] [http-nio-18080-exec-1] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 2, parameter value [2026-07-17T00:00Z], value class [java.time.OffsetDateTime], SQL type unknown
+2026-07-17T22:00:01.003+09:00 TRACE 101 --- [market] [http-nio-18080-exec-1] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 3, parameter value [21], value class [java.lang.Integer], SQL type unknown
+2026-07-17T22:00:02.000+09:00 DEBUG 101 --- [market] [http-nio-18080-exec-2] o.s.jdbc.core.JdbcTemplate : Executing prepared SQL statement [SELECT p.id AS product_id,
+       p.title,
+       s.id AS store_id
+FROM products p
+JOIN stores s ON s.id = p.store_id
+LEFT JOIN promotion_campaigns promotion ON promotion.start_at <= ? AND promotion.end_at > ?
+WHERE s.id = ?
+ORDER BY p.id DESC
+LIMIT ?]
+2026-07-17T22:00:02.001+09:00 TRACE 101 --- [market] [http-nio-18080-exec-2] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 1, parameter value [2026-07-17T00:00Z], value class [java.time.OffsetDateTime], SQL type unknown
+2026-07-17T22:00:02.002+09:00 TRACE 101 --- [market] [http-nio-18080-exec-2] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 2, parameter value [2026-07-17T00:00Z], value class [java.time.OffsetDateTime], SQL type unknown
+2026-07-17T22:00:02.003+09:00 TRACE 101 --- [market] [http-nio-18080-exec-2] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 3, parameter value [1], value class [java.lang.Long], SQL type unknown
+2026-07-17T22:00:02.004+09:00 TRACE 101 --- [market] [http-nio-18080-exec-2] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 4, parameter value [21], value class [java.lang.Integer], SQL type unknown
+2026-07-17T22:00:03.000+09:00 DEBUG 101 --- [market] [http-nio-18080-exec-3] o.s.jdbc.core.JdbcTemplate : Executing prepared SQL statement [SELECT * FROM (SELECT 'PROMOTION' AS event_type,
+       pc.id AS event_id
+FROM promotion_campaigns pc
+WHERE pc.start_at <= ? AND pc.end_at > ?
+UNION ALL
+SELECT 'COUPON', cc.id FROM coupon_campaigns cc
+WHERE cc.start_at <= ? AND cc.end_at > ?) events ORDER BY ends_at ASC]
+2026-07-17T22:00:03.001+09:00 TRACE 101 --- [market] [http-nio-18080-exec-3] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 1, parameter value [2026-07-17T00:00Z], value class [java.time.OffsetDateTime], SQL type unknown
+2026-07-17T22:00:03.002+09:00 TRACE 101 --- [market] [http-nio-18080-exec-3] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 2, parameter value [2026-07-17T00:00Z], value class [java.time.OffsetDateTime], SQL type unknown
+2026-07-17T22:00:03.003+09:00 TRACE 101 --- [market] [http-nio-18080-exec-3] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 3, parameter value [2026-07-17T00:00Z], value class [java.time.OffsetDateTime], SQL type unknown
+2026-07-17T22:00:03.004+09:00 TRACE 101 --- [market] [http-nio-18080-exec-3] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 4, parameter value [2026-07-17T00:00Z], value class [java.time.OffsetDateTime], SQL type unknown
+2026-07-17T22:00:04.000+09:00 DEBUG 101 --- [market] [http-nio-18080-exec-4] o.s.jdbc.core.JdbcTemplate : Executing prepared SQL statement [WITH wishlist_scores AS (
+    SELECT product_id, COUNT(*) FROM wishlist_items WHERE created_at >= ? GROUP BY product_id
+), view_scores AS (
+    SELECT product_id, COUNT(*) FROM product_view_events WHERE viewed_at >= ? GROUP BY product_id
+)
+SELECT p.id AS product_id
+FROM products p
+LEFT JOIN promotion_campaigns pc ON pc.start_at <= ? AND pc.end_at > ?
+ORDER BY p.id DESC LIMIT 8]
+2026-07-17T22:00:04.001+09:00 TRACE 101 --- [market] [http-nio-18080-exec-4] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 1, parameter value [2026-07-10T00:00Z], value class [java.time.OffsetDateTime], SQL type unknown
+2026-07-17T22:00:04.002+09:00 TRACE 101 --- [market] [http-nio-18080-exec-4] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 2, parameter value [2026-07-10T00:00Z], value class [java.time.OffsetDateTime], SQL type unknown
+2026-07-17T22:00:04.003+09:00 TRACE 101 --- [market] [http-nio-18080-exec-4] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 3, parameter value [2026-07-17T00:00Z], value class [java.time.OffsetDateTime], SQL type unknown
+2026-07-17T22:00:04.004+09:00 TRACE 101 --- [market] [http-nio-18080-exec-4] o.s.jdbc.core.StatementCreatorUtils : Setting SQL statement parameter value: column index 4, parameter value [2026-07-17T00:00Z], value class [java.time.OffsetDateTime], SQL type unknown

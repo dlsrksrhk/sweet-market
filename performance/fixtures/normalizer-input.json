@@ -45,6 +45,10 @@
   },
   "offMetrics": {
     "cacheMode": "OFF",
+    "serverInfo": {
+      "before": {"serverProcessId": 101, "activeProfiles": ["local", "performance-fixture", "local-experiment", "cache-off"], "fixedClock": "2026-07-17T00:00:00Z", "cacheMode": "OFF"},
+      "after": {"serverProcessId": 101, "activeProfiles": ["local", "performance-fixture", "local-experiment", "cache-off"], "fixedClock": "2026-07-17T00:00:00Z", "cacheMode": "OFF"}
+    },
     "endpointMetrics": [
       {"endpoint": "catalog", "p50Millis": 25, "p95Millis": 38.5, "throughputPerSecond": 0.013, "errorRate": 0.25, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
       {"endpoint": "events", "p50Millis": 25, "p95Millis": 38.5, "throughputPerSecond": 0.013, "errorRate": 0.25, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
@@ -54,6 +58,10 @@
   },
   "onMetrics": {
     "cacheMode": "ON",
+    "serverInfo": {
+      "before": {"serverProcessId": 202, "activeProfiles": ["local", "performance-fixture", "local-experiment"], "fixedClock": "2026-07-17T00:00:00Z", "cacheMode": "ON"},
+      "after": {"serverProcessId": 202, "activeProfiles": ["local", "performance-fixture", "local-experiment"], "fixedClock": "2026-07-17T00:00:00Z", "cacheMode": "ON"}
+    },
     "endpointMetrics": [
       {"endpoint": "catalog", "p50Millis": 25, "p95Millis": 38.5, "throughputPerSecond": 0.013, "errorRate": 0, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
       {"endpoint": "events", "p50Millis": 25, "p95Millis": 38.5, "throughputPerSecond": 0.013, "errorRate": 0, "jdbcStatementCount": 2, "cacheHitCount": 3, "cacheMissCount": 1, "cacheEvictionCount": 0},
@@ -87,35 +95,39 @@
     "off": {
       "capturedAt": "2026-07-17T01:06:30Z",
       "provenance": {
+        "serverInfo": {"serverProcessId": 101, "activeProfiles": ["local", "performance-fixture", "local-experiment", "cache-off"], "fixedClock": "2026-07-17T00:00:00Z", "cacheMode": "OFF"},
         "cacheMode": "OFF",
         "activeProfiles": ["local", "performance-fixture", "local-experiment", "cache-off"],
         "fixedNow": "2026-07-17T00:00:00Z",
         "serverProcessId": 101,
         "healthStatus": "UP",
-        "captureSequence": 1
+        "captureSequence": 1,
+        "trace": {"sourceLog": "m30-live-sql-off.log", "logger": "org.springframework.jdbc.core=TRACE", "startOffset": 100, "endOffset": 1000, "traceSegmentSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "sanitizedTraceSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "statementCount": 4}
       },
       "evidence": [
-        {"cacheMode": "OFF", "queryShape": "GLOBAL_CATALOG", "bindSummary": "now=2026-07-17T00:00:00Z, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.501, "actualRows": 21, "sharedHitBlocks": 120, "sharedReadBlocks": 0},
-        {"cacheMode": "OFF", "queryShape": "FIXED_STORE_CATALOG", "bindSummary": "now=2026-07-17T00:00:00Z, storeId=1, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.601, "actualRows": 21, "sharedHitBlocks": 121, "sharedReadBlocks": 0},
-        {"cacheMode": "OFF", "queryShape": "ACTIVE_EVENTS", "bindSummary": "now=2026-07-17T00:00:00Z", "planSummary": "Sort -> Append", "fullPlan": "Sort (actual rows=8)\n  -> Append", "executionMillis": 2.701, "actualRows": 8, "sharedHitBlocks": 122, "sharedReadBlocks": 0},
-        {"cacheMode": "OFF", "queryShape": "POPULARITY", "bindSummary": "since=2026-07-10T00:00:00Z, now=2026-07-17T00:00:00Z", "planSummary": "Limit -> Sort -> Hash Join", "fullPlan": "Limit (actual rows=8)\n  -> Sort", "executionMillis": 2.801, "actualRows": 8, "sharedHitBlocks": 123, "sharedReadBlocks": 0}
+        {"cacheMode": "OFF", "queryShape": "GLOBAL_CATALOG", "requestPath": "/api/catalog/products?size=20", "traceThread": "http-nio-test-1", "preparedSql": "SELECT ? + ? LIMIT ?", "capturedBinds": [{"index":1,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":2,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":3,"value":"21","valueClass":"java.lang.Integer"}], "exactSql": "SELECT '2026-07-17T00:00:00Z'::timestamptz + '2026-07-17T00:00:00Z'::timestamptz LIMIT 21", "bindSummary": "now=2026-07-17T00:00:00Z, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.501, "actualRows": 21, "sharedHitBlocks": 120, "sharedReadBlocks": 0},
+        {"cacheMode": "OFF", "queryShape": "FIXED_STORE_CATALOG", "requestPath": "/api/stores/1/catalog/products?size=20", "traceThread": "http-nio-test-2", "preparedSql": "SELECT ? + ? WHERE id = ? LIMIT ?", "capturedBinds": [{"index":1,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":2,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":3,"value":"1","valueClass":"java.lang.Long"},{"index":4,"value":"21","valueClass":"java.lang.Integer"}], "exactSql": "SELECT 1", "bindSummary": "now=2026-07-17T00:00:00Z, storeId=1, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.601, "actualRows": 21, "sharedHitBlocks": 121, "sharedReadBlocks": 0},
+        {"cacheMode": "OFF", "queryShape": "ACTIVE_EVENTS", "requestPath": "/api/discovery/events", "traceThread": "http-nio-test-3", "preparedSql": "SELECT ? + ? + ? + ?", "capturedBinds": [{"index":1,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":2,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":3,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":4,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"}], "exactSql": "SELECT 1", "bindSummary": "now=2026-07-17T00:00:00Z", "planSummary": "Sort -> Append", "fullPlan": "Sort (actual rows=8)\n  -> Append", "executionMillis": 2.701, "actualRows": 8, "sharedHitBlocks": 122, "sharedReadBlocks": 0},
+        {"cacheMode": "OFF", "queryShape": "POPULARITY", "requestPath": "/api/discovery/popular-products", "traceThread": "http-nio-test-4", "preparedSql": "SELECT ? + ? + ? + ?", "capturedBinds": [{"index":1,"value":"2026-07-10T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":2,"value":"2026-07-10T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":3,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":4,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"}], "exactSql": "SELECT 1", "bindSummary": "since=2026-07-10T00:00:00Z, now=2026-07-17T00:00:00Z", "planSummary": "Limit -> Sort -> Hash Join", "fullPlan": "Limit (actual rows=8)\n  -> Sort", "executionMillis": 2.801, "actualRows": 8, "sharedHitBlocks": 123, "sharedReadBlocks": 0}
       ]
     },
     "on": {
       "capturedAt": "2026-07-17T01:16:30Z",
       "provenance": {
+        "serverInfo": {"serverProcessId": 202, "activeProfiles": ["local", "performance-fixture", "local-experiment"], "fixedClock": "2026-07-17T00:00:00Z", "cacheMode": "ON"},
         "cacheMode": "ON",
         "activeProfiles": ["local", "performance-fixture", "local-experiment"],
         "fixedNow": "2026-07-17T00:00:00Z",
         "serverProcessId": 202,
         "healthStatus": "UP",
-        "captureSequence": 2
+        "captureSequence": 2,
+        "trace": {"sourceLog": "m30-live-sql-on.log", "logger": "org.springframework.jdbc.core=TRACE", "startOffset": 200, "endOffset": 1200, "traceSegmentSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "sanitizedTraceSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "statementCount": 4}
       },
       "evidence": [
-        {"cacheMode": "ON", "queryShape": "GLOBAL_CATALOG", "bindSummary": "now=2026-07-17T00:00:00Z, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.401, "actualRows": 21, "sharedHitBlocks": 120, "sharedReadBlocks": 0},
-        {"cacheMode": "ON", "queryShape": "FIXED_STORE_CATALOG", "bindSummary": "now=2026-07-17T00:00:00Z, storeId=1, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.501, "actualRows": 21, "sharedHitBlocks": 121, "sharedReadBlocks": 0},
-        {"cacheMode": "ON", "queryShape": "ACTIVE_EVENTS", "bindSummary": "now=2026-07-17T00:00:00Z", "planSummary": "Sort -> Append", "fullPlan": "Sort (actual rows=8)\n  -> Append", "executionMillis": 2.601, "actualRows": 8, "sharedHitBlocks": 122, "sharedReadBlocks": 0},
-        {"cacheMode": "ON", "queryShape": "POPULARITY", "bindSummary": "since=2026-07-10T00:00:00Z, now=2026-07-17T00:00:00Z", "planSummary": "Limit -> Sort -> Hash Join", "fullPlan": "Limit (actual rows=8)\n  -> Sort", "executionMillis": 2.701, "actualRows": 8, "sharedHitBlocks": 123, "sharedReadBlocks": 0}
+        {"cacheMode": "ON", "queryShape": "GLOBAL_CATALOG", "requestPath": "/api/catalog/products?size=20", "traceThread": "http-nio-test-1", "preparedSql": "SELECT ? + ? LIMIT ?", "capturedBinds": [{"index":1,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":2,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":3,"value":"21","valueClass":"java.lang.Integer"}], "exactSql": "SELECT 1", "bindSummary": "now=2026-07-17T00:00:00Z, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.401, "actualRows": 21, "sharedHitBlocks": 120, "sharedReadBlocks": 0},
+        {"cacheMode": "ON", "queryShape": "FIXED_STORE_CATALOG", "requestPath": "/api/stores/1/catalog/products?size=20", "traceThread": "http-nio-test-2", "preparedSql": "SELECT ? + ? WHERE id = ? LIMIT ?", "capturedBinds": [{"index":1,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":2,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":3,"value":"1","valueClass":"java.lang.Long"},{"index":4,"value":"21","valueClass":"java.lang.Integer"}], "exactSql": "SELECT 1", "bindSummary": "now=2026-07-17T00:00:00Z, storeId=1, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.501, "actualRows": 21, "sharedHitBlocks": 121, "sharedReadBlocks": 0},
+        {"cacheMode": "ON", "queryShape": "ACTIVE_EVENTS", "requestPath": "/api/discovery/events", "traceThread": "http-nio-test-3", "preparedSql": "SELECT ? + ? + ? + ?", "capturedBinds": [{"index":1,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":2,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":3,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":4,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"}], "exactSql": "SELECT 1", "bindSummary": "now=2026-07-17T00:00:00Z", "planSummary": "Sort -> Append", "fullPlan": "Sort (actual rows=8)\n  -> Append", "executionMillis": 2.601, "actualRows": 8, "sharedHitBlocks": 122, "sharedReadBlocks": 0},
+        {"cacheMode": "ON", "queryShape": "POPULARITY", "requestPath": "/api/discovery/popular-products", "traceThread": "http-nio-test-4", "preparedSql": "SELECT ? + ? + ? + ?", "capturedBinds": [{"index":1,"value":"2026-07-10T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":2,"value":"2026-07-10T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":3,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"},{"index":4,"value":"2026-07-17T00:00:00Z","valueClass":"java.time.OffsetDateTime"}], "exactSql": "SELECT 1", "bindSummary": "since=2026-07-10T00:00:00Z, now=2026-07-17T00:00:00Z", "planSummary": "Limit -> Sort -> Hash Join", "fullPlan": "Limit (actual rows=8)\n  -> Sort", "executionMillis": 2.701, "actualRows": 8, "sharedHitBlocks": 123, "sharedReadBlocks": 0}
       ]
     }
   }

@@ -3,6 +3,18 @@ import {pathToFileURL} from 'node:url';
 
 const REQUIRED_ENDPOINTS = ['catalog', 'events', 'popularity', 'detail'];
 const REQUIRED_QUERY_SHAPES = ['GLOBAL_CATALOG', 'FIXED_STORE_CATALOG', 'ACTIVE_EVENTS', 'POPULARITY'];
+const QUERY_REQUEST_PATHS = {
+    GLOBAL_CATALOG: '/api/catalog/products?size=20',
+    FIXED_STORE_CATALOG: '/api/stores/1/catalog/products?size=20',
+    ACTIVE_EVENTS: '/api/discovery/events',
+    POPULARITY: '/api/discovery/popular-products',
+};
+const QUERY_BIND_COUNTS = {
+    GLOBAL_CATALOG: 3,
+    FIXED_STORE_CATALOG: 4,
+    ACTIVE_EVENTS: 4,
+    POPULARITY: 4,
+};
 const COMPARABLE_FIELDS = [
     'gitCommit',
     'dirtyWorktree',
@@ -54,14 +66,20 @@ export function normalizeMeasurement({
     validateK6Summary(offSummary, 'off');
     validateK6Summary(onSummary, 'on');
 
+    const offCollectorServerInfo = normalizeCollectorServerInfo(offMetrics, 'OFF');
+    const onCollectorServerInfo = normalizeCollectorServerInfo(onMetrics, 'ON');
     const offEndpointMetrics = normalizeEndpointMetrics(offMetrics, 'OFF', 'off');
     const onEndpointMetrics = normalizeEndpointMetrics(onMetrics, 'ON', 'on');
     validateRouteSamples(offSamples, 'OFF', offEndpointMetrics, off.measuredSeconds);
     validateRouteSamples(onSamples, 'ON', onEndpointMetrics, on.measuredSeconds);
-    const offQueryEvidence = normalizeQueryEvidenceBundle(queryEvidence?.off, 'OFF', off, 1);
-    const onQueryEvidence = normalizeQueryEvidenceBundle(queryEvidence?.on, 'ON', on, 2);
-    if (offQueryEvidence.fixedNow !== onQueryEvidence.fixedNow) {
-        throw new Error('OFF and ON plan provenance fixedNow must match');
+    const offQueryEvidence = normalizeQueryEvidenceBundle(
+            queryEvidence?.off, 'OFF', off, 1, offCollectorServerInfo,
+    );
+    const onQueryEvidence = normalizeQueryEvidenceBundle(
+            queryEvidence?.on, 'ON', on, 2, onCollectorServerInfo,
+    );
+    if (offQueryEvidence.fixedClock !== onQueryEvidence.fixedClock) {
+        throw new Error('OFF and ON plan provenance fixedClock must match');
     }
     if (offQueryEvidence.capturedAt >= onQueryEvidence.capturedAt) {
         throw new Error('OFF plan capture must precede ON plan capture');
@@ -81,6 +99,48 @@ export function normalizeMeasurement({
             queryEvidence: onQueryEvidence.evidence,
         },
     };
+}
+
+function normalizeCollectorServerInfo(metrics, expectedMode) {
+    requireObject(metrics, `${expectedMode} metrics`);
+    requireObject(metrics.serverInfo, `${expectedMode} collector serverInfo`);
+    const before = normalizeServerInfo(metrics.serverInfo.before, expectedMode, `${expectedMode} collector before`);
+    const after = normalizeServerInfo(metrics.serverInfo.after, expectedMode, `${expectedMode} collector after`);
+    if (!sameServerInfo(before, after)) {
+        throw new Error(`${expectedMode} collector server identity changed during k6`);
+    }
+    return before;
+}
+
+function normalizeServerInfo(info, expectedMode, label) {
+    requireObject(info, label);
+    requirePositiveInteger(info.serverProcessId, `${label} serverProcessId`);
+    const expectedProfiles = expectedMode === 'OFF'
+        ? ['local', 'performance-fixture', 'local-experiment', 'cache-off']
+        : ['local', 'performance-fixture', 'local-experiment'];
+    if (!Array.isArray(info.activeProfiles)
+            || info.activeProfiles.length !== expectedProfiles.length
+            || new Set(info.activeProfiles).size !== expectedProfiles.length
+            || expectedProfiles.some((profile) => !info.activeProfiles.includes(profile))) {
+        throw new Error(`${label} activeProfiles must contain exactly ${expectedProfiles.join(', ')}`);
+    }
+    requireTimestamp(info.fixedClock, `${label} fixedClock`);
+    if (info.cacheMode !== expectedMode) {
+        throw new Error(`${label} cacheMode must be ${expectedMode}`);
+    }
+    return {
+        serverProcessId: info.serverProcessId,
+        activeProfiles: [...info.activeProfiles],
+        fixedClock: info.fixedClock,
+        cacheMode: info.cacheMode,
+    };
+}
+
+function sameServerInfo(left, right) {
+    return left.serverProcessId === right.serverProcessId
+        && left.fixedClock === right.fixedClock
+        && left.cacheMode === right.cacheMode
+        && [...left.activeProfiles].sort().join('\0') === [...right.activeProfiles].sort().join('\0');
 }
 
 function normalizeCondition(condition, expectedMode, label) {
@@ -251,7 +311,7 @@ function round(value, digits) {
     return Math.round(scaled) / scale;
 }
 
-function normalizeQueryEvidenceBundle(bundle, expectedMode, condition, expectedSequence) {
+function normalizeQueryEvidenceBundle(bundle, expectedMode, condition, expectedSequence, collectorServerInfo) {
     requireObject(bundle, `${expectedMode} query evidence bundle`);
     const capturedAt = requireTimestamp(bundle.capturedAt, `${expectedMode} query evidence capturedAt`);
     if (capturedAt < Date.parse(condition.completedAt)) {
@@ -259,40 +319,48 @@ function normalizeQueryEvidenceBundle(bundle, expectedMode, condition, expectedS
     }
     const provenance = bundle.provenance;
     requireObject(provenance, `${expectedMode} plan provenance`);
-    if (provenance.cacheMode !== expectedMode) {
-        throw new Error(`${expectedMode} plan provenance cacheMode must be ${expectedMode}`);
+    const planServerInfo = normalizeServerInfo(
+            provenance.serverInfo, expectedMode, `${expectedMode} plan provenance`,
+    );
+    if (!sameServerInfo(collectorServerInfo, planServerInfo)) {
+        throw new Error(`${expectedMode} collector and plan server identity must match`);
     }
-    if (!Array.isArray(provenance.activeProfiles)
-            || new Set(provenance.activeProfiles).size !== provenance.activeProfiles.length) {
-        throw new Error(`${expectedMode} plan provenance activeProfiles must be unique`);
-    }
-    provenance.activeProfiles.forEach((profile, index) => requireText(
-            profile, `${expectedMode} plan provenance activeProfiles[${index}]`,
-    ));
-    for (const requiredProfile of ['local', 'performance-fixture', 'local-experiment']) {
-        if (!provenance.activeProfiles.includes(requiredProfile)) {
-            throw new Error(`${expectedMode} plan provenance must include ${requiredProfile}`);
-        }
-    }
-    if (expectedMode === 'OFF' && !provenance.activeProfiles.includes('cache-off')) {
-        throw new Error('OFF plan provenance must include cache-off');
-    }
-    if (expectedMode === 'ON' && provenance.activeProfiles.includes('cache-off')) {
-        throw new Error('ON plan provenance must not include cache-off');
-    }
-    requireTimestamp(provenance.fixedNow, `${expectedMode} plan provenance fixedNow`);
-    requirePositiveInteger(provenance.serverProcessId, `${expectedMode} plan provenance serverProcessId`);
     if (provenance.healthStatus !== 'UP') {
         throw new Error(`${expectedMode} plan provenance healthStatus must be UP`);
     }
     if (provenance.captureSequence !== expectedSequence) {
         throw new Error(`${expectedMode} plan provenance captureSequence must be ${expectedSequence}`);
     }
+    normalizeTraceProvenance(provenance.trace, expectedMode);
     return {
         capturedAt,
-        fixedNow: provenance.fixedNow,
+        fixedClock: planServerInfo.fixedClock,
         evidence: normalizeQueryEvidence(bundle.evidence, expectedMode),
     };
+}
+
+function normalizeTraceProvenance(trace, expectedMode) {
+    requireObject(trace, `${expectedMode} plan trace provenance`);
+    requireText(trace.sourceLog, `${expectedMode} plan trace provenance sourceLog`);
+    if (trace.sourceLog.includes('/') || trace.sourceLog.includes('\\') || !trace.sourceLog.endsWith('.log')) {
+        throw new Error(`${expectedMode} plan trace provenance sourceLog must be a log basename`);
+    }
+    if (trace.logger !== 'org.springframework.jdbc.core=TRACE') {
+        throw new Error(`${expectedMode} plan trace provenance logger must be org.springframework.jdbc.core=TRACE`);
+    }
+    requireNonNegativeInteger(trace.startOffset, `${expectedMode} plan trace provenance startOffset`);
+    requirePositiveInteger(trace.endOffset, `${expectedMode} plan trace provenance endOffset`);
+    if (trace.endOffset <= trace.startOffset) {
+        throw new Error(`${expectedMode} plan trace provenance endOffset must exceed startOffset`);
+    }
+    for (const field of ['traceSegmentSha256', 'sanitizedTraceSha256']) {
+        if (typeof trace[field] !== 'string' || !/^[a-f0-9]{64}$/.test(trace[field])) {
+            throw new Error(`${expectedMode} plan trace provenance ${field} must be SHA-256`);
+        }
+    }
+    if (trace.statementCount !== 4) {
+        throw new Error(`${expectedMode} plan trace provenance statementCount must be 4`);
+    }
 }
 
 function normalizeQueryEvidence(evidence, expectedMode) {
@@ -307,6 +375,27 @@ function normalizeQueryEvidence(evidence, expectedMode) {
         if (query.cacheMode !== expectedMode) {
             throw new Error(`${expectedMode} query evidence cacheMode must be ${expectedMode}`);
         }
+        if (query.requestPath !== QUERY_REQUEST_PATHS[query.queryShape]) {
+            throw new Error(`${expectedMode}.${query.queryShape}.requestPath must match the live HTTP shape`);
+        }
+        requireText(query.traceThread, `${expectedMode}.${query.queryShape}.traceThread`);
+        if (!query.traceThread.startsWith('http-nio-')) {
+            throw new Error(`${expectedMode}.${query.queryShape}.traceThread must be an HTTP worker`);
+        }
+        requireText(query.preparedSql, `${expectedMode}.${query.queryShape}.preparedSql`);
+        requireText(query.exactSql, `${expectedMode}.${query.queryShape}.exactSql`);
+        if (!Array.isArray(query.capturedBinds)
+                || query.capturedBinds.length !== QUERY_BIND_COUNTS[query.queryShape]) {
+            throw new Error(`${expectedMode}.${query.queryShape}.capturedBinds must contain live positional binds`);
+        }
+        query.capturedBinds.forEach((bind, bindIndex) => {
+            requireObject(bind, `${expectedMode}.${query.queryShape}.capturedBinds[${bindIndex}]`);
+            if (bind.index !== bindIndex + 1) {
+                throw new Error(`${expectedMode}.${query.queryShape}.capturedBinds indexes must be contiguous`);
+            }
+            requireText(bind.value, `${expectedMode}.${query.queryShape}.capturedBinds[${bindIndex}].value`);
+            requireText(bind.valueClass, `${expectedMode}.${query.queryShape}.capturedBinds[${bindIndex}].valueClass`);
+        });
         requireText(query.bindSummary, `${expectedMode}.${query.queryShape}.bindSummary`);
         requireText(query.planSummary, `${expectedMode}.${query.queryShape}.planSummary`);
         requireNonNegativeNumber(query.executionMillis, `${expectedMode}.${query.queryShape}.executionMillis`);

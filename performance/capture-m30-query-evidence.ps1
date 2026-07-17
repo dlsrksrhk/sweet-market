@@ -18,7 +18,7 @@ param(
 
     [Parameter(Mandatory = $true)]
     [ValidateScript({ Test-Path $_ -PathType Leaf })]
-    [string]$TemplatePath,
+    [string]$TraceLogPath,
 
     [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
@@ -31,82 +31,100 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $cacheMode = $Mode.ToUpperInvariant()
-$modeName = $cacheMode.ToLowerInvariant()
 $resolvedBaseUrl = $BaseUrl.TrimEnd('/')
 $headers = @{ Authorization = "Bearer $AdminToken" }
+$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$parserPath = Join-Path $repositoryRoot 'performance\parse-m30-jdbc-trace.mjs'
+$resolvedTraceLogPath = (Resolve-Path $TraceLogPath).Path
 
-$serverResponse = Invoke-WebRequest "$resolvedBaseUrl/actuator/info" -Headers $headers
-$serverJson = [System.Text.Encoding]::UTF8.GetString([byte[]]$serverResponse.Content)
-$server = $serverJson | ConvertFrom-Json -DateKind String
+function Get-SanitizedServerInfo {
+    $response = Invoke-WebRequest "$resolvedBaseUrl/actuator/info" -Headers $headers
+    $content = if ($response.Content -is [byte[]]) {
+        [System.Text.Encoding]::UTF8.GetString($response.Content)
+    } else {
+        [string]$response.Content
+    }
+    $experiment = ($content | ConvertFrom-Json -DateKind String).m30Experiment
+    if ($null -eq $experiment) {
+        throw 'authenticated server info is missing m30Experiment'
+    }
+    return [ordered]@{
+        serverProcessId = [long]$experiment.serverProcessId
+        activeProfiles = @($experiment.activeProfiles)
+        fixedClock = [string]$experiment.fixedNow
+        cacheMode = [string]$experiment.cacheMode
+    }
+}
+
+if ($cacheMode -eq 'ON') {
+    Start-Sleep -Seconds 31
+}
+
+$serverInfo = Get-SanitizedServerInfo
 $health = Invoke-RestMethod "$resolvedBaseUrl/actuator/health" -Headers $headers
-if ($server.m30Experiment.cacheMode -ne $cacheMode) {
-    throw "running server cache mode is $($server.m30Experiment.cacheMode), expected $cacheMode"
+if ($serverInfo.cacheMode -ne $cacheMode) {
+    throw "running server cache mode is $($serverInfo.cacheMode), expected $cacheMode"
 }
 if ($health.status -ne 'UP') {
     throw "running server health is $($health.status), expected UP"
 }
 
-Invoke-RestMethod "$resolvedBaseUrl/api/catalog/products?size=20" -Headers $headers | Out-Null
-Invoke-RestMethod "$resolvedBaseUrl/api/stores/1/catalog/products?size=20" -Headers $headers | Out-Null
-Invoke-RestMethod "$resolvedBaseUrl/api/discovery/events" -Headers $headers | Out-Null
-Invoke-RestMethod "$resolvedBaseUrl/api/discovery/popular-products" -Headers $headers | Out-Null
+$loggerUri = "$resolvedBaseUrl/actuator/loggers/org.springframework.jdbc.core"
+$trace = $null
+try {
+    $traceBody = @{ configuredLevel = 'TRACE' } | ConvertTo-Json
+    Invoke-RestMethod $loggerUri -Method Post -Headers $headers -ContentType 'application/json' -Body $traceBody | Out-Null
+    Start-Sleep -Milliseconds 500
 
-$templateDocument = Get-Content $TemplatePath -Raw | ConvertFrom-Json
-$templateMode = $templateDocument.$modeName
-$templates = if ($templateMode -is [array]) { $templateMode } else { $templateMode.evidence }
-if (@($templates).Count -ne 4) {
-    throw "$cacheMode template must contain four query shapes"
-}
+    $traceStartOffset = (Get-Item -LiteralPath $resolvedTraceLogPath).Length
+    Invoke-RestMethod "$resolvedBaseUrl/api/catalog/products?size=20" -Headers $headers | Out-Null
+    Invoke-RestMethod "$resolvedBaseUrl/api/stores/1/catalog/products?size=20" -Headers $headers | Out-Null
+    Invoke-RestMethod "$resolvedBaseUrl/api/discovery/events" -Headers $headers | Out-Null
+    Invoke-RestMethod "$resolvedBaseUrl/api/discovery/popular-products" -Headers $headers | Out-Null
+    Start-Sleep -Seconds 1
+    $traceEndOffset = (Get-Item -LiteralPath $resolvedTraceLogPath).Length
 
-$fixedNow = [string]$server.m30Experiment.fixedNow
-$since = [DateTimeOffset]::Parse($fixedNow).AddDays(-7).ToString("yyyy-MM-ddTHH:mm:ss'Z'")
-$fixedLiteral = "'$fixedNow'::timestamptz"
-$sinceLiteral = "'$since'::timestamptz"
-$timestampLiteralPattern = "(?i:(?:TIMESTAMPTZ\s*)?'\d{4}-\d{2}-\d{2}T[^']+'(?:::(?:timestamptz|timestamp(?: with time zone)?))?)"
-
-function Resolve-ExactSql {
-    param($Template)
-
-    $sql = ([string]$Template.exactSql).Replace('CURRENT_TIMESTAMP', $fixedLiteral)
-    $sql = [regex]::Replace($sql, $timestampLiteralPattern, $fixedLiteral)
-    if ($Template.queryShape -eq 'POPULARITY') {
-        $sql = [regex]::Replace($sql, "(?i)(created_at\s*>=\s*)$timestampLiteralPattern", "`$1$sinceLiteral")
-        $sql = [regex]::Replace($sql, "(?i)(viewed_at\s*>=\s*)$timestampLiteralPattern", "`$1$sinceLiteral")
+    $parserLines = & node $parserPath `
+        --trace-log $resolvedTraceLogPath `
+        --start-offset $traceStartOffset `
+        --end-offset $traceEndOffset
+    if ($LASTEXITCODE -ne 0) {
+        throw "live JDBC trace parser exited with code $LASTEXITCODE"
     }
-    return $sql
+    $trace = (($parserLines -join [Environment]::NewLine) | ConvertFrom-Json -DateKind String)
+} finally {
+    $resetBody = @{ configuredLevel = $null } | ConvertTo-Json
+    Invoke-RestMethod $loggerUri -Method Post -Headers $headers -ContentType 'application/json' -Body $resetBody | Out-Null
 }
 
-function Get-BindSummary {
-    param([string]$QueryShape)
-
-    switch ($QueryShape) {
-        'GLOBAL_CATALOG' { "now=$fixedNow, limitPlusOne=21" }
-        'FIXED_STORE_CATALOG' { "now=$fixedNow, storeId=1, limitPlusOne=21" }
-        'ACTIVE_EVENTS' { "now=$fixedNow" }
-        'POPULARITY' { "since=$since, now=$fixedNow" }
-    }
+if ($null -eq $trace -or @($trace.statements).Count -ne 4) {
+    throw 'live JDBC trace did not produce exactly four statements'
 }
 
-$evidence = foreach ($template in $templates) {
-    $exactSql = Resolve-ExactSql $template
+$evidence = foreach ($statement in $trace.statements) {
+    $exactSql = [string]$statement.exactSql
     $explainSql = "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) $exactSql"
     $planLines = & docker exec $DockerContainer psql -X -q -U $DatabaseUser -d $DatabaseName -t -A -c $explainSql
     if ($LASTEXITCODE -ne 0) {
-        throw "EXPLAIN failed for $($template.queryShape)"
+        throw "EXPLAIN failed for $($statement.queryShape)"
     }
     $fullPlan = $planLines -join "`n"
     $planRoot = @(ConvertFrom-Json $fullPlan)[0]
     $plan = $planRoot.Plan
     [ordered]@{
         cacheMode = $cacheMode
-        queryShape = [string]$template.queryShape
-        bindSummary = Get-BindSummary ([string]$template.queryShape)
+        queryShape = [string]$statement.queryShape
+        requestPath = [string]$statement.requestPath
+        traceThread = [string]$statement.threadName
+        preparedSql = [string]$statement.preparedSql
+        capturedBinds = @($statement.capturedBinds)
+        bindSummary = [string]$statement.bindSummary
+        exactSql = $exactSql
         planSummary = "$($plan.'Node Type'); Planning Time: $($planRoot.'Planning Time') ms; Execution Time: $($planRoot.'Execution Time') ms"
         executionMillis = [double]$planRoot.'Execution Time'
         actualRows = [long]$plan.'Actual Rows'
         sharedHitBlocks = [long]$plan.'Shared Hit Blocks'
         sharedReadBlocks = [long]$plan.'Shared Read Blocks'
-        exactSql = $exactSql
         fullPlan = $fullPlan
     }
 }
@@ -114,18 +132,28 @@ $evidence = foreach ($template in $templates) {
 $capture = [ordered]@{
     capturedAt = [DateTimeOffset]::UtcNow.ToString('o')
     provenance = [ordered]@{
-        cacheMode = $cacheMode
-        activeProfiles = @($server.m30Experiment.activeProfiles)
-        fixedNow = $fixedNow
-        serverProcessId = [long]$server.m30Experiment.serverProcessId
+        serverInfo = $serverInfo
         healthStatus = [string]$health.status
         captureSequence = $CaptureSequence
-        source = 'server-reported actuator info plus four HTTP query shapes followed by PostgreSQL EXPLAIN'
+        source = 'authenticated server info plus task-local live Spring JDBC TRACE SQL/binds followed by PostgreSQL EXPLAIN'
+        trace = [ordered]@{
+            sourceLog = [System.IO.Path]::GetFileName($resolvedTraceLogPath)
+            logger = 'org.springframework.jdbc.core=TRACE'
+            startOffset = [long]$traceStartOffset
+            endOffset = [long]$traceEndOffset
+            traceSegmentSha256 = [string]$trace.traceSegmentSha256
+            sanitizedTraceSha256 = [string]$trace.sanitizedTraceSha256
+            statementCount = @($trace.statements).Count
+        }
     }
     evidence = @($evidence)
 }
 
 $resolvedOutput = [System.IO.Path]::GetFullPath($OutputPath)
 [System.IO.Directory]::CreateDirectory([System.IO.Path]::GetDirectoryName($resolvedOutput)) | Out-Null
-[System.IO.File]::WriteAllText($resolvedOutput, ($capture | ConvertTo-Json -Depth 100), [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText(
+    $resolvedOutput,
+    ($capture | ConvertTo-Json -Depth 100),
+    [System.Text.UTF8Encoding]::new($false)
+)
 Write-Output $resolvedOutput

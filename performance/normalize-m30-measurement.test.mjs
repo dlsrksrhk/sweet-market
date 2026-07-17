@@ -8,6 +8,9 @@ const fixture = JSON.parse(await readFile(new URL('./fixtures/normalizer-input.j
 const collectionScript = await readFile(new URL('./collect-m30-measurement.ps1', import.meta.url), 'utf8');
 const captureScript = await readFile(new URL('./capture-m30-query-evidence.ps1', import.meta.url), 'utf8')
         .catch(() => '');
+const experimentConfig = await readFile(
+        new URL('../backend/src/main/resources/application-local-experiment.yaml', import.meta.url), 'utf8',
+);
 
 test('Task 10 등록 계약으로 정규화하고 밀리초와 비율을 보존한다', () => {
     const measurement = normalizeMeasurement(structuredClone(fixture));
@@ -87,14 +90,14 @@ test('cold start에서 아직 없는 read duration metric을 허용한다', () =
 
 test('OFF와_ON의_mode별_plan_provenance를_검증하고_등록계약에서는_제거한다', () => {
     const missingOffProfile = structuredClone(fixture);
-    missingOffProfile.queryEvidence.off.provenance.activeProfiles = [
+    missingOffProfile.queryEvidence.off.provenance.serverInfo.activeProfiles = [
         'local', 'performance-fixture', 'local-experiment',
     ];
-    assert.throws(() => normalizeMeasurement(missingOffProfile), /OFF plan provenance must include cache-off/);
+    assert.throws(() => normalizeMeasurement(missingOffProfile), /OFF plan provenance activeProfiles/);
 
     const unexpectedOnProfile = structuredClone(fixture);
-    unexpectedOnProfile.queryEvidence.on.provenance.activeProfiles.push('cache-off');
-    assert.throws(() => normalizeMeasurement(unexpectedOnProfile), /ON plan provenance must not include cache-off/);
+    unexpectedOnProfile.queryEvidence.on.provenance.serverInfo.activeProfiles.push('cache-off');
+    assert.throws(() => normalizeMeasurement(unexpectedOnProfile), /ON plan provenance activeProfiles/);
 
     const measurement = normalizeMeasurement(structuredClone(fixture));
     assert.equal(measurement.off.queryEvidence[0].provenance, undefined);
@@ -102,9 +105,53 @@ test('OFF와_ON의_mode별_plan_provenance를_검증하고_등록계약에서는
 
 test('OFF와_ON의_plan_capture가_같은_fixture_clock을_쓰지않으면_거부한다', () => {
     const input = structuredClone(fixture);
-    input.queryEvidence.on.provenance.fixedNow = '2026-07-17T00:00:01Z';
+    input.onMetrics.serverInfo.before.fixedClock = '2026-07-17T00:00:01Z';
+    input.onMetrics.serverInfo.after.fixedClock = '2026-07-17T00:00:01Z';
+    input.queryEvidence.on.provenance.serverInfo.fixedClock = '2026-07-17T00:00:01Z';
 
-    assert.throws(() => normalizeMeasurement(input), /plan provenance fixedNow must match/);
+    assert.throws(() => normalizeMeasurement(input), /plan provenance fixedClock must match/);
+});
+
+test('collector_before와_after의_PID가_다르면_거부한다', () => {
+    const input = structuredClone(fixture);
+    input.offMetrics.serverInfo.after.serverProcessId = 999;
+
+    assert.throws(() => normalizeMeasurement(input), /OFF collector server identity changed during k6/);
+});
+
+test('collector와_plan_capture의_PID가_다르면_거부한다', () => {
+    const input = structuredClone(fixture);
+    input.queryEvidence.on.provenance.serverInfo.serverProcessId = 999;
+
+    assert.throws(() => normalizeMeasurement(input), /ON collector and plan server identity must match/);
+});
+
+test('plan_capture의_live_trace_provenance와_SQL_bind가_없으면_거부한다', () => {
+    const missingTrace = structuredClone(fixture);
+    delete missingTrace.queryEvidence.off.provenance.trace;
+    assert.throws(() => normalizeMeasurement(missingTrace), /OFF plan trace provenance/);
+
+    const missingBinds = structuredClone(fixture);
+    delete missingBinds.queryEvidence.on.evidence[0].capturedBinds;
+    assert.throws(() => normalizeMeasurement(missingBinds), /ON.GLOBAL_CATALOG.capturedBinds/);
+
+    const measurement = normalizeMeasurement(structuredClone(fixture));
+    assert.equal(measurement.off.queryEvidence[0].preparedSql, undefined);
+    assert.equal(measurement.off.queryEvidence[0].exactSql, undefined);
+});
+
+test('collector의_profile_clock_cache_mode가_정확하지않으면_거부한다', () => {
+    const wrongProfile = structuredClone(fixture);
+    wrongProfile.offMetrics.serverInfo.before.activeProfiles.pop();
+    assert.throws(() => normalizeMeasurement(wrongProfile), /OFF collector before activeProfiles/);
+
+    const wrongClock = structuredClone(fixture);
+    wrongClock.onMetrics.serverInfo.after.fixedClock = '2026-07-17T00:00:01Z';
+    assert.throws(() => normalizeMeasurement(wrongClock), /ON collector server identity changed during k6/);
+
+    const wrongMode = structuredClone(fixture);
+    wrongMode.onMetrics.serverInfo.before.cacheMode = 'OFF';
+    assert.throws(() => normalizeMeasurement(wrongMode), /ON collector before cacheMode must be ON/);
 });
 
 test('route_sample에서_재계산한_endpoint_metric이_다르면_거부한다', () => {
@@ -142,16 +189,37 @@ test('collector는_sanitized_route_sample을_쓴뒤_raw만_삭제한다', () => 
     assert.match(collectionScript, /Remove-Item -LiteralPath \$rawPath -Force/);
 });
 
+test('collector는_k6_직전과직후의_authenticated_server_info를_보존하고_비교한다', () => {
+    assert.match(collectionScript, /\/actuator\/info/);
+    assert.match(collectionScript, /serverInfoBefore\s*=\s*Get-SanitizedServerInfo/);
+    assert.match(collectionScript, /serverInfoAfter\s*=\s*Get-SanitizedServerInfo/);
+    assert.match(collectionScript, /serverInfo\s*=\s*\[ordered\]@\{ before = \$serverInfoBefore; after = \$serverInfoAfter \}/);
+    assert.match(collectionScript, /server identity changed during k6/);
+    const beforeIndex = collectionScript.indexOf('$serverInfoBefore = Get-SanitizedServerInfo');
+    const k6Index = collectionScript.indexOf('& k6 run');
+    const afterIndex = collectionScript.indexOf('$serverInfoAfter = Get-SanitizedServerInfo');
+    assert.ok(beforeIndex >= 0 && beforeIndex < k6Index && k6Index < afterIndex);
+});
+
 test('plan_capture는_실행중인_서버_provenance와_네_HTTP_shape와_full_explain을_사용한다', () => {
     assert.match(captureScript, /\/actuator\/info/);
-    assert.match(captureScript, /m30Experiment\.cacheMode/);
+    assert.match(captureScript, /TraceLogPath/);
     assert.match(captureScript, /\/api\/catalog\/products\?size=20/);
     assert.match(captureScript, /\/api\/stores\/1\/catalog\/products\?size=20/);
     assert.match(captureScript, /\/api\/discovery\/events/);
     assert.match(captureScript, /\/api\/discovery\/popular-products/);
     assert.match(captureScript, /EXPLAIN \(ANALYZE, BUFFERS, FORMAT JSON\)/);
-    assert.match(captureScript, /\(\?:TIMESTAMPTZ\\s\*\)\?/);
-    assert.match(captureScript, /timestampLiteralPattern/);
-    assert.match(captureScript, /timestamptz\|timestamp\(\?: with time zone\)\?/);
-    assert.doesNotMatch(captureScript, /\[a-z \]\+/);
+    assert.match(captureScript, /traceStartOffset\s*=\s*\(Get-Item/);
+    assert.match(captureScript, /parse-m30-jdbc-trace\.mjs/);
+    assert.match(captureScript, /preparedSql/);
+    assert.match(captureScript, /capturedBinds/);
+    assert.match(captureScript, /traceSegmentSha256/);
+    assert.match(captureScript, /sanitizedTraceSha256/);
+    assert.match(captureScript, /serverInfo/);
+    assert.match(captureScript, /\/actuator\/loggers\/org\.springframework\.jdbc\.core/);
+    assert.match(experimentConfig, /include:\s*health,info,metrics,loggers/);
+    assert.doesNotMatch(captureScript, /TemplatePath/);
+    const offsetIndex = captureScript.indexOf('$traceStartOffset = (Get-Item');
+    const requestIndex = captureScript.indexOf('Invoke-RestMethod "$resolvedBaseUrl/api/catalog/products?size=20"');
+    assert.ok(offsetIndex >= 0 && offsetIndex < requestIndex);
 });
