@@ -288,8 +288,7 @@ public class StoreOperationsDashboardQueryService {
         String rowsCte = """
                 WITH failures AS (
                     SELECT product_id,
-                           COALESCE(SUM(failure_count), 0) AS failure_count,
-                           MAX(bucket_start) AS last_failure_at
+                           COALESCE(SUM(failure_count), 0) AS failure_count
                     FROM inventory_failure_hourly
                     WHERE generation_id = :generationId
                       AND store_id = :storeId
@@ -301,7 +300,7 @@ public class StoreOperationsDashboardQueryService {
                            pressure.available_quantity, pressure.low_stock,
                            pressure.last_sold_out_at,
                            COALESCE(failures.failure_count, 0) AS reservation_failure_count,
-                           failures.last_failure_at AS last_reservation_failure_at,
+                           pressure.last_reservation_failure_at,
                            pressure.updated_at
                     FROM inventory_pressure_projection pressure
                     LEFT JOIN failures ON failures.product_id = pressure.product_id
@@ -398,7 +397,9 @@ public class StoreOperationsDashboardQueryService {
                        aggregate_version, before_summary::text AS before_summary,
                        after_summary::text AS after_summary
                 """ + predicate + """
-                ORDER BY occurred_at DESC, id DESC
+                ORDER BY occurred_at DESC,
+                         aggregate_version DESC NULLS LAST,
+                         event_id DESC
                 LIMIT :limit OFFSET :offset
                 """, parameters, (resultSet, rowNumber) -> campaignAudit(resultSet));
         long total = count("SELECT COALESCE(COUNT(*), 0) " + predicate, parameters);

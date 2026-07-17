@@ -7,6 +7,7 @@ import com.sweet.market.operations.api.DashboardPeriod;
 import com.sweet.market.operations.api.DashboardPeriodResolver;
 import com.sweet.market.store.domain.Store;
 import com.sweet.market.store.domain.StoreMembership;
+import com.sweet.market.store.application.StoreAccessService;
 import com.sweet.market.store.repository.StoreMembershipRepository;
 import com.sweet.market.store.repository.StoreRepository;
 import com.sweet.market.support.IntegrationTestSupport;
@@ -19,10 +20,13 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
-import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
@@ -52,6 +56,9 @@ class StoreOperationsDashboardApiTest extends IntegrationTestSupport {
 
     @Autowired
     private JwtProvider jwtProvider;
+
+    @Autowired
+    private StoreAccessService storeAccessService;
 
     @MockitoSpyBean
     private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
@@ -174,17 +181,29 @@ class StoreOperationsDashboardApiTest extends IntegrationTestSupport {
     @Test
     void 플랫폼쿠폰이_상점주문에_적용되면_해당상점_할인액에_포함한다() throws Exception {
         Member owner = saveMember("dashboard-platform-coupon@example.com", "소유자");
+        Member foreignOwner = saveMember("dashboard-platform-foreign@example.com", "다른 소유자");
         Store store = saveBusinessStore(owner, "플랫폼 쿠폰 상점");
+        Store foreignStore = saveBusinessStore(foreignOwner, "다른 플랫폼 쿠폰 상점");
         insertStoreMetric(activeGenerationId, store.getId(), BUCKET, "NONE",
                 1, 0, 0, 0, 0, 0, 700, 0, 0, 0, 0);
         insertCampaignMetric(activeGenerationId, store.getId(), "COUPON", 51L,
                 "PLATFORM", 0L, "NONE", 0, 0, 1, 0, 1, 0, 700);
+        insertCampaignMetric(activeGenerationId, 0L, "COUPON", 52L,
+                "STORE", store.getId(), "NONE", 1, 0, 0, 0, 0, 0, 0);
+        insertCampaignMetric(activeGenerationId, foreignStore.getId(), "COUPON", 53L,
+                "PLATFORM", 0L, "NONE", 99, 0, 99, 0, 0, 0, 0);
 
         mockMvc.perform(period(get("/api/stores/{storeId}/operations/dashboard", store.getId()))
                         .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.couponDiscounts.applied").value(700))
+                .andExpect(jsonPath("$.data.claimSuccessCount").value(1))
                 .andExpect(jsonPath("$.data.redemptionSuccessCount").value(1));
+
+        mockMvc.perform(period(get("/api/stores/{storeId}/operations/coupon-outcomes", store.getId()))
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(2));
     }
 
     @Test
@@ -212,35 +231,152 @@ class StoreOperationsDashboardApiTest extends IntegrationTestSupport {
     }
 
     @Test
-    void 드릴다운은_상점범위를_SQL에서_제한하고_결정적으로_페이지한다() throws Exception {
+    void 캠페인감사는_발생시각과_버전과_이벤트ID로_결정적으로_페이지한다() throws Exception {
         Member owner = saveMember("dashboard-page-owner@example.com", "소유자");
         Member foreignOwner = saveMember("dashboard-page-foreign@example.com", "다른 소유자");
         Store store = saveBusinessStore(owner, "페이지 지표 상점");
         Store foreignStore = saveBusinessStore(foreignOwner, "다른 지표 상점");
-        long firstId = insertAudit(activeGenerationId, store.getId(), 61L, "COUPON", "CREATE",
-                Instant.parse("2026-07-11T03:00:00Z"));
-        long secondId = insertAudit(activeGenerationId, store.getId(), 62L, "COUPON", "PAUSE",
-                Instant.parse("2026-07-11T03:00:00Z"));
-        long foreignId = insertAudit(activeGenerationId, foreignStore.getId(), 99L, "COUPON", "END",
-                Instant.parse("2026-07-11T04:00:00Z"));
+        Instant occurredAt = Instant.parse("2026-07-11T03:00:00Z");
+        UUID version3Low = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        UUID version3High = UUID.fromString("00000000-0000-0000-0000-000000000003");
+        UUID version2 = UUID.fromString("00000000-0000-0000-0000-000000000009");
+        UUID nullVersion = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+        UUID foreign = UUID.fromString("ffffffff-ffff-ffff-ffff-fffffffffffe");
+        insertAudit(activeGenerationId, store.getId(), 61L, "COUPON", "CREATE",
+                occurredAt, version3Low, 3L);
+        insertAudit(activeGenerationId, store.getId(), 62L, "COUPON", "PAUSE",
+                occurredAt, version3High, 3L);
+        insertAudit(activeGenerationId, store.getId(), 63L, "COUPON", "END",
+                occurredAt, version2, 2L);
+        insertAudit(activeGenerationId, store.getId(), 64L, "COUPON", "UPDATE",
+                occurredAt, nullVersion, null);
+        insertAudit(activeGenerationId, foreignStore.getId(), 99L, "COUPON", "END",
+                occurredAt.plusSeconds(1), foreign, 99L);
 
-        String firstPage = mockMvc.perform(period(get("/api/stores/{storeId}/operations/campaign-audits", store.getId()))
-                        .queryParam("page", "0").queryParam("size", "1")
+        List<UUID> pageEventIds = new ArrayList<>();
+        for (int page = 0; page < 4; page++) {
+            String response = mockMvc.perform(period(get(
+                                    "/api/stores/{storeId}/operations/campaign-audits", store.getId()))
+                            .queryParam("page", String.valueOf(page)).queryParam("size", "1")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.totalElements").value(4))
+                    .andReturn().getResponse().getContentAsString();
+            pageEventIds.add(UUID.fromString(objectMapper.readTree(response)
+                    .path("data").path("content").get(0).path("eventId").asText()));
+        }
+
+        assertThat(pageEventIds).containsExactly(version3High, version3Low, version2, nullVersion)
+                .doesNotHaveDuplicates()
+                .doesNotContain(foreign);
+    }
+
+    @Test
+    void 재고압력은_시간버킷이_아닌_정확한_마지막실패시각을_반환한다() throws Exception {
+        Member owner = saveMember("dashboard-inventory-time@example.com", "소유자");
+        Store store = saveBusinessStore(owner, "재고 시각 상점");
+        Instant exactFailureAt = Instant.parse("2026-07-11T01:59:00Z");
+        insertInventory(activeGenerationId, store.getId(), 701L, true, 2, exactFailureAt);
+
+        mockMvc.perform(period(get("/api/stores/{storeId}/operations/inventory-pressure", store.getId()))
                         .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalElements").value(2))
-                .andReturn().getResponse().getContentAsString();
-        String secondPage = mockMvc.perform(period(get("/api/stores/{storeId}/operations/campaign-audits", store.getId()))
-                        .queryParam("page", "1").queryParam("size", "1")
+                .andExpect(jsonPath("$.data.content[0].reservationFailureCount").value(2))
+                .andExpect(jsonPath("$.data.content[0].lastReservationFailureAt")
+                        .value("2026-07-11T01:59:00Z"));
+    }
+
+    @Test
+    void 드릴다운은_필터를_적용하고_페이지크기를_백개로_제한한다() throws Exception {
+        Member owner = saveMember("dashboard-filter@example.com", "소유자");
+        Store store = saveBusinessStore(owner, "필터 지표 상점");
+        long pausedCouponId = insertCouponCampaign(store.getId(), "PAUSED", "일시중지 쿠폰");
+        long endedCouponId = insertCouponCampaign(store.getId(), "ENDED", "종료 쿠폰");
+        insertCampaignMetric(activeGenerationId, store.getId(), "COUPON", pausedCouponId,
+                "STORE", store.getId(), "EXHAUSTED", 0, 1, 0, 0, 0, 0, 0);
+        insertCampaignMetric(activeGenerationId, store.getId(), "COUPON", endedCouponId,
+                "STORE", store.getId(), "NONE", 1, 0, 0, 0, 0, 0, 0);
+        insertCampaignMetric(activeGenerationId, store.getId(), "PROMOTION", 999L,
+                "STORE", store.getId(), "EXHAUSTED", 0, 1, 0, 0, 0, 0, 0);
+        insertInventory(activeGenerationId, store.getId(), 801L, true, 1);
+        insertInventory(activeGenerationId, store.getId(), 802L, false, 0);
+        insertStoreMetric(activeGenerationId, store.getId(), BUCKET, "PAYMENT_FAILED",
+                0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        insertStoreMetric(activeGenerationId, store.getId(), BUCKET, "NONE",
+                1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        insertAudit(activeGenerationId, store.getId(), pausedCouponId, "COUPON", "PAUSE", BUCKET);
+        insertAudit(activeGenerationId, store.getId(), 999L, "PROMOTION", "END", BUCKET);
+
+        mockMvc.perform(period(get("/api/stores/{storeId}/operations/campaigns", store.getId()))
+                        .queryParam("campaignKind", "COUPON")
+                        .queryParam("status", "PAUSED")
+                        .queryParam("size", "1000")
                         .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
                 .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
+                .andExpect(jsonPath("$.data.size").value(100))
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].campaignId").value(pausedCouponId));
 
-        long page0Id = objectMapper.readTree(firstPage).path("data").path("content").get(0).path("id").asLong();
-        long page1Id = objectMapper.readTree(secondPage).path("data").path("content").get(0).path("id").asLong();
-        assertThat(page0Id).isEqualTo(secondId);
-        assertThat(page1Id).isEqualTo(firstId);
-        assertThat(page0Id).isNotEqualTo(page1Id).isNotEqualTo(foreignId);
+        mockMvc.perform(period(get("/api/stores/{storeId}/operations/coupon-outcomes", store.getId()))
+                        .queryParam("reason", "EXHAUSTED")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+        mockMvc.perform(period(get("/api/stores/{storeId}/operations/inventory-pressure", store.getId()))
+                        .queryParam("attentionOnly", "true")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1))
+                .andExpect(jsonPath("$.data.content[0].productId").value(801));
+        mockMvc.perform(period(get("/api/stores/{storeId}/operations/purchase-outcomes", store.getId()))
+                        .queryParam("reason", "PAYMENT_FAILED")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+        mockMvc.perform(period(get("/api/stores/{storeId}/operations/campaign-audits", store.getId()))
+                        .queryParam("campaignKind", "COUPON")
+                        .queryParam("command", "PAUSE")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+    }
+
+    @Test
+    void 모든_드릴다운은_활성세대만_결정적으로_페이지한다() throws Exception {
+        Member owner = saveMember("dashboard-all-pages@example.com", "소유자");
+        Store store = saveBusinessStore(owner, "전체 페이지 지표 상점");
+        insertCampaignMetric(activeGenerationId, store.getId(), "COUPON", 901L,
+                "STORE", store.getId(), "EXHAUSTED", 0, 1, 0, 0, 0, 0, 0);
+        insertCampaignMetric(activeGenerationId, store.getId(), "COUPON", 902L,
+                "STORE", store.getId(), "EXHAUSTED", 0, 1, 0, 0, 0, 0, 0);
+        insertCampaignMetric(retiredGenerationId, store.getId(), "COUPON", 999L,
+                "STORE", store.getId(), "EXHAUSTED", 0, 1, 0, 0, 0, 0, 0);
+        insertInventory(activeGenerationId, store.getId(), 901L, true, 1);
+        insertInventory(activeGenerationId, store.getId(), 902L, true, 1);
+        insertInventory(retiredGenerationId, store.getId(), 999L, true, 1);
+        insertStoreMetric(activeGenerationId, store.getId(), BUCKET, "PAYMENT_FAILED",
+                0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        insertStoreMetric(activeGenerationId, store.getId(), BUCKET, "SOLD_OUT",
+                0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        insertStoreMetric(retiredGenerationId, store.getId(), BUCKET, "INVENTORY_SHORTAGE",
+                0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        UUID auditOne = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID auditTwo = UUID.fromString("00000000-0000-0000-0000-000000000002");
+        UUID retiredAudit = UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff");
+        insertAudit(activeGenerationId, store.getId(), 901L, "COUPON", "CREATE", BUCKET, auditOne, 1L);
+        insertAudit(activeGenerationId, store.getId(), 902L, "COUPON", "PAUSE", BUCKET, auditTwo, 2L);
+        insertAudit(retiredGenerationId, store.getId(), 999L, "COUPON", "END", BUCKET, retiredAudit, 99L);
+
+        assertThat(pageFieldValues(owner, store, "campaigns", "campaignId"))
+                .containsExactly("902", "901");
+        assertThat(pageFieldValues(owner, store, "coupon-outcomes", "campaignId"))
+                .containsExactly("902", "901");
+        assertThat(pageFieldValues(owner, store, "inventory-pressure", "productId"))
+                .containsExactly("902", "901");
+        assertThat(pageFieldValues(owner, store, "purchase-outcomes", "reason"))
+                .containsExactly("SOLD_OUT", "PAYMENT_FAILED");
+        assertThat(pageFieldValues(owner, store, "campaign-audits", "eventId"))
+                .containsExactly(auditTwo.toString(), auditOne.toString());
     }
 
     @Test
@@ -254,24 +390,73 @@ class StoreOperationsDashboardApiTest extends IntegrationTestSupport {
                 .andExpect(status().isOk());
         assertThat(executedProjectionSqlCount()).isLessThanOrEqualTo(4);
 
-        clearInvocations(namedParameterJdbcTemplate);
-        mockMvc.perform(period(get("/api/stores/{storeId}/operations/campaign-audits", store.getId()))
-                        .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
-                .andExpect(status().isOk());
-        assertThat(executedProjectionSqlCount()).isLessThanOrEqualTo(3);
+        for (String drillDown : List.of(
+                "campaigns", "coupon-outcomes", "inventory-pressure",
+                "purchase-outcomes", "campaign-audits"
+        )) {
+            clearInvocations(namedParameterJdbcTemplate);
+            mockMvc.perform(period(get("/api/stores/{storeId}/operations/{drillDown}",
+                                    store.getId(), drillDown))
+                            .header(HttpHeaders.AUTHORIZATION, bearer(owner)))
+                    .andExpect(status().isOk());
+            assertThat(executedProjectionSqlCount())
+                    .as(drillDown + " projection SQL executions")
+                    .isLessThanOrEqualTo(3);
+        }
+    }
+
+    @Test
+    void 요약은_생성시각과_프로젝션지연과_추적시작시각을_정확히_반환한다() {
+        Member owner = saveMember("dashboard-freshness@example.com", "소유자");
+        Store store = saveBusinessStore(owner, "신선도 지표 상점");
+        Instant generatedAt = Instant.parse("2026-07-13T00:05:10Z");
+        StoreOperationsDashboardQueryService service = new StoreOperationsDashboardQueryService(
+                storeAccessService,
+                new DashboardPeriodResolver(),
+                namedParameterJdbcTemplate,
+                Clock.fixed(generatedAt, ZoneOffset.UTC));
+
+        StoreOperationsDashboardResponse response = service.dashboard(
+                owner.getId(), store.getId(), null,
+                LocalDate.of(2026, 7, 10), LocalDate.of(2026, 7, 12));
+
+        assertThat(response.generatedAt()).isEqualTo(generatedAt);
+        assertThat(response.projectionUpdatedAt()).isEqualTo(Instant.parse("2026-07-13T00:05:00Z"));
+        assertThat(response.projectionLagSeconds()).isEqualTo(10);
+        assertThat(response.trackingStartedAt()).isEqualTo(Instant.parse("2026-05-01T00:00:00Z"));
     }
 
     private long executedProjectionSqlCount() {
         return mockingDetails(namedParameterJdbcTemplate).getInvocations().stream()
+                .filter(invocation -> (invocation.getMethod().getName().equals("query")
+                        || invocation.getMethod().getName().equals("queryForObject"))
+                        && invocation.getMethod().getParameterTypes()[2] != Class.class)
                 .map(invocation -> invocation.getArguments())
                 .filter(arguments -> arguments.length > 0 && arguments[0] instanceof String)
                 .map(arguments -> ((String) arguments[0]).strip())
-                .filter(sql -> Arrays.stream(new String[]{
-                                "projection_generations", "store_metric_hourly", "campaign_metric_hourly",
-                                "inventory_pressure_projection", "campaign_audit_projection"
-                        }).anyMatch(sql::contains))
-                .distinct()
+                .filter(sql -> sql.contains("projection_generations")
+                        || sql.contains("store_metric_hourly")
+                        || sql.contains("campaign_metric_hourly")
+                        || sql.contains("inventory_pressure_projection")
+                        || sql.contains("campaign_audit_projection"))
                 .count();
+    }
+
+    private List<String> pageFieldValues(Member member, Store store, String route, String field) throws Exception {
+        List<String> values = new ArrayList<>();
+        for (int page = 0; page < 2; page++) {
+            String response = mockMvc.perform(period(get("/api/stores/{storeId}/operations/{route}",
+                                    store.getId(), route))
+                            .queryParam("page", String.valueOf(page))
+                            .queryParam("size", "1")
+                            .header(HttpHeaders.AUTHORIZATION, bearer(member)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.totalElements").value(2))
+                    .andReturn().getResponse().getContentAsString();
+            values.add(objectMapper.readTree(response)
+                    .path("data").path("content").get(0).path(field).asText());
+        }
+        return values;
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder period(
@@ -354,14 +539,38 @@ class StoreOperationsDashboardApiTest extends IntegrationTestSupport {
                 couponApplied, timestamp(BUCKET));
     }
 
+    private long insertCouponCampaign(long storeId, String status, String title) {
+        return jdbcTemplate.queryForObject("""
+                INSERT INTO coupon_campaigns (
+                    owner_type, store_id, scope, discount_type, discount_value,
+                    minimum_purchase_amount, stackable, title,
+                    issue_starts_at, issue_ends_at, validity_type, validity_days,
+                    version, issued_count, lifecycle_status, created_at, updated_at
+                ) VALUES (
+                    'STORE', ?, 'ALL_PRODUCTS', 'FIXED_AMOUNT', 100,
+                    0, FALSE, ?, '2026-07-01T00:00:00Z', '2026-08-01T00:00:00Z',
+                    'DAYS_FROM_ISSUANCE', 7, 0, 0, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                RETURNING id
+                """, Long.class, storeId, title, status);
+    }
+
     private void insertInventory(long generationId, long storeId, long productId, boolean lowStock, long failures) {
+        insertInventory(generationId, storeId, productId, lowStock, failures, BUCKET);
+    }
+
+    private void insertInventory(
+            long generationId, long storeId, long productId, boolean lowStock, long failures,
+            Instant lastReservationFailureAt
+    ) {
         jdbcTemplate.update("""
                 INSERT INTO inventory_pressure_projection (
                     generation_id, product_id, store_id, sales_policy, available_quantity,
                     low_stock, recent_reservation_failure_count, last_reservation_failure_at,
                     aggregate_version, updated_at
                 ) VALUES (?, ?, ?, 'STOCK_MANAGED', 3, ?, ?, ?, 1, ?)
-                """, generationId, productId, storeId, lowStock, failures, timestamp(BUCKET), timestamp(BUCKET));
+                """, generationId, productId, storeId, lowStock, failures,
+                timestamp(lastReservationFailureAt), timestamp(BUCKET));
         jdbcTemplate.update("""
                 INSERT INTO inventory_failure_hourly (
                     generation_id, bucket_start, product_id, store_id, failure_count
@@ -372,15 +581,22 @@ class StoreOperationsDashboardApiTest extends IntegrationTestSupport {
     private long insertAudit(
             long generationId, long storeId, long campaignId, String kind, String command, Instant occurredAt
     ) {
+        return insertAudit(generationId, storeId, campaignId, kind, command, occurredAt, UUID.randomUUID(), 1L);
+    }
+
+    private long insertAudit(
+            long generationId, long storeId, long campaignId, String kind, String command,
+            Instant occurredAt, UUID eventId, Long aggregateVersion
+    ) {
         return jdbcTemplate.queryForObject("""
                 INSERT INTO campaign_audit_projection (
                     generation_id, event_id, campaign_kind, campaign_id,
                     owner_type, owner_store_id, actor_member_id, command,
                     occurred_at, aggregate_version, before_summary, after_summary
-                ) VALUES (?, ?, ?, ?, 'STORE', ?, 1, ?, ?, 1, NULL, '{}'::jsonb)
+                ) VALUES (?, ?, ?, ?, 'STORE', ?, 1, ?, ?, ?, NULL, '{}'::jsonb)
                 RETURNING id
-                """, Long.class, generationId, UUID.randomUUID(), kind, campaignId, storeId, command,
-                timestamp(occurredAt));
+                """, Long.class, generationId, eventId, kind, campaignId, storeId, command,
+                timestamp(occurredAt), aggregateVersion);
     }
 
     private Timestamp timestamp(Instant instant) {
