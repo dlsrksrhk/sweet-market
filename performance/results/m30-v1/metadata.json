@@ -1,0 +1,30 @@
+{
+  "measurementId": "3a59bcfe-afdd-4d3e-8e1c-64e8bf4adc08",
+  "artifactDirectory": "performance/results/m30-v1",
+  "off": {
+    "cacheMode": "OFF",
+    "gitCommit": "492b216e60d0c14fd517a8387f5f4bfc1bf95775",
+    "dirtyWorktree": true,
+    "fixtureVersion": "m30-v1",
+    "scenarioVersion": "m30-catalog-reads-v1",
+    "environmentName": "windows-docker-postgresql-17-redis-7.4-k6-2.1.0-jdk-21",
+    "hardwareDescription": "Intel Core i7-14700KF (20 cores / 28 logical), 63.7 GiB RAM",
+    "warmupSeconds": 60,
+    "measuredSeconds": 300,
+    "startedAt": "2026-07-17T20:01:00.7513607+09:00",
+    "completedAt": "2026-07-17T20:07:02.396045+09:00"
+  },
+  "on": {
+    "cacheMode": "ON",
+    "gitCommit": "492b216e60d0c14fd517a8387f5f4bfc1bf95775",
+    "dirtyWorktree": true,
+    "fixtureVersion": "m30-v1",
+    "scenarioVersion": "m30-catalog-reads-v1",
+    "environmentName": "windows-docker-postgresql-17-redis-7.4-k6-2.1.0-jdk-21",
+    "hardwareDescription": "Intel Core i7-14700KF (20 cores / 28 logical), 63.7 GiB RAM",
+    "warmupSeconds": 60,
+    "measuredSeconds": 300,
+    "startedAt": "2026-07-17T20:11:13.7641651+09:00",
+    "completedAt": "2026-07-17T20:17:15.2646691+09:00"
+  }
+}

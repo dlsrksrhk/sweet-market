@@ -1,0 +1,9 @@
+spring:
+  config:
+    activate:
+      on-profile: performance-fixture
+
+market:
+  performance-fixture:
+    version: m30-v1
+    random-seed: 310031

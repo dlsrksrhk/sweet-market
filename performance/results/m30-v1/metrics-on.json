@@ -1,0 +1,341 @@
+{
+  "cacheMode": "ON",
+  "startedAt": "2026-07-17T11:11:13.7641651+00:00",
+  "completedAt": "2026-07-17T11:17:15.2646691+00:00",
+  "k6ExitCode": 0,
+  "measuredScenario": "measured_catalog_reads",
+  "measuredSeconds": 300,
+  "productId": 10000,
+  "jdbcStatementCountMethod": "authorized Actuator whole-run delta; the untagged real total is retained on each endpoint",
+  "jdbcStatementDelta": 93958,
+  "endpointMetrics": [
+    {
+      "endpoint": "catalog",
+      "p50Millis": 4.314,
+      "p95Millis": 29.099,
+      "throughputPerSecond": 65.6,
+      "errorRate": 0.0029472,
+      "jdbcStatementCount": 93958,
+      "cacheHitCount": null,
+      "cacheMissCount": null,
+      "cacheEvictionCount": null,
+      "measuredRequestCount": 19680
+    },
+    {
+      "endpoint": "events",
+      "p50Millis": 1.591,
+      "p95Millis": 21.886,
+      "throughputPerSecond": 65.6,
+      "errorRate": 0.0010163,
+      "jdbcStatementCount": 93958,
+      "cacheHitCount": 20455,
+      "cacheMissCount": 12,
+      "cacheEvictionCount": 11,
+      "measuredRequestCount": 19680
+    },
+    {
+      "endpoint": "popularity",
+      "p50Millis": 88.83,
+      "p95Millis": 119.163,
+      "throughputPerSecond": 65.6,
+      "errorRate": 0.0027439,
+      "jdbcStatementCount": 93958,
+      "cacheHitCount": null,
+      "cacheMissCount": null,
+      "cacheEvictionCount": null,
+      "measuredRequestCount": 19680
+    },
+    {
+      "endpoint": "detail",
+      "p50Millis": 11.356,
+      "p95Millis": 28.0,
+      "throughputPerSecond": 28.02,
+      "errorRate": 0.0005948,
+      "jdbcStatementCount": 93958,
+      "cacheHitCount": null,
+      "cacheMissCount": null,
+      "cacheEvictionCount": null,
+      "measuredRequestCount": 8406
+    }
+  ],
+  "actuator": {
+    "before": {
+      "jdbcStatements": {
+        "name": "discovery.jdbc.statements",
+        "description": "JDBC statements executed by Hibernate and JDBC template paths",
+        "measurements": [
+          {
+            "statistic": "COUNT",
+            "value": 310.0
+          }
+        ],
+        "availableTags": [
+          {
+            "tag": "profile",
+            "values": [
+              "local-experiment"
+            ]
+          }
+        ]
+      },
+      "readDuration": null,
+      "readDurationByEndpoint": {
+        "catalog": null,
+        "events": null,
+        "popularity": null,
+        "detail": null
+      },
+      "cache": {
+        "hits": {
+          "name": "cache.gets",
+          "description": "The number of times cache lookup methods have returned a cached (hit) or uncached (newly loaded or null) value (miss).",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 0.0
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "misses": {
+          "name": "cache.gets",
+          "description": "The number of times cache lookup methods have returned a cached (hit) or uncached (newly loaded or null) value (miss).",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 0.0
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "evictions": {
+          "name": "cache.evictions",
+          "description": "The number of times the cache was evicted.",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 0.0
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "after": {
+      "jdbcStatements": {
+        "name": "discovery.jdbc.statements",
+        "description": "JDBC statements executed by Hibernate and JDBC template paths",
+        "measurements": [
+          {
+            "statistic": "COUNT",
+            "value": 94268.0
+          }
+        ],
+        "availableTags": [
+          {
+            "tag": "profile",
+            "values": [
+              "local-experiment"
+            ]
+          }
+        ]
+      },
+      "readDuration": {
+        "name": "discovery.read.duration",
+        "description": "Discovery read endpoint duration",
+        "baseUnit": "seconds",
+        "measurements": [
+          {
+            "statistic": "COUNT",
+            "value": 61329.0
+          },
+          {
+            "statistic": "TOTAL_TIME",
+            "value": 2074.9434812
+          },
+          {
+            "statistic": "MAX",
+            "value": 0.1886518
+          }
+        ],
+        "availableTags": [
+          {
+            "tag": "endpoint",
+            "values": [
+              "events",
+              "catalog",
+              "popularity"
+            ]
+          },
+          {
+            "tag": "profile",
+            "values": [
+              "local-experiment"
+            ]
+          }
+        ]
+      },
+      "readDurationByEndpoint": {
+        "catalog": {
+          "name": "discovery.read.duration",
+          "description": "Discovery read endpoint duration",
+          "baseUnit": "seconds",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 20429.0
+            },
+            {
+              "statistic": "TOTAL_TIME",
+              "value": 130.747658
+            },
+            {
+              "statistic": "MAX",
+              "value": 0.0668838
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "events": {
+          "name": "discovery.read.duration",
+          "description": "Discovery read endpoint duration",
+          "baseUnit": "seconds",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 20467.0
+            },
+            {
+              "statistic": "TOTAL_TIME",
+              "value": 72.2165212
+            },
+            {
+              "statistic": "MAX",
+              "value": 0.065728
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "popularity": {
+          "name": "discovery.read.duration",
+          "description": "Discovery read endpoint duration",
+          "baseUnit": "seconds",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 20433.0
+            },
+            {
+              "statistic": "TOTAL_TIME",
+              "value": 1871.979302
+            },
+            {
+              "statistic": "MAX",
+              "value": 0.1886518
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "detail": null
+      },
+      "cache": {
+        "hits": {
+          "name": "cache.gets",
+          "description": "The number of times cache lookup methods have returned a cached (hit) or uncached (newly loaded or null) value (miss).",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 20455.0
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "misses": {
+          "name": "cache.gets",
+          "description": "The number of times cache lookup methods have returned a cached (hit) or uncached (newly loaded or null) value (miss).",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 12.0
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "evictions": {
+          "name": "cache.evictions",
+          "description": "The number of times the cache was evicted.",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 11.0
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -2,74 +2,114 @@
 
 ## Scope and reproducibility
 
-The workload is [`performance/m30-catalog-reads.js`](../../../performance/m30-catalog-reads.js). It uses a one-minute 20-VU warm-up, followed by a five-minute 100-VU measured interval. Each iteration chooses home/catalog reads 70% of the time and product-detail reads 30% of the time. The home path calls active events, popularity, and the global catalog together.
+The unchanged workload is [`performance/m30-catalog-reads.js`](../../../performance/m30-catalog-reads.js). It uses a one-minute 20-VU warm-up followed by a five-minute 100-VU measured interval. Each iteration chooses the home/catalog batch 70% of the time and product detail 30% of the time. The home path calls active events, popularity, and the global catalog together.
 
-Use the `local` fixture profile together with the statement-counter profile. `local` runs `DemoDataInitializer` (120 catalog products) on an empty database. The PowerShell lookup below selects the first returned buyer-visible catalog card, so `PRODUCT_ID` is valid for the detail portion of the workload.
+The measured fixture is `m30-v1`, produced by the `performance-fixture` Spring profile with random seed `310031`, fixed fixture instant `2026-07-17T00:00:00Z`, and 500-row persistence/JDBC batches. The local PostgreSQL and Redis Docker volumes were reset once before cache OFF. Cache ON reused the same database and IDs without resetting or rerunning the fixture.
 
 ```powershell
 cd backend
 $env:JAVA_HOME='C:\java\jdk-21'
 $env:PATH="$env:JAVA_HOME\bin;$env:PATH"
-$env:JWT_SECRET='sweet-market-local-test-secret-key-32bytes-minimum'
+$env:JWT_SECRET=$env:SWEET_MARKET_LOCAL_JWT_SECRET # supply a local value of at least 32 bytes
+
+# First start only: create m30-v1 and measure cache OFF.
+.\gradlew.bat bootRun --args='--spring.profiles.active=local,performance-fixture,local-experiment,cache-off'
+
+# After the OFF process stops, reuse the database and measure cache ON.
 .\gradlew.bat bootRun --args='--spring.profiles.active=local,local-experiment'
 
-# separate terminal at repository root
-$env:BASE_URL='http://localhost:8080'
-$catalog = Invoke-RestMethod "$env:BASE_URL/api/catalog/products?size=1"
-$env:PRODUCT_ID = [string]$catalog.data.content[0].id
-if ([string]::IsNullOrWhiteSpace($env:PRODUCT_ID)) { throw 'Local fixture did not provide a buyer-visible product.' }
-k6 run performance/m30-catalog-reads.js
+# Run from the repository root with an authorized ADMIN token.
+.\performance\collect-m30-measurement.ps1 `
+  -BaseUrl http://localhost:8080 `
+  -AdminToken $adminToken `
+  -ProductId 10000 `
+  -Mode OFF `
+  -OutputDirectory performance/results/m30-v1
 ```
 
-`local-experiment` wraps the application `DataSource`, so the `discovery.jdbc.statements` counter includes statements issued by both Hibernate and `NamedParameterJdbcTemplate`. Read it at `/actuator/metrics/discovery.jdbc.statements`; the timers are `discovery.read.duration` tagged with `endpoint=catalog|events|popularity|detail`. Caffeine statistics are exported with cache name `discovery.active-events`.
+`local-experiment` wraps the application `DataSource`, so `discovery.jdbc.statements` counts statements issued through both Hibernate and `NamedParameterJdbcTemplate`. The counter has no endpoint tag. Consequently the structured endpoint rows retain the actual whole-run delta rather than inventing a per-endpoint allocation; the raw authorized before/after snapshots and this method are preserved in `metrics-off.json` and `metrics-on.json`.
 
-## Cache-off / cache-on comparison
+## Conditions
 
-The active-event cache supports `discovery.active-event-cache.enabled`; the `cache-off` profile sets it to `false`. Run the exact same fixture and `PRODUCT_ID` lookup for each server mode, restarting the server between runs:
+| Condition | Value |
+| --- | --- |
+| Git commit | `492b216e60d0c14fd517a8387f5f4bfc1bf95775` |
+| Dirty-worktree declaration | `true` for both modes |
+| Environment | Windows, Docker PostgreSQL 17, Redis 7.4, k6 2.1.0, JDK 21 |
+| Hardware | Intel Core i7-14700KF, 20 cores / 28 logical processors, 63.7 GiB RAM |
+| Scenario | `m30-catalog-reads-v1`; 60-second warm-up + 300-second measurement |
+| Cache OFF interval | 2026-07-17 20:01:00.751–20:07:02.396 KST |
+| Cache ON interval | 2026-07-17 20:11:13.764–20:17:15.265 KST |
+| Product detail ID | `10000` in both modes |
 
-```powershell
-# cache off
-.\gradlew.bat bootRun --args='--spring.profiles.active=local,local-experiment,cache-off'
-
-# cache on (default)
-.\gradlew.bat bootRun --args='--spring.profiles.active=local,local-experiment'
-```
-
-For each mode, snapshot `/actuator/metrics/discovery.jdbc.statements` before and after `k6 run performance/m30-catalog-reads.js`. In cache-on mode also capture `/actuator/metrics/cache.gets?tag=cache:discovery.active-events` for hit/miss totals. Cache-off invokes the repository loader for every event request, so it has no cache-hit assertion to collect.
+The committed evidence directory is [`performance/results/m30-v1`](../../../performance/results/m30-v1). It contains both k6 summaries, authorized Actuator snapshots, the exact traced SQL and full PostgreSQL plans, metadata, and the normalized registration request.
 
 ## Fixture volume
 
-| Fixture | Volume | Source |
+| Fixture | Volume | Source/condition |
 | --- | ---: | --- |
-| Buyer-visible catalog products | 120 | `DemoDataInitializer.CATALOG_PRODUCT_COUNT` |
-| Buyer-visible detail product | 1 required | `PRODUCT_ID` supplied to k6 |
-| Product-view events | Record before run | `select count(*) from product_view_events;` |
-| Active promotion/coupon events | Record before run | `GET /api/discovery/events` |
+| Active business stores | 10 | `type=BUSINESS`, `status=ACTIVE` |
+| Buyer-visible catalog products | 10,000 | all stock-managed with inventory and a representative image |
+| Inventories | 10,000 | one domain-validated inventory per product |
+| Scheduled promotion campaigns | 20 | active at the measurement instant |
+| Scheduled coupon campaigns | 20 | active at the measurement instant |
+| Wishlist items | 50,000 | unique synthetic buyer/product pairs |
+| Product-view events | 200,000 | deterministic synthetic hashes, all within the seven-day window |
 
-## Measured result record
+Before k6, the public APIs returned 40 active events and eight popular products. No real visitor identifier, credential, or token is present in the artifacts.
 
-No latency, error, SQL, cache, or query-plan value is fabricated here. This work creates the reproducible workload and instrumentation; fill the following rows from the one five-minute run above before making a performance claim.
+## Cache-off / cache-on aggregate result
 
-| Mode | p50 | p95 | HTTP errors | JDBC statements | Cache gets/hits/misses |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Cache disabled (`cache-off` Spring profile) | Not measured | Not measured | Not measured | Not measured | Not applicable |
-| Cache enabled (normal 30-second entry) | Not measured | Not measured | Not measured | Not measured | Not measured |
+| Mode | Requests / rate | p50 | p95 | HTTP errors | JDBC statements | Cache gets / evictions |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Cache disabled (`cache-off`) | 57,850 / 160.130 req/s | 272.746 ms | 423.538 ms | 0 / 57,850 (0%) | 94,477 | Not applicable; cache loader runs for every event request |
+| Cache enabled (30-second entry) | 70,193 / 194.399 req/s | 7.084 ms | 103.114 ms | 137 / 70,193 (0.1951762%) | 93,958 | 20,455 hits, 12 misses, 11 expiry evictions |
 
-Capture the k6 summary for p50/p95 and error rate, `discovery.jdbc.statements` before and after the run for statement count, and the Caffeine `cache.gets` metrics with `result=hit|miss` for cache statistics.
+All three unchanged k6 thresholds passed in both modes: `catalog_read_errors<1%`, `http_req_failed<1%`, and `http_req_duration p95<1000ms`. At the cache-ON transition to 100 VUs, 137 localhost connections were refused. The same Java/Tomcat PID remained live with no restart or application exception, and the observed 0.195% error rate is retained rather than removed from the result.
+
+The cache counters cover warm-up plus measurement. `20,455 + 12 = 20,467` exactly matches the whole-run event request count; the 30-second entry reloaded 12 times and expired 11 times.
+
+## Measured endpoint result
+
+Endpoint percentiles, rates, and errors below use only raw k6 samples tagged `scenario=measured_catalog_reads` and the existing `route` tag.
+
+| Mode | Endpoint | Samples | p50 ms | p95 ms | req/s | Error rate |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| OFF | catalog | 16,228 | 235.078 | 366.819 | 54.093 | 0 |
+| OFF | events | 16,228 | 293.877 | 425.403 | 54.093 | 0 |
+| OFF | popularity | 16,228 | 322.281 | 454.570 | 54.093 | 0 |
+| OFF | detail | 6,937 | 230.039 | 358.929 | 23.123 | 0 |
+| ON | catalog | 19,680 | 4.314 | 29.099 | 65.600 | 0.0029472 |
+| ON | events | 19,680 | 1.591 | 21.886 | 65.600 | 0.0010163 |
+| ON | popularity | 19,680 | 88.830 | 119.163 | 65.600 | 0.0027439 |
+| ON | detail | 8,406 | 11.356 | 28.000 | 28.020 | 0.0005948 |
+
+The comparison is a system-level result: repeatedly executing the expensive active-event query under cache OFF creates database and request-thread contention that also raises the other route latencies. It is not evidence that the cache directly changes catalog, popularity, or detail SQL.
 
 ## Query-plan record
 
-Run each captured SQL statement from the local SQL log through PostgreSQL with its real bind values, using `EXPLAIN (ANALYZE, BUFFERS)`. Preserve the full output with this report when recording a run.
+A separate short trace session enabled Spring JDBC TRACE after both load runs. It invoked the four required HTTP requests, captured the prepared SQL and values below, substituted those exact values, and ran `EXPLAIN (ANALYZE, BUFFERS)` twice on the unchanged fixture. Full SQL and complete plans are in [`query-evidence.json`](../../../performance/results/m30-v1/query-evidence.json).
 
-| Query | Required request | Result |
-| --- | --- | --- |
-| Global catalog | `GET /api/catalog/products?size=20` | Not measured |
-| Fixed-store catalog | `GET /api/stores/{storeId}/catalog/products?size=20` | Not measured |
-| Active events | `GET /api/discovery/events` | Not measured |
-| Popular products | `GET /api/discovery/popular-products` | Not measured |
+| Query | Required request / captured bind | OFF execution / rows / buffers | ON execution / rows / buffers |
+| --- | --- | --- | --- |
+| Global catalog | `GET /api/catalog/products?size=20`; `limitPlusOne=21` | 0.498 ms / 21 / hit 179, read 0 | 0.429 ms / 21 / hit 179, read 0 |
+| Fixed-store catalog | `GET /api/stores/1/catalog/products?size=20`; `storeId=1`, `limitPlusOne=21` | 0.467 ms / 21 / hit 189, read 0 | 0.474 ms / 21 / hit 189, read 0 |
+| Active events | `GET /api/discovery/events`; no binds | 68.384 ms / 40 / hit 107,767, read 0 | 67.231 ms / 40 / hit 107,767, read 0 |
+| Popular products | `GET /api/discovery/popular-products`; `since=2026-07-10T20:19:54.632851900+09:00` in both CTEs | 92.745 ms / 8 / hit 85,817, read 0 | 99.239 ms / 8 / hit 85,817, read 0 |
 
-```sql
-EXPLAIN (ANALYZE, BUFFERS)
--- paste the logged global/fixed-store catalog, active-events, or popularity SQL here with its values.
-SELECT 1;
-```
+The plan evidence shows the catalog paths returning their 21-row `LIMIT` quickly from warm shared buffers. In contrast, active events touches 107,767 shared blocks for 40 cards, and popularity touches 85,817 shared blocks while aggregating 50,000 wishlist and 200,000 seven-day view facts. Cache ON avoids repeatedly executing active events during the load test; it does not alter the underlying SQL plan.
+
+## Normalization and registration
+
+The normalizer accepted the real k6 2.1.0 summary-export shape, verified exact OFF/ON comparability, required the four endpoints and four query shapes for each mode, and emitted [`measurement.json`](../../../performance/results/m30-v1/measurement.json).
+
+Local ADMIN registration returned:
+
+| Field | Value |
+| --- | --- |
+| HTTP status | `201 Created` |
+| runId | `1` |
+| measurementId | `3a59bcfe-afdd-4d3e-8e1c-64e8bf4adc08` |
+| payloadHash | `75f3d8a6da68207c63c38b9cc35d1595d574082086dd7d87d990e7c827e5d2c0` |
+| valid / comparable | `true` / `true` |
+| persisted endpoint metrics / query evidence | 8 / 8 |

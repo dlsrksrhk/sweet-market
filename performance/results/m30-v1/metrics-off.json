@@ -1,0 +1,343 @@
+{
+  "cacheMode": "OFF",
+  "startedAt": "2026-07-17T11:01:00.7513607+00:00",
+  "completedAt": "2026-07-17T11:07:02.3960450+00:00",
+  "k6ExitCode": 0,
+  "measuredScenario": "measured_catalog_reads",
+  "measuredSeconds": 300,
+  "productId": 10000,
+  "jdbcStatementCountMethod": "authorized Actuator whole-run delta; the untagged real total is retained on each endpoint",
+  "jdbcStatementDelta": 94477,
+  "endpointMetrics": [
+    {
+      "endpoint": "catalog",
+      "p50Millis": 235.078,
+      "p95Millis": 366.819,
+      "throughputPerSecond": 54.093,
+      "errorRate": 0.0,
+      "jdbcStatementCount": 94477,
+      "cacheHitCount": null,
+      "cacheMissCount": null,
+      "cacheEvictionCount": null,
+      "measuredRequestCount": 16228
+    },
+    {
+      "endpoint": "events",
+      "p50Millis": 293.877,
+      "p95Millis": 425.403,
+      "throughputPerSecond": 54.093,
+      "errorRate": 0.0,
+      "jdbcStatementCount": 94477,
+      "cacheHitCount": null,
+      "cacheMissCount": null,
+      "cacheEvictionCount": null,
+      "measuredRequestCount": 16228
+    },
+    {
+      "endpoint": "popularity",
+      "p50Millis": 322.281,
+      "p95Millis": 454.57,
+      "throughputPerSecond": 54.093,
+      "errorRate": 0.0,
+      "jdbcStatementCount": 94477,
+      "cacheHitCount": null,
+      "cacheMissCount": null,
+      "cacheEvictionCount": null,
+      "measuredRequestCount": 16228
+    },
+    {
+      "endpoint": "detail",
+      "p50Millis": 230.039,
+      "p95Millis": 358.929,
+      "throughputPerSecond": 23.123,
+      "errorRate": 0.0,
+      "jdbcStatementCount": 94477,
+      "cacheHitCount": null,
+      "cacheMissCount": null,
+      "cacheEvictionCount": null,
+      "measuredRequestCount": 6937
+    }
+  ],
+  "actuator": {
+    "before": {
+      "jdbcStatements": {
+        "name": "discovery.jdbc.statements",
+        "description": "JDBC statements executed by Hibernate and JDBC template paths",
+        "measurements": [
+          {
+            "statistic": "COUNT",
+            "value": 31372.0
+          }
+        ],
+        "availableTags": [
+          {
+            "tag": "profile",
+            "values": [
+              "local-experiment"
+            ]
+          }
+        ]
+      },
+      "readDuration": {
+        "name": "discovery.read.duration",
+        "description": "Discovery read endpoint duration",
+        "baseUnit": "seconds",
+        "measurements": [
+          {
+            "statistic": "COUNT",
+            "value": 3.0
+          },
+          {
+            "statistic": "TOTAL_TIME",
+            "value": 3.8200647
+          },
+          {
+            "statistic": "MAX",
+            "value": 3.6809406
+          }
+        ],
+        "availableTags": [
+          {
+            "tag": "endpoint",
+            "values": [
+              "events",
+              "catalog",
+              "popularity"
+            ]
+          },
+          {
+            "tag": "profile",
+            "values": [
+              "local-experiment"
+            ]
+          }
+        ]
+      },
+      "readDurationByEndpoint": {
+        "catalog": {
+          "name": "discovery.read.duration",
+          "description": "Discovery read endpoint duration",
+          "baseUnit": "seconds",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 1.0
+            },
+            {
+              "statistic": "TOTAL_TIME",
+              "value": 0.0611861
+            },
+            {
+              "statistic": "MAX",
+              "value": 0.0611861
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "events": {
+          "name": "discovery.read.duration",
+          "description": "Discovery read endpoint duration",
+          "baseUnit": "seconds",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 1.0
+            },
+            {
+              "statistic": "TOTAL_TIME",
+              "value": 0.077938
+            },
+            {
+              "statistic": "MAX",
+              "value": 0.077938
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "popularity": {
+          "name": "discovery.read.duration",
+          "description": "Discovery read endpoint duration",
+          "baseUnit": "seconds",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 1.0
+            },
+            {
+              "statistic": "TOTAL_TIME",
+              "value": 3.6809406
+            },
+            {
+              "statistic": "MAX",
+              "value": 3.6809406
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "detail": null
+      },
+      "cache": null
+    },
+    "after": {
+      "jdbcStatements": {
+        "name": "discovery.jdbc.statements",
+        "description": "JDBC statements executed by Hibernate and JDBC template paths",
+        "measurements": [
+          {
+            "statistic": "COUNT",
+            "value": 125849.0
+          }
+        ],
+        "availableTags": [
+          {
+            "tag": "profile",
+            "values": [
+              "local-experiment"
+            ]
+          }
+        ]
+      },
+      "readDuration": {
+        "name": "discovery.read.duration",
+        "description": "Discovery read endpoint duration",
+        "baseUnit": "seconds",
+        "measurements": [
+          {
+            "statistic": "COUNT",
+            "value": 50646.0
+          },
+          {
+            "statistic": "TOTAL_TIME",
+            "value": 14196.5490517
+          },
+          {
+            "statistic": "MAX",
+            "value": 0.8916317
+          }
+        ],
+        "availableTags": [
+          {
+            "tag": "endpoint",
+            "values": [
+              "events",
+              "catalog",
+              "popularity"
+            ]
+          },
+          {
+            "tag": "profile",
+            "values": [
+              "local-experiment"
+            ]
+          }
+        ]
+      },
+      "readDurationByEndpoint": {
+        "catalog": {
+          "name": "discovery.read.duration",
+          "description": "Discovery read endpoint duration",
+          "baseUnit": "seconds",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 16882.0
+            },
+            {
+              "statistic": "TOTAL_TIME",
+              "value": 3858.3266571
+            },
+            {
+              "statistic": "MAX",
+              "value": 0.7916206
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "events": {
+          "name": "discovery.read.duration",
+          "description": "Discovery read endpoint duration",
+          "baseUnit": "seconds",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 16882.0
+            },
+            {
+              "statistic": "TOTAL_TIME",
+              "value": 4864.9599204
+            },
+            {
+              "statistic": "MAX",
+              "value": 0.7893187
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "popularity": {
+          "name": "discovery.read.duration",
+          "description": "Discovery read endpoint duration",
+          "baseUnit": "seconds",
+          "measurements": [
+            {
+              "statistic": "COUNT",
+              "value": 16882.0
+            },
+            {
+              "statistic": "TOTAL_TIME",
+              "value": 5473.2624742
+            },
+            {
+              "statistic": "MAX",
+              "value": 0.8916317
+            }
+          ],
+          "availableTags": [
+            {
+              "tag": "profile",
+              "values": [
+                "local-experiment"
+              ]
+            }
+          ]
+        },
+        "detail": null
+      },
+      "cache": null
+    }
+  }
+}
