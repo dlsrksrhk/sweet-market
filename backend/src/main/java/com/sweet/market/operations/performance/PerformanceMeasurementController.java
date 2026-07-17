@@ -1,8 +1,11 @@
 package com.sweet.market.operations.performance;
 
+import com.fasterxml.jackson.databind.cfg.CoercionAction;
+import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.type.LogicalType;
 import com.sweet.market.auth.security.AuthenticatedMember;
 import com.sweet.market.common.api.ApiResponse;
 import com.sweet.market.common.error.ErrorCode;
@@ -29,14 +32,16 @@ import java.util.List;
 public class PerformanceMeasurementController {
 
     private final PerformanceMeasurementService service;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper strictObjectMapper;
 
     public PerformanceMeasurementController(
             PerformanceMeasurementService service,
             ObjectMapper objectMapper
     ) {
         this.service = service;
-        this.objectMapper = objectMapper;
+        this.strictObjectMapper = objectMapper.copy()
+                .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT);
+        rejectScalarCoercions();
     }
 
     @PostMapping
@@ -73,9 +78,9 @@ public class PerformanceMeasurementController {
 
     private PerformanceMeasurementRegisterRequest readStrictly(JsonNode body) {
         try {
-            return objectMapper.readerFor(PerformanceMeasurementRegisterRequest.class)
+            return strictObjectMapper.readerFor(PerformanceMeasurementRegisterRequest.class)
                     .with(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                    .readValue(body.traverse(objectMapper));
+                    .readValue(body.traverse(strictObjectMapper));
         } catch (IOException exception) {
             throw new PerformanceMeasurementService.PerformanceMeasurementValidationException(
                     List.of(new PerformanceMeasurementService.FieldViolation(
@@ -83,5 +88,23 @@ public class PerformanceMeasurementController {
                     ))
             );
         }
+    }
+
+    private void rejectScalarCoercions() {
+        strictObjectMapper.coercionConfigFor(LogicalType.Boolean)
+                .setCoercion(CoercionInputShape.String, CoercionAction.Fail)
+                .setCoercion(CoercionInputShape.Integer, CoercionAction.Fail)
+                .setCoercion(CoercionInputShape.Float, CoercionAction.Fail);
+        strictObjectMapper.coercionConfigFor(LogicalType.Integer)
+                .setCoercion(CoercionInputShape.String, CoercionAction.Fail)
+                .setCoercion(CoercionInputShape.Float, CoercionAction.Fail)
+                .setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail);
+        strictObjectMapper.coercionConfigFor(LogicalType.Float)
+                .setCoercion(CoercionInputShape.String, CoercionAction.Fail)
+                .setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail);
+        strictObjectMapper.coercionConfigFor(LogicalType.Textual)
+                .setCoercion(CoercionInputShape.Integer, CoercionAction.Fail)
+                .setCoercion(CoercionInputShape.Float, CoercionAction.Fail)
+                .setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail);
     }
 }

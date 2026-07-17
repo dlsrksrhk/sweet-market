@@ -33,3 +33,22 @@ Complete. The backend now accepts, validates, persists, lists, and retrieves imm
 
 - Task 10 stores only validated structured snapshots and artifact directory/hash metadata; it does not run k6, inspect files, execute plans, or generate real evidence. The reproducible fixture, normalizer, artifact files, and real measurement run remain Task 11.
 - Pre-existing modifications to `.superpowers/sdd/task-2-report.md`, `task-3-report.md`, and `task-4-report.md` were not edited or staged by this task.
+
+## Review follow-up: integrity hardening
+
+### RED
+
+- Missing/null `dirtyWorktree`, `jdbcStatementCount`, `actualRows`, and shared block counts were accepted because primitive record fields silently became Java defaults.
+- String/number/boolean scalar values crossed JSON types through the application mapper and could produce an otherwise valid snapshot.
+- Two synchronized registrations of the same UUID reproduced the check-then-insert race: one request escaped as a database unique violation for both identical and different payload cases.
+- Reordered children with numerically equivalent decimal representations produced a different payload hash and HTTP 409.
+- The rollback regression initially exposed Spring repository exception translation in the test assertion; after asserting the failure message, the database evidence verified transaction behavior directly.
+
+### GREEN
+
+- Changed required primitive evidence inputs to nullable wrappers and added explicit requiredness validation.
+- Added a registration-only `ObjectMapper` copy with unknown-field rejection, float-to-integer rejection, and explicit Jackson coercion failures between textual, boolean, integer, and decimal logical types.
+- Replaced check-then-insert with atomic `INSERT ... ON CONFLICT DO NOTHING RETURNING id`; only the header winner writes children, while a loser reads the committed snapshot and returns it for an identical canonical hash or raises structured HTTP 409 for a different hash.
+- Canonicalized every decimal by stripping trailing zeros and removing negative scale before deterministic child sorting and application-mapper serialization.
+- Added real concurrent identical/conflicting registration tests and regressions for all eight comparability fields, absolute/backslash/dot/non-normalized paths, whole-snapshot rollback on forced child failure, multi-page newest-first ordering, size cap, and detail 404.
+- Focused verification after the review fixes: `backend\\gradlew.bat test --tests 'com.sweet.market.operations.performance.*'` — 18 tests, 0 failures, `BUILD SUCCESSFUL`.

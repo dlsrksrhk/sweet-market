@@ -1,8 +1,11 @@
 package com.sweet.market.operations.performance;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sweet.market.auth.security.JwtProvider;
+import com.sweet.market.common.error.BusinessException;
+import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.member.repository.MemberRepository;
 import com.sweet.market.support.IntegrationTestSupport;
@@ -17,10 +20,21 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mockingDetails;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -42,6 +56,9 @@ class PerformanceMeasurementApiTest extends IntegrationTestSupport {
 
     @MockitoSpyBean
     private PerformanceMeasurementRepository performanceMeasurementRepository;
+
+    @Autowired
+    private PerformanceMeasurementService performanceMeasurementService;
 
     @BeforeEach
     void createPerformanceTables() {
@@ -182,12 +199,19 @@ class PerformanceMeasurementApiTest extends IntegrationTestSupport {
     void commit_fixture_scenario_hardware가_다른_측정쌍은_거부한다() throws Exception {
         String token = bearer(saveAdmin("performance-compare@example.com"));
 
-        for (String field : List.of("gitCommit", "fixtureVersion", "scenarioVersion", "hardwareDescription")) {
+        for (String field : List.of(
+                "gitCommit", "dirtyWorktree", "fixtureVersion", "scenarioVersion",
+                "environmentName", "hardwareDescription", "warmupSeconds", "measuredSeconds"
+        )) {
             ObjectNode request = validRequest();
-            String differentValue = field.equals("gitCommit")
-                    ? "abcdef0123456789abcdef0123456789abcdef01"
-                    : "different";
-            ((ObjectNode) request.path("on")).put(field, differentValue);
+            ObjectNode on = (ObjectNode) request.path("on");
+            switch (field) {
+                case "gitCommit" -> on.put(field, "abcdef0123456789abcdef0123456789abcdef01");
+                case "dirtyWorktree" -> on.put(field, true);
+                case "warmupSeconds" -> on.put(field, 31);
+                case "measuredSeconds" -> on.put(field, 301);
+                default -> on.put(field, "different");
+            }
 
             mockMvc.perform(post("/api/admin/performance-measurements")
                             .header(HttpHeaders.AUTHORIZATION, token)
@@ -243,9 +267,18 @@ class PerformanceMeasurementApiTest extends IntegrationTestSupport {
     @Test
     void 경로와_필수_shape와_알수없는_필드는_엄격히_검증한다() throws Exception {
         String token = bearer(saveAdmin("performance-shape@example.com"));
-        ObjectNode invalidPath = validRequest();
-        invalidPath.put("artifactDirectory", "performance/results/../secret");
-        assertBadRequest(token, invalidPath, "artifactDirectory");
+        for (String path : List.of(
+                "/performance/results/m30-v1",
+                "C:/performance/results/m30-v1",
+                "performance\\results\\m30-v1",
+                "performance/results/./m30-v1",
+                "performance/results/a/../m30-v1",
+                "performance/results/../secret"
+        )) {
+            ObjectNode invalidPath = validRequest();
+            invalidPath.put("artifactDirectory", path);
+            assertBadRequest(token, invalidPath, "artifactDirectory");
+        }
 
         ObjectNode missingShape = validRequest();
         missingShape.path("off").path("queryEvidence").elements().next();
@@ -275,10 +308,10 @@ class PerformanceMeasurementApiTest extends IntegrationTestSupport {
         assertThat(countRows("members")).isEqualTo(1);
         assertThat(mockingDetails(performanceMeasurementRepository).getInvocations())
                 .extracting(invocation -> invocation.getMethod().getName())
-                .containsOnly(
+                .allMatch(Set.of(
                         "findRunByMeasurementId", "insertRun", "insertEndpointMetrics",
                         "insertQueryEvidence", "findRunById", "findEndpointMetrics", "findQueryEvidence"
-                );
+                )::contains);
         mockMvc.perform(get("/api/admin/performance-measurements/{runId}", runId)
                         .header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(status().isOk())
@@ -309,6 +342,263 @@ class PerformanceMeasurementApiTest extends IntegrationTestSupport {
         ((ObjectNode) tooLarge.path("on").path("endpointMetrics").get(0))
                 .put("p95Millis", new java.math.BigDecimal("1E+20"));
         assertBadRequest(token, tooLarge, "on.endpointMetrics[0].p95Millis");
+    }
+
+    @Test
+    void 누락되거나_null인_필수_primitive_evidence를_거부한다() throws Exception {
+        String token = bearer(saveAdmin("performance-required@example.com"));
+
+        for (String field : List.of(
+                "dirtyWorktree", "jdbcStatementCount", "actualRows", "sharedHitBlocks", "sharedReadBlocks"
+        )) {
+            ObjectNode missing = validRequest();
+            requiredEvidenceParent(missing, field).remove(field);
+            assertValidationError(token, missing);
+
+            ObjectNode explicitNull = validRequest();
+            requiredEvidenceParent(explicitNull, field).putNull(field);
+            assertValidationError(token, explicitNull);
+        }
+    }
+
+    @Test
+    void scalar_타입_강제변환을_허용하지_않는다() throws Exception {
+        String token = bearer(saveAdmin("performance-coercion@example.com"));
+
+        ObjectNode booleanString = validRequest();
+        ((ObjectNode) booleanString.path("off")).put("dirtyWorktree", "false");
+        assertValidationError(token, booleanString);
+
+        ObjectNode booleanNumber = validRequest();
+        ((ObjectNode) booleanNumber.path("off")).put("dirtyWorktree", 0);
+        assertValidationError(token, booleanNumber);
+
+        ObjectNode integerString = validRequest();
+        ((ObjectNode) integerString.path("off").path("endpointMetrics").get(0))
+                .put("jdbcStatementCount", "1000");
+        assertValidationError(token, integerString);
+
+        ObjectNode decimalString = validRequest();
+        ((ObjectNode) decimalString.path("off").path("endpointMetrics").get(0))
+                .put("p50Millis", "10.0");
+        assertValidationError(token, decimalString);
+
+        ObjectNode durationString = validRequest();
+        ((ObjectNode) durationString.path("off")).put("warmupSeconds", "30");
+        assertValidationError(token, durationString);
+
+        ObjectNode textNumber = validRequest();
+        ((ObjectNode) textNumber.path("off")).put("environmentName", 123);
+        ((ObjectNode) textNumber.path("on")).put("environmentName", 123);
+        assertValidationError(token, textNumber);
+
+        ObjectNode integerBoolean = validRequest();
+        ((ObjectNode) integerBoolean.path("off").path("endpointMetrics").get(0))
+                .put("jdbcStatementCount", true);
+        assertValidationError(token, integerBoolean);
+
+        ObjectNode integerFloat = validRequest();
+        ((ObjectNode) integerFloat.path("off")).put("warmupSeconds", 30.0);
+        assertValidationError(token, integerFloat);
+    }
+
+    @Test
+    void 동시_동일_payload_등록은_하나의_snapshot만_생성한다() throws Exception {
+        Member admin = saveAdmin("performance-concurrent-same@example.com");
+        PerformanceMeasurementRegisterRequest request = typedRequest(validRequest());
+
+        List<RegistrationOutcome> outcomes = registerConcurrently(
+                () -> performanceMeasurementService.register(request, admin.getId()),
+                () -> performanceMeasurementService.register(request, admin.getId())
+        );
+
+        assertThat(outcomes).allMatch(RegistrationOutcome::succeeded);
+        assertThat(outcomes).extracting(outcome -> outcome.response().runId()).containsOnly(1L);
+        assertThat(countRows("performance_measurement_runs")).isEqualTo(1);
+        assertThat(countRows("performance_endpoint_metrics")).isEqualTo(8);
+        assertThat(countRows("performance_query_evidence")).isEqualTo(8);
+    }
+
+    @Test
+    void 동시_다른_payload의_같은_measurementId는_하나만_등록하고_다른_하나는_충돌한다() throws Exception {
+        Member admin = saveAdmin("performance-concurrent-conflict@example.com");
+        PerformanceMeasurementRegisterRequest first = typedRequest(validRequest());
+        ObjectNode changedJson = validRequest();
+        ((ObjectNode) changedJson.path("off")).put("environmentName", "ci-2");
+        ((ObjectNode) changedJson.path("on")).put("environmentName", "ci-2");
+        PerformanceMeasurementRegisterRequest second = typedRequest(changedJson);
+
+        List<RegistrationOutcome> outcomes = registerConcurrently(
+                () -> performanceMeasurementService.register(first, admin.getId()),
+                () -> performanceMeasurementService.register(second, admin.getId())
+        );
+
+        assertThat(outcomes).filteredOn(RegistrationOutcome::succeeded).hasSize(1);
+        assertThat(outcomes).filteredOn(outcome -> !outcome.succeeded())
+                .extracting(RegistrationOutcome::error)
+                .allSatisfy(error -> {
+                    assertThat(error).isInstanceOf(BusinessException.class);
+                    assertThat(((BusinessException) error).errorCode())
+                            .isEqualTo(ErrorCode.PERFORMANCE_MEASUREMENT_CONFLICT);
+                });
+        assertThat(countRows("performance_measurement_runs")).isEqualTo(1);
+        assertThat(countRows("performance_endpoint_metrics")).isEqualTo(8);
+        assertThat(countRows("performance_query_evidence")).isEqualTo(8);
+    }
+
+    @Test
+    void child_순서와_decimal_표현이_달라도_같은_canonical_hash를_사용한다() throws Exception {
+        String token = bearer(saveAdmin("performance-canonical@example.com"));
+        JsonNode first = register(token, validRequest());
+        ObjectNode equivalent = validRequest();
+
+        for (String mode : List.of("off", "on")) {
+            reverse((ArrayNode) equivalent.path(mode).path("endpointMetrics"));
+            reverse((ArrayNode) equivalent.path(mode).path("queryEvidence"));
+            for (JsonNode metric : equivalent.path(mode).path("endpointMetrics")) {
+                ObjectNode value = (ObjectNode) metric;
+                value.put("p50Millis", new java.math.BigDecimal("10.0000"));
+                value.put("p95Millis", new java.math.BigDecimal("50.00000"));
+                value.put("throughputPerSecond", new java.math.BigDecimal("100.0000"));
+                value.put("errorRate", new java.math.BigDecimal("0.00000000"));
+            }
+            for (JsonNode evidence : equivalent.path(mode).path("queryEvidence")) {
+                ((ObjectNode) evidence).put("executionMillis", new java.math.BigDecimal("2.5000"));
+            }
+        }
+
+        JsonNode second = register(token, equivalent);
+
+        assertThat(second.path("runId").asLong()).isEqualTo(first.path("runId").asLong());
+        assertThat(second.path("payloadHash").asText()).isEqualTo(first.path("payloadHash").asText());
+        assertThat(countRows("performance_measurement_runs")).isEqualTo(1);
+        assertThat(countRows("performance_endpoint_metrics")).isEqualTo(8);
+        assertThat(countRows("performance_query_evidence")).isEqualTo(8);
+    }
+
+    @Test
+    void child_저장_실패는_전체_snapshot을_rollback한다() throws Exception {
+        Member admin = saveAdmin("performance-rollback@example.com");
+        PerformanceMeasurementRegisterRequest request = typedRequest(validRequest());
+        doThrow(new IllegalStateException("forced child insert failure"))
+                .when(performanceMeasurementRepository).insertQueryEvidence(anyLong(), anyList());
+
+        try {
+            assertThatThrownBy(() -> performanceMeasurementService.register(request, admin.getId()))
+                    .hasMessageContaining("forced child insert failure");
+        } finally {
+            doCallRealMethod().when(performanceMeasurementRepository).insertQueryEvidence(anyLong(), anyList());
+        }
+
+        assertThat(countRows("performance_measurement_runs")).isZero();
+        assertThat(countRows("performance_endpoint_metrics")).isZero();
+        assertThat(countRows("performance_query_evidence")).isZero();
+    }
+
+    @Test
+    void 목록은_최신순_다중_page를_제공하고_size를_제한하며_없는_상세는_404다() throws Exception {
+        String token = bearer(saveAdmin("performance-pages@example.com"));
+        for (int index = 1; index <= 3; index++) {
+            ObjectNode request = validRequest();
+            request.put("measurementId", new UUID(0, index).toString());
+            register(token, request);
+        }
+
+        String firstPage = mockMvc.perform(get("/api/admin/performance-measurements")
+                        .queryParam("page", "0").queryParam("size", "2")
+                        .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andReturn().getResponse().getContentAsString();
+        String secondPage = mockMvc.perform(get("/api/admin/performance-measurements")
+                        .queryParam("page", "1").queryParam("size", "2")
+                        .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(pageRunIds(firstPage)).containsExactly(3L, 2L);
+        assertThat(pageRunIds(secondPage)).containsExactly(1L);
+        mockMvc.perform(get("/api/admin/performance-measurements")
+                        .queryParam("size", "101")
+                        .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("size"));
+        mockMvc.perform(get("/api/admin/performance-measurements/{runId}", 9999)
+                        .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PERFORMANCE_MEASUREMENT_NOT_FOUND"));
+    }
+
+    private List<Long> pageRunIds(String response) throws Exception {
+        List<Long> runIds = new java.util.ArrayList<>();
+        objectMapper.readTree(response).path("data").path("content")
+                .forEach(row -> runIds.add(row.path("runId").asLong()));
+        return runIds;
+    }
+
+    private void reverse(ArrayNode array) {
+        List<JsonNode> values = new java.util.ArrayList<>();
+        array.forEach(value -> values.add(value.deepCopy()));
+        java.util.Collections.reverse(values);
+        array.removeAll();
+        values.forEach(array::add);
+    }
+
+    private PerformanceMeasurementRegisterRequest typedRequest(JsonNode request) throws Exception {
+        return objectMapper.treeToValue(request, PerformanceMeasurementRegisterRequest.class);
+    }
+
+    private List<RegistrationOutcome> registerConcurrently(
+            Registration registrationOne,
+            Registration registrationTwo
+    ) throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CyclicBarrier start = new CyclicBarrier(2);
+        try {
+            Future<RegistrationOutcome> first = executor.submit(() -> executeAfter(start, registrationOne));
+            Future<RegistrationOutcome> second = executor.submit(() -> executeAfter(start, registrationTwo));
+            return List.of(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private RegistrationOutcome executeAfter(CyclicBarrier start, Registration registration) throws Exception {
+        start.await(5, TimeUnit.SECONDS);
+        try {
+            return new RegistrationOutcome(registration.register(), null);
+        } catch (RuntimeException exception) {
+            return new RegistrationOutcome(null, exception);
+        }
+    }
+
+    @FunctionalInterface
+    private interface Registration {
+        PerformanceMeasurementResponse register();
+    }
+
+    private record RegistrationOutcome(PerformanceMeasurementResponse response, RuntimeException error) {
+        boolean succeeded() {
+            return response != null;
+        }
+    }
+
+    private ObjectNode requiredEvidenceParent(ObjectNode request, String field) {
+        return switch (field) {
+            case "dirtyWorktree" -> (ObjectNode) request.path("off");
+            case "jdbcStatementCount" -> (ObjectNode) request.path("off").path("endpointMetrics").get(0);
+            default -> (ObjectNode) request.path("off").path("queryEvidence").get(0);
+        };
+    }
+
+    private void assertValidationError(String token, JsonNode request) throws Exception {
+        mockMvc.perform(post("/api/admin/performance-measurements")
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request.toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
     }
 
     private void assertBadRequest(String token, JsonNode request, String field) throws Exception {

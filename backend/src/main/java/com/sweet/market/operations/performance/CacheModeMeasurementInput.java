@@ -6,7 +6,7 @@ import java.util.List;
 public record CacheModeMeasurementInput(
         String cacheMode,
         String gitCommit,
-        boolean dirtyWorktree,
+        Boolean dirtyWorktree,
         String fixtureVersion,
         String scenarioVersion,
         String environmentName,

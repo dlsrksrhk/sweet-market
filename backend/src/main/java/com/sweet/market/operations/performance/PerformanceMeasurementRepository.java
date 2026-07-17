@@ -12,6 +12,7 @@ import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.UUID;
 
 @Repository
@@ -69,14 +70,14 @@ public class PerformanceMeasurementRepository {
         return count == null ? 0 : count;
     }
 
-    public long insertRun(
+    public OptionalLong insertRun(
             PerformanceMeasurementRegisterRequest request,
             String payloadHash,
             long registeredBy
     ) {
         CacheModeMeasurementInput off = request.off();
         CacheModeMeasurementInput on = request.on();
-        Long runId = jdbcTemplate.queryForObject("""
+        List<Long> runIds = jdbcTemplate.query("""
                         INSERT INTO performance_measurement_runs (
                             measurement_id, payload_hash, git_commit, dirty_worktree,
                             fixture_version, scenario_version, environment_name, hardware_description,
@@ -88,6 +89,7 @@ public class PerformanceMeasurementRepository {
                             :artifactDirectory, :warmupSeconds, :measuredSeconds,
                             :offStartedAt, :offCompletedAt, :onStartedAt, :onCompletedAt, :registeredBy
                         )
+                        ON CONFLICT (measurement_id) DO NOTHING
                         RETURNING id
                         """,
                 new MapSqlParameterSource()
@@ -107,11 +109,8 @@ public class PerformanceMeasurementRepository {
                         .addValue("onStartedAt", Timestamp.from(on.startedAt()))
                         .addValue("onCompletedAt", Timestamp.from(on.completedAt()))
                         .addValue("registeredBy", registeredBy),
-                Long.class);
-        if (runId == null) {
-            throw new IllegalStateException("성능 측정 실행 ID를 생성하지 못했습니다.");
-        }
-        return runId;
+                (resultSet, rowNumber) -> resultSet.getLong("id"));
+        return runIds.isEmpty() ? OptionalLong.empty() : OptionalLong.of(runIds.getFirst());
     }
 
     public void insertEndpointMetrics(long runId, List<EndpointMetricInput> metrics) {

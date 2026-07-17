@@ -9,7 +9,7 @@ public record EndpointMetricInput(
         BigDecimal p95Millis,
         BigDecimal throughputPerSecond,
         BigDecimal errorRate,
-        long jdbcStatementCount,
+        Long jdbcStatementCount,
         Long cacheHitCount,
         Long cacheMissCount,
         Long cacheEvictionCount

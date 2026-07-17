@@ -21,6 +21,7 @@ import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 
 @Service
@@ -57,17 +58,18 @@ public class PerformanceMeasurementService {
         }
         String payloadHash = sha256(canonicalBytes);
 
-        PerformanceMeasurementRepository.RunRow existing = repository
-                .findRunByMeasurementId(canonical.measurementId())
-                .orElse(null);
-        if (existing != null) {
+        OptionalLong insertedRunId = repository.insertRun(canonical, payloadHash, registeredBy);
+        if (insertedRunId.isEmpty()) {
+            PerformanceMeasurementRepository.RunRow existing = repository
+                    .findRunByMeasurementId(canonical.measurementId())
+                    .orElseThrow(() -> new IllegalStateException("충돌한 성능 측정 헤더를 찾을 수 없습니다."));
             if (!existing.payloadHash().equals(payloadHash)) {
                 throw new BusinessException(ErrorCode.PERFORMANCE_MEASUREMENT_CONFLICT);
             }
             return detail(existing);
         }
 
-        long runId = repository.insertRun(canonical, payloadHash, registeredBy);
+        long runId = insertedRunId.getAsLong();
         repository.insertEndpointMetrics(runId, combineEndpointMetrics(canonical));
         repository.insertQueryEvidence(runId, combineQueryEvidence(canonical));
         return detail(repository.findRunById(runId).orElseThrow());
@@ -146,6 +148,9 @@ public class PerformanceMeasurementService {
         if (!requiredMode.equals(mode.cacheMode())) {
             throw invalid(field + ".cacheMode", "cacheMode는 " + requiredMode + "여야 합니다.");
         }
+        if (mode.dirtyWorktree() == null) {
+            throw invalid(field + ".dirtyWorktree", "dirtyWorktree 선언이 필요합니다.");
+        }
         requireText(mode.gitCommit(), 64, field + ".gitCommit");
         if (!mode.gitCommit().matches("[0-9a-f]{7,64}")) {
             throw invalid(field + ".gitCommit", "Git commit은 소문자 16진수 해시여야 합니다.");
@@ -204,7 +209,7 @@ public class PerformanceMeasurementService {
             if (metric.errorRate().signum() < 0 || metric.errorRate().compareTo(ONE) > 0) {
                 throw invalid(item + ".errorRate", "오류율은 0 이상 1 이하여야 합니다.");
             }
-            if (metric.jdbcStatementCount() < 0) {
+            if (metric.jdbcStatementCount() == null || metric.jdbcStatementCount() < 0) {
                 throw invalid(item + ".jdbcStatementCount", "JDBC 문장 수는 음수일 수 없습니다.");
             }
             requireNonNegative(metric.cacheHitCount(), item + ".cacheHitCount");
@@ -239,7 +244,8 @@ public class PerformanceMeasurementService {
             if (query.executionMillis().signum() < 0) {
                 throw invalid(item + ".executionMillis", "실행 시간은 음수일 수 없습니다.");
             }
-            if (query.actualRows() < 0 || query.sharedHitBlocks() < 0 || query.sharedReadBlocks() < 0) {
+            if (query.actualRows() == null || query.sharedHitBlocks() == null || query.sharedReadBlocks() == null
+                    || query.actualRows() < 0 || query.sharedHitBlocks() < 0 || query.sharedReadBlocks() < 0) {
                 throw invalid(item, "행 및 버퍼 수는 음수일 수 없습니다.");
             }
         }
@@ -247,7 +253,7 @@ public class PerformanceMeasurementService {
 
     private void validateComparable(CacheModeMeasurementInput off, CacheModeMeasurementInput on) {
         boolean comparable = Objects.equals(off.gitCommit(), on.gitCommit())
-                && off.dirtyWorktree() == on.dirtyWorktree()
+                && Objects.equals(off.dirtyWorktree(), on.dirtyWorktree())
                 && Objects.equals(off.fixtureVersion(), on.fixtureVersion())
                 && Objects.equals(off.scenarioVersion(), on.scenarioVersion())
                 && Objects.equals(off.environmentName(), on.environmentName())
@@ -260,9 +266,23 @@ public class PerformanceMeasurementService {
     }
 
     private CacheModeMeasurementInput canonicalize(CacheModeMeasurementInput mode) {
-        List<EndpointMetricInput> metrics = new ArrayList<>(mode.endpointMetrics());
+        List<EndpointMetricInput> metrics = mode.endpointMetrics().stream()
+                .map(metric -> new EndpointMetricInput(
+                        metric.cacheMode(), metric.endpoint(),
+                        canonicalDecimal(metric.p50Millis()), canonicalDecimal(metric.p95Millis()),
+                        canonicalDecimal(metric.throughputPerSecond()), canonicalDecimal(metric.errorRate()),
+                        metric.jdbcStatementCount(), metric.cacheHitCount(), metric.cacheMissCount(),
+                        metric.cacheEvictionCount()
+                ))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         metrics.sort(Comparator.comparing(EndpointMetricInput::endpoint));
-        List<QueryEvidenceInput> evidence = new ArrayList<>(mode.queryEvidence());
+        List<QueryEvidenceInput> evidence = mode.queryEvidence().stream()
+                .map(query -> new QueryEvidenceInput(
+                        query.cacheMode(), query.queryShape(), query.bindSummary(), query.planSummary(),
+                        canonicalDecimal(query.executionMillis()), query.actualRows(),
+                        query.sharedHitBlocks(), query.sharedReadBlocks()
+                ))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         evidence.sort(Comparator.comparing(QueryEvidenceInput::queryShape));
         return new CacheModeMeasurementInput(
                 mode.cacheMode(), mode.gitCommit(), mode.dirtyWorktree(), mode.fixtureVersion(),
@@ -270,6 +290,11 @@ public class PerformanceMeasurementService {
                 mode.warmupSeconds(), mode.measuredSeconds(), mode.startedAt(), mode.completedAt(),
                 List.copyOf(metrics), List.copyOf(evidence)
         );
+    }
+
+    private BigDecimal canonicalDecimal(BigDecimal value) {
+        BigDecimal normalized = value.stripTrailingZeros();
+        return normalized.scale() < 0 ? normalized.setScale(0) : normalized;
     }
 
     private void validateArtifactDirectory(String value) {

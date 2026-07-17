@@ -8,8 +8,8 @@ public record QueryEvidenceInput(
         String bindSummary,
         String planSummary,
         BigDecimal executionMillis,
-        long actualRows,
-        long sharedHitBlocks,
-        long sharedReadBlocks
+        Long actualRows,
+        Long sharedHitBlocks,
+        Long sharedReadBlocks
 ) {
 }
