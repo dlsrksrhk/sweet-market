@@ -1,9 +1,13 @@
 package com.sweet.market.promotion.application;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.discovery.cache.DiscoveryInvalidationEvent;
+import com.sweet.market.operations.campaign.CampaignCommandEventFactory;
+import com.sweet.market.operations.event.OperationalEventRecorder;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.promotion.api.PromotionCampaignCreateRequest;
@@ -44,15 +48,20 @@ public class PromotionCampaignService {
     private final StoreAccessService storeAccessService;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
+    private final OperationalEventRecorder eventRecorder;
+    private final CampaignCommandEventFactory eventFactory;
 
     @Autowired
     public PromotionCampaignService(
             PromotionCampaignRepository promotionCampaignRepository,
             ProductRepository productRepository,
             StoreAccessService storeAccessService,
-            ApplicationEventPublisher eventPublisher
+            ApplicationEventPublisher eventPublisher,
+            OperationalEventRecorder eventRecorder,
+            CampaignCommandEventFactory eventFactory
     ) {
-        this(promotionCampaignRepository, productRepository, storeAccessService, Clock.systemUTC(), eventPublisher);
+        this(promotionCampaignRepository, productRepository, storeAccessService, Clock.systemUTC(),
+                eventPublisher, eventRecorder, eventFactory);
     }
 
     PromotionCampaignService(
@@ -71,11 +80,26 @@ public class PromotionCampaignService {
             Clock clock,
             ApplicationEventPublisher eventPublisher
     ) {
+        this(promotionCampaignRepository, productRepository, storeAccessService, clock, eventPublisher,
+                event -> { }, new CampaignCommandEventFactory(new ObjectMapper()));
+    }
+
+    PromotionCampaignService(
+            PromotionCampaignRepository promotionCampaignRepository,
+            ProductRepository productRepository,
+            StoreAccessService storeAccessService,
+            Clock clock,
+            ApplicationEventPublisher eventPublisher,
+            OperationalEventRecorder eventRecorder,
+            CampaignCommandEventFactory eventFactory
+    ) {
         this.promotionCampaignRepository = promotionCampaignRepository;
         this.productRepository = productRepository;
         this.storeAccessService = storeAccessService;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
+        this.eventRecorder = eventRecorder;
+        this.eventFactory = eventFactory;
     }
 
     @Transactional
@@ -87,7 +111,9 @@ public class PromotionCampaignService {
                     store, request.scope(), request.discountType(), request.discountValue(), request.priority(),
                     request.title(), request.label(), toInstant(request.startsAt()), toInstant(request.endsAt()), products
             );
-            PromotionCampaignResponse response = PromotionCampaignResponse.detail(promotionCampaignRepository.save(campaign), now());
+            promotionCampaignRepository.saveAndFlush(campaign);
+            PromotionCampaignResponse response = PromotionCampaignResponse.detail(campaign, now());
+            record(campaign, memberId, "CREATED", null);
             invalidateDiscovery();
             return response;
         } catch (DomainException exception) {
@@ -131,13 +157,16 @@ public class PromotionCampaignService {
     ) {
         storeAccessService.requireActiveBusinessOwner(memberId, storeId);
         PromotionCampaign campaign = findCampaign(storeId, promotionId);
+        JsonNode beforeSummary = eventFactory.summary(campaign);
         List<Product> products = validatedTargets(storeId, request.scope(), request.productIds());
         try {
             campaign.update(
                     request.scope(), request.discountType(), request.discountValue(), request.priority(), request.title(), request.label(),
                     toInstant(request.startsAt()), toInstant(request.endsAt()), products, now()
             );
+            promotionCampaignRepository.flush();
             PromotionCampaignResponse response = PromotionCampaignResponse.detail(campaign, now());
+            record(campaign, memberId, "UPDATED", beforeSummary);
             invalidateDiscovery();
             return response;
         } catch (DomainException exception) {
@@ -147,30 +176,39 @@ public class PromotionCampaignService {
 
     @Transactional
     public PromotionCampaignResponse schedule(Long memberId, Long storeId, Long promotionId) {
-        return transition(memberId, storeId, promotionId, campaign -> campaign.schedule(now()));
+        return transition(memberId, storeId, promotionId, "SCHEDULED", campaign -> campaign.schedule(now()));
     }
 
     @Transactional
     public PromotionCampaignResponse pause(Long memberId, Long storeId, Long promotionId) {
-        return transition(memberId, storeId, promotionId, campaign -> campaign.pause(now()));
+        return transition(memberId, storeId, promotionId, "PAUSED", campaign -> campaign.pause(now()));
     }
 
     @Transactional
     public PromotionCampaignResponse resume(Long memberId, Long storeId, Long promotionId) {
-        return transition(memberId, storeId, promotionId, campaign -> campaign.resume(now()));
+        return transition(memberId, storeId, promotionId, "RESUMED", campaign -> campaign.resume(now()));
     }
 
     @Transactional
     public PromotionCampaignResponse end(Long memberId, Long storeId, Long promotionId) {
-        return transition(memberId, storeId, promotionId, PromotionCampaign::end);
+        return transition(memberId, storeId, promotionId, "ENDED", PromotionCampaign::end);
     }
 
-    private PromotionCampaignResponse transition(Long memberId, Long storeId, Long promotionId, CampaignTransition transition) {
+    private PromotionCampaignResponse transition(
+            Long memberId,
+            Long storeId,
+            Long promotionId,
+            String command,
+            CampaignTransition transition
+    ) {
         storeAccessService.requireActiveBusinessOwner(memberId, storeId);
         PromotionCampaign campaign = findCampaign(storeId, promotionId);
+        JsonNode beforeSummary = eventFactory.summary(campaign);
         try {
             transition.apply(campaign);
+            promotionCampaignRepository.flush();
             PromotionCampaignResponse response = PromotionCampaignResponse.detail(campaign, now());
+            record(campaign, memberId, command, beforeSummary);
             invalidateDiscovery();
             return response;
         } catch (DomainException exception) {
@@ -229,6 +267,18 @@ public class PromotionCampaignService {
 
     private void invalidateDiscovery() {
         eventPublisher.publishEvent(new DiscoveryInvalidationEvent());
+    }
+
+    private void record(
+            PromotionCampaign campaign,
+            Long actorMemberId,
+            String command,
+            JsonNode beforeSummary
+    ) {
+        eventRecorder.record(eventFactory.completed(
+                "PROMOTION", campaign.getId(), campaign.getVersion(), "STORE", campaign.getStore().getId(),
+                actorMemberId, command, beforeSummary, eventFactory.summary(campaign), now()
+        ));
     }
 
     @FunctionalInterface

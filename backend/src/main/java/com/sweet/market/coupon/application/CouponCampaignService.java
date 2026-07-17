@@ -1,9 +1,13 @@
 package com.sweet.market.coupon.application;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.discovery.cache.DiscoveryInvalidationEvent;
+import com.sweet.market.operations.campaign.CampaignCommandEventFactory;
+import com.sweet.market.operations.event.OperationalEventRecorder;
 import com.sweet.market.coupon.api.CouponCampaignCreateRequest;
 import com.sweet.market.coupon.api.CouponCampaignResponse;
 import com.sweet.market.coupon.api.CouponCampaignSearchRequest;
@@ -43,10 +47,20 @@ public class CouponCampaignService {
     private final StoreAccessService storeAccessService;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
+    private final OperationalEventRecorder eventRecorder;
+    private final CampaignCommandEventFactory eventFactory;
 
     @Autowired
-    public CouponCampaignService(CouponCampaignRepository campaignRepository, ProductRepository productRepository, StoreAccessService storeAccessService, ApplicationEventPublisher eventPublisher) {
-        this(campaignRepository, productRepository, storeAccessService, Clock.systemUTC(), eventPublisher);
+    public CouponCampaignService(
+            CouponCampaignRepository campaignRepository,
+            ProductRepository productRepository,
+            StoreAccessService storeAccessService,
+            ApplicationEventPublisher eventPublisher,
+            OperationalEventRecorder eventRecorder,
+            CampaignCommandEventFactory eventFactory
+    ) {
+        this(campaignRepository, productRepository, storeAccessService, Clock.systemUTC(),
+                eventPublisher, eventRecorder, eventFactory);
     }
 
     public CouponCampaignService(CouponCampaignRepository campaignRepository, ProductRepository productRepository, StoreAccessService storeAccessService) {
@@ -58,28 +72,50 @@ public class CouponCampaignService {
     }
 
     CouponCampaignService(CouponCampaignRepository campaignRepository, ProductRepository productRepository, StoreAccessService storeAccessService, Clock clock, ApplicationEventPublisher eventPublisher) {
+        this(campaignRepository, productRepository, storeAccessService, clock, eventPublisher,
+                event -> { }, new CampaignCommandEventFactory(new ObjectMapper()));
+    }
+
+    CouponCampaignService(
+            CouponCampaignRepository campaignRepository,
+            ProductRepository productRepository,
+            StoreAccessService storeAccessService,
+            Clock clock,
+            ApplicationEventPublisher eventPublisher,
+            OperationalEventRecorder eventRecorder,
+            CampaignCommandEventFactory eventFactory
+    ) {
         this.campaignRepository = campaignRepository;
         this.productRepository = productRepository;
         this.storeAccessService = storeAccessService;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
+        this.eventRecorder = eventRecorder;
+        this.eventFactory = eventFactory;
     }
 
     @Transactional
     public CouponCampaignResponse createStoreCampaign(Long memberId, Long storeId, CouponCampaignCreateRequest request) {
         Store store = storeAccessService.requireActiveBusinessOwner(memberId, storeId);
-        return create(CouponCampaignOwnerType.STORE, store, request);
+        return create(memberId, CouponCampaignOwnerType.STORE, store, request);
     }
 
     @Transactional
-    public CouponCampaignResponse createPlatformCampaign(CouponCampaignCreateRequest request) {
-        return create(CouponCampaignOwnerType.PLATFORM, null, request);
+    public CouponCampaignResponse createPlatformCampaign(Long actorMemberId, CouponCampaignCreateRequest request) {
+        return create(actorMemberId, CouponCampaignOwnerType.PLATFORM, null, request);
     }
 
-    private CouponCampaignResponse create(CouponCampaignOwnerType ownerType, Store store, CouponCampaignCreateRequest request) {
+    private CouponCampaignResponse create(
+            Long actorMemberId,
+            CouponCampaignOwnerType ownerType,
+            Store store,
+            CouponCampaignCreateRequest request
+    ) {
         try {
             CouponCampaign campaign = CouponCampaign.create(ownerType, store, request.scope(), request.discountType(), request.discountValue(), request.maxDiscountAmount(), request.minimumPurchaseAmount(), request.stackable(), request.title(), request.label(), toInstant(request.issueStartsAt()), toInstant(request.issueEndsAt()), request.validityType(), toInstant(request.commonExpiresAt()), request.validityDays(), request.issueLimit(), validatedTargets(ownerType, store, request));
-            CouponCampaignResponse response = CouponCampaignResponse.detail(campaignRepository.save(campaign), now());
+            campaignRepository.saveAndFlush(campaign);
+            CouponCampaignResponse response = CouponCampaignResponse.detail(campaign, now());
+            record(campaign, actorMemberId, "CREATED", null);
             invalidateDiscovery();
             return response;
         } catch (DomainException exception) {
@@ -114,19 +150,22 @@ public class CouponCampaignService {
     @Transactional
     public CouponCampaignResponse updateStore(Long memberId, Long storeId, Long campaignId, CouponCampaignUpdateRequest request) {
         storeAccessService.requireActiveBusinessOwner(memberId, storeId);
-        return update(storeCampaign(storeId, campaignId), request);
+        return update(memberId, storeCampaign(storeId, campaignId), request);
     }
 
     @Transactional
-    public CouponCampaignResponse updatePlatform(Long campaignId, CouponCampaignUpdateRequest request) {
-        return update(platformCampaign(campaignId), request);
+    public CouponCampaignResponse updatePlatform(Long actorMemberId, Long campaignId, CouponCampaignUpdateRequest request) {
+        return update(actorMemberId, platformCampaign(campaignId), request);
     }
 
-    private CouponCampaignResponse update(CouponCampaign campaign, CouponCampaignUpdateRequest request) {
+    private CouponCampaignResponse update(Long actorMemberId, CouponCampaign campaign, CouponCampaignUpdateRequest request) {
+        JsonNode beforeSummary = eventFactory.summary(campaign);
         try {
             CouponCampaignCreateRequest input = request.asCreateRequest();
             campaign.update(input.scope(), input.discountType(), input.discountValue(), input.maxDiscountAmount(), input.minimumPurchaseAmount(), input.stackable(), input.title(), input.label(), toInstant(input.issueStartsAt()), toInstant(input.issueEndsAt()), input.validityType(), toInstant(input.commonExpiresAt()), input.validityDays(), input.issueLimit(), validatedTargets(campaign.getOwnerType(), campaign.getStore(), input), now());
+            campaignRepository.flush();
             CouponCampaignResponse response = CouponCampaignResponse.detail(campaign, now());
+            record(campaign, actorMemberId, "UPDATED", beforeSummary);
             invalidateDiscovery();
             return response;
         } catch (DomainException exception) {
@@ -137,51 +176,59 @@ public class CouponCampaignService {
     @Transactional
     public CouponCampaignResponse scheduleStore(Long memberId, Long storeId, Long id) {
         storeAccessService.requireActiveBusinessOwner(memberId, storeId);
-        return transition(storeCampaign(storeId, id), c -> c.schedule(now()));
+        return transition(memberId, storeCampaign(storeId, id), "SCHEDULED", c -> c.schedule(now()));
     }
 
     @Transactional
     public CouponCampaignResponse pauseStore(Long memberId, Long storeId, Long id) {
         storeAccessService.requireActiveBusinessOwner(memberId, storeId);
-        return transition(storeCampaign(storeId, id), c -> c.pause(now()));
+        return transition(memberId, storeCampaign(storeId, id), "PAUSED", c -> c.pause(now()));
     }
 
     @Transactional
     public CouponCampaignResponse resumeStore(Long memberId, Long storeId, Long id) {
         storeAccessService.requireActiveBusinessOwner(memberId, storeId);
-        return transition(storeCampaign(storeId, id), c -> c.resume(now()));
+        return transition(memberId, storeCampaign(storeId, id), "RESUMED", c -> c.resume(now()));
     }
 
     @Transactional
     public CouponCampaignResponse endStore(Long memberId, Long storeId, Long id) {
         storeAccessService.requireActiveBusinessOwner(memberId, storeId);
-        return transition(storeCampaign(storeId, id), CouponCampaign::end);
+        return transition(memberId, storeCampaign(storeId, id), "ENDED", CouponCampaign::end);
     }
 
     @Transactional
-    public CouponCampaignResponse schedulePlatform(Long id) {
-        return transition(platformCampaign(id), c -> c.schedule(now()));
+    public CouponCampaignResponse schedulePlatform(Long actorMemberId, Long id) {
+        return transition(actorMemberId, platformCampaign(id), "SCHEDULED", c -> c.schedule(now()));
     }
 
     @Transactional
-    public CouponCampaignResponse pausePlatform(Long id) {
-        return transition(platformCampaign(id), c -> c.pause(now()));
+    public CouponCampaignResponse pausePlatform(Long actorMemberId, Long id) {
+        return transition(actorMemberId, platformCampaign(id), "PAUSED", c -> c.pause(now()));
     }
 
     @Transactional
-    public CouponCampaignResponse resumePlatform(Long id) {
-        return transition(platformCampaign(id), c -> c.resume(now()));
+    public CouponCampaignResponse resumePlatform(Long actorMemberId, Long id) {
+        return transition(actorMemberId, platformCampaign(id), "RESUMED", c -> c.resume(now()));
     }
 
     @Transactional
-    public CouponCampaignResponse endPlatform(Long id) {
-        return transition(platformCampaign(id), CouponCampaign::end);
+    public CouponCampaignResponse endPlatform(Long actorMemberId, Long id) {
+        return transition(actorMemberId, platformCampaign(id), "ENDED", CouponCampaign::end);
     }
 
-    private CouponCampaignResponse transition(CouponCampaign campaign, Transition transition) {
+    private CouponCampaignResponse transition(
+            Long actorMemberId,
+            CouponCampaign campaign,
+            String command,
+            Transition transition
+    ) {
+        JsonNode beforeSummary = eventFactory.summary(campaign);
         try {
             transition.apply(campaign);
+            campaignRepository.flush();
             CouponCampaignResponse response = CouponCampaignResponse.detail(campaign, now());
+            record(campaign, actorMemberId, command, beforeSummary);
             invalidateDiscovery();
             return response;
         } catch (DomainException exception) {
@@ -246,6 +293,19 @@ public class CouponCampaignService {
 
     private void invalidateDiscovery() {
         eventPublisher.publishEvent(new DiscoveryInvalidationEvent());
+    }
+
+    private void record(
+            CouponCampaign campaign,
+            Long actorMemberId,
+            String command,
+            JsonNode beforeSummary
+    ) {
+        Long ownerStoreId = campaign.getStore() == null ? null : campaign.getStore().getId();
+        eventRecorder.record(eventFactory.completed(
+                "COUPON", campaign.getId(), campaign.getVersion(), campaign.getOwnerType().name(), ownerStoreId,
+                actorMemberId, command, beforeSummary, eventFactory.summary(campaign), now()
+        ));
     }
 
     @FunctionalInterface
