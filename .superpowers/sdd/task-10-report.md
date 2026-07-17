@@ -1,0 +1,35 @@
+# Task 10 Report: Validated performance measurement persistence
+
+## Status
+
+Complete. The backend now accepts, validates, persists, lists, and retrieves immutable cache OFF/ON performance measurement snapshots through ADMIN-only APIs.
+
+## Delivered
+
+- Added `POST /api/admin/performance-measurements` with strict unknown-field rejection and actor capture from the authenticated ADMIN principal.
+- Added paged `GET /api/admin/performance-measurements` summaries and `GET /api/admin/performance-measurements/{runId}` details.
+- Added exact allowlists for endpoint metrics (`catalog`, `events`, `popularity`, `detail`) and query evidence (`GLOBAL_CATALOG`, `FIXED_STORE_CATALOG`, `ACTIVE_EVENTS`, `POPULARITY`) for both OFF and ON modes.
+- Validated cache mode consistency, metadata comparability, timestamps, positive durations, percentile ordering, error-rate range, nonnegative counters, DB numeric precision/scale, bounded text, and normalized repository-relative artifact paths under `performance/results/`.
+- Canonicalized child ordering, serialized with the application `ObjectMapper`, enforced a 1 MiB canonical payload ceiling, and generated lowercase SHA-256 payload hashes.
+- Implemented UUID/hash idempotency: identical payloads return the existing run and different payloads return `PERFORMANCE_MEASUREMENT_CONFLICT` (HTTP 409).
+- Persisted the run and its eight endpoint metrics/eight query evidence rows in one transaction with insert-only repository methods.
+- List responses omit bind/plan evidence text; detail responses return the stored text as inert values without filesystem access, deserialization, SQL execution, or process execution.
+- Added structured not-found/conflict error codes and Korean-named integration tests.
+
+## TDD evidence
+
+1. RED: the initial API test suite compiled and failed 8 of 9 tests against the missing endpoints (ADMIN requests returned 404; the existing security rule correctly returned 403 for MEMBER access).
+2. GREEN: implemented the minimal controller/service/repository/DTO contract and fixed explicit PostgreSQL `TIMESTAMPTZ` binding.
+3. Additional RED/GREEN: reproduced and fixed null child-array NPE handling and scientific-notation values exceeding PostgreSQL numeric precision.
+
+## Verification
+
+- Focused: `backend\\gradlew.bat test --tests 'com.sweet.market.operations.performance.*'` — `BUILD SUCCESSFUL`.
+- Full backend: `backend\\gradlew.bat test` with JDK 21 and the required JWT secret — `BUILD SUCCESSFUL` in 4m 59s.
+- Full result XML: 826 tests, 0 failures, 0 errors, 0 skipped across 122 suites.
+- `git diff --check` — no Task 10 whitespace errors.
+
+## Scope and concerns
+
+- Task 10 stores only validated structured snapshots and artifact directory/hash metadata; it does not run k6, inspect files, execute plans, or generate real evidence. The reproducible fixture, normalizer, artifact files, and real measurement run remain Task 11.
+- Pre-existing modifications to `.superpowers/sdd/task-2-report.md`, `task-3-report.md`, and `task-4-report.md` were not edited or staged by this task.
