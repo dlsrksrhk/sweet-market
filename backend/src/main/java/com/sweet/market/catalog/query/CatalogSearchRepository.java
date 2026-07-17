@@ -7,6 +7,8 @@ import com.sweet.market.product.domain.ProductCategory;
 import com.sweet.market.product.domain.ProductSalesPolicy;
 import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.store.domain.StoreType;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -14,6 +16,9 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Clock;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @Repository
@@ -66,8 +71,8 @@ public class CatalogSearchRepository {
                     WHERE pc.store_id = p.store_id
                       AND s.type = 'BUSINESS'
                       AND pc.lifecycle_status IN ('DRAFT', 'SCHEDULED')
-                      AND pc.start_at <= CURRENT_TIMESTAMP
-                      AND pc.end_at > CURRENT_TIMESTAMP
+                      AND pc.start_at <= :now
+                      AND pc.end_at > :now
                       AND (pc.scope = 'STORE_WIDE' OR EXISTS (
                           SELECT 1
                           FROM promotion_targets pt
@@ -102,15 +107,27 @@ public class CatalogSearchRepository {
     );
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final Clock clock;
 
     public CatalogSearchRepository(NamedParameterJdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, Clock.systemUTC());
+    }
+
+    @Autowired
+    public CatalogSearchRepository(
+            NamedParameterJdbcTemplate jdbcTemplate,
+            @Qualifier("discoveryClock") Clock clock
+    ) {
         this.jdbcTemplate = jdbcTemplate;
+        this.clock = clock;
     }
 
     public List<CatalogProductRow> findPage(CatalogSearchCriteria criteria, CatalogCursor cursor) {
         boolean hasKeyword = criteria.keyword() != null && !criteria.keyword().isBlank();
         StringBuilder sql = new StringBuilder(hasKeyword ? KEYWORD_MATCH_CTE + KEYWORD_BASE_SQL : BASE_SQL);
-        MapSqlParameterSource parameters = new MapSqlParameterSource();
+        MapSqlParameterSource parameters = new MapSqlParameterSource(
+                "now", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC)
+        );
         appendFilters(sql, parameters, criteria);
         appendSeek(sql, parameters, criteria.sort(), cursor);
         sql.append(" ORDER BY ").append(orderBy(criteria.sort()));

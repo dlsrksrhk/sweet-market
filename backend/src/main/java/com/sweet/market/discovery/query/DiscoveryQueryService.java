@@ -10,11 +10,14 @@ import com.sweet.market.discovery.domain.DiscoveryEventType;
 import com.sweet.market.wishlist.repository.WishlistItemRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -26,18 +29,30 @@ public class DiscoveryQueryService {
     private final WishlistItemRepository wishlistItemRepository;
     private final CartItemRepository cartItemRepository;
     private final ActiveEventCache activeEventCache;
+    private final Clock clock;
 
     @Autowired
     public DiscoveryQueryService(
             DiscoveryRepository discoveryRepository,
             WishlistItemRepository wishlistItemRepository,
             CartItemRepository cartItemRepository,
-            ActiveEventCache activeEventCache
+            ActiveEventCache activeEventCache,
+            @Qualifier("discoveryClock") Clock clock
     ) {
         this.discoveryRepository = discoveryRepository;
         this.wishlistItemRepository = wishlistItemRepository;
         this.cartItemRepository = cartItemRepository;
         this.activeEventCache = activeEventCache;
+        this.clock = clock;
+    }
+
+    public DiscoveryQueryService(
+            DiscoveryRepository discoveryRepository,
+            WishlistItemRepository wishlistItemRepository,
+            CartItemRepository cartItemRepository,
+            ActiveEventCache activeEventCache
+    ) {
+        this(discoveryRepository, wishlistItemRepository, cartItemRepository, activeEventCache, Clock.systemUTC());
     }
 
     public DiscoveryQueryService(
@@ -45,7 +60,7 @@ public class DiscoveryQueryService {
             WishlistItemRepository wishlistItemRepository,
             CartItemRepository cartItemRepository
     ) {
-        this(discoveryRepository, wishlistItemRepository, cartItemRepository, new ActiveEventCache());
+        this(discoveryRepository, wishlistItemRepository, cartItemRepository, new ActiveEventCache(), Clock.systemUTC());
     }
 
     @Transactional(readOnly = true)
@@ -65,7 +80,8 @@ public class DiscoveryQueryService {
 
     @Transactional(readOnly = true)
     public List<CatalogProductCardResponse> popularProducts(Long viewerId) {
-        return catalogProductCards(discoveryRepository.findPopularProducts(OffsetDateTime.now().minusDays(7)), viewerId);
+        OffsetDateTime since = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC).minusDays(7);
+        return catalogProductCards(discoveryRepository.findPopularProducts(since), viewerId);
     }
 
     private List<CatalogProductCardResponse> catalogProductCards(List<CatalogProductRow> rows, Long viewerId) {

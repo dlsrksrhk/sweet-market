@@ -30,6 +30,7 @@ $scenarioPath = Join-Path $repositoryRoot 'performance\m30-catalog-reads.js'
 $resolvedOutputDirectory = [System.IO.Path]::GetFullPath($OutputDirectory)
 $summaryPath = Join-Path $resolvedOutputDirectory "k6-$modeName.json"
 $metricsPath = Join-Path $resolvedOutputDirectory "metrics-$modeName.json"
+$samplesPath = Join-Path $resolvedOutputDirectory "route-samples-$modeName.json"
 $rawPath = Join-Path ([System.IO.Path]::GetTempPath()) "sweet-market-m30-$modeName-$([guid]::NewGuid().ToString('N')).json"
 $headers = @{ Authorization = "Bearer $AdminToken" }
 $endpoints = @('catalog', 'events', 'popularity', 'detail')
@@ -188,6 +189,11 @@ if (-not (Test-Path $rawPath)) {
 }
 
 $samples = Read-K6EndpointSamples
+foreach ($endpoint in $endpoints) {
+    if ($samples.durations[$endpoint].Count -ne $samples.failed[$endpoint].Count) {
+        throw "k6 duration and failure sample counts differ for $endpoint"
+    }
+}
 $jdbcStatementDelta = [long][Math]::Round(
     (Get-MeasurementValue $after.jdbcStatements 'COUNT') -
     (Get-MeasurementValue $before.jdbcStatements 'COUNT')
@@ -218,6 +224,21 @@ $endpointMetrics = foreach ($endpoint in $endpoints) {
     }
 }
 
+$routeSamples = [ordered]@{
+    cacheMode = $cacheMode
+    measuredScenario = $measuredScenario
+    measuredSeconds = [int]$measuredSeconds
+    source = 'sanitized measured-scenario route samples from temporary k6 JSON output'
+    endpoints = @($endpoints | ForEach-Object {
+        $endpoint = $_
+        [ordered]@{
+            endpoint = $endpoint
+            durationsMillis = [double[]]$samples.durations[$endpoint].ToArray()
+            failureFlags = [int[]]$samples.failed[$endpoint].ToArray()
+        }
+    })
+}
+
 $metrics = [ordered]@{
     cacheMode = $cacheMode
     startedAt = $startedAt.ToString('o')
@@ -233,6 +254,7 @@ $metrics = [ordered]@{
 }
 
 $metrics | ConvertTo-Json -Depth 30 | Set-Content -Path $metricsPath -Encoding utf8
+$routeSamples | ConvertTo-Json -Depth 10 -Compress | Set-Content -Path $samplesPath -Encoding utf8
 Remove-Item -LiteralPath $rawPath -Force
 
 if ($k6ExitCode -ne 0) {

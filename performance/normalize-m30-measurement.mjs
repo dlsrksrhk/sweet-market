@@ -19,6 +19,8 @@ const REQUIRED_OPTIONS = [
     '--on-summary',
     '--off-metrics',
     '--on-metrics',
+    '--off-samples',
+    '--on-samples',
     '--query-evidence',
     '--out',
 ];
@@ -29,6 +31,8 @@ export function normalizeMeasurement({
     onSummary,
     offMetrics,
     onMetrics,
+    offSamples,
+    onSamples,
     queryEvidence,
 }) {
     requireObject(metadata, 'metadata');
@@ -50,18 +54,31 @@ export function normalizeMeasurement({
     validateK6Summary(offSummary, 'off');
     validateK6Summary(onSummary, 'on');
 
+    const offEndpointMetrics = normalizeEndpointMetrics(offMetrics, 'OFF', 'off');
+    const onEndpointMetrics = normalizeEndpointMetrics(onMetrics, 'ON', 'on');
+    validateRouteSamples(offSamples, 'OFF', offEndpointMetrics, off.measuredSeconds);
+    validateRouteSamples(onSamples, 'ON', onEndpointMetrics, on.measuredSeconds);
+    const offQueryEvidence = normalizeQueryEvidenceBundle(queryEvidence?.off, 'OFF', off, 1);
+    const onQueryEvidence = normalizeQueryEvidenceBundle(queryEvidence?.on, 'ON', on, 2);
+    if (offQueryEvidence.fixedNow !== onQueryEvidence.fixedNow) {
+        throw new Error('OFF and ON plan provenance fixedNow must match');
+    }
+    if (offQueryEvidence.capturedAt >= onQueryEvidence.capturedAt) {
+        throw new Error('OFF plan capture must precede ON plan capture');
+    }
+
     return {
         measurementId: metadata.measurementId,
         artifactDirectory: metadata.artifactDirectory,
         off: {
             ...off,
-            endpointMetrics: normalizeEndpointMetrics(offMetrics, 'OFF', 'off'),
-            queryEvidence: normalizeQueryEvidence(queryEvidence?.off, 'OFF'),
+            endpointMetrics: offEndpointMetrics,
+            queryEvidence: offQueryEvidence.evidence,
         },
         on: {
             ...on,
-            endpointMetrics: normalizeEndpointMetrics(onMetrics, 'ON', 'on'),
-            queryEvidence: normalizeQueryEvidence(queryEvidence?.on, 'ON'),
+            endpointMetrics: onEndpointMetrics,
+            queryEvidence: onQueryEvidence.evidence,
         },
     };
 }
@@ -160,6 +177,115 @@ function normalizeEndpointMetrics(metrics, expectedMode, label) {
             cacheEvictionCount: metric.cacheEvictionCount,
         };
     });
+}
+
+function validateRouteSamples(samples, expectedMode, endpointMetrics, measuredSeconds) {
+    requireObject(samples, `${expectedMode} route samples`);
+    if (samples.cacheMode !== expectedMode) {
+        throw new Error(`${expectedMode} route samples cacheMode must be ${expectedMode}`);
+    }
+    requireText(samples.measuredScenario, `${expectedMode} route samples measuredScenario`);
+    if (samples.measuredSeconds !== measuredSeconds) {
+        throw new Error(`${expectedMode} route samples measuredSeconds must match metadata`);
+    }
+    requireExactNames(
+            samples.endpoints,
+            REQUIRED_ENDPOINTS,
+            ({endpoint}) => endpoint,
+            `${expectedMode} route samples`,
+    );
+    const metricsByEndpoint = new Map(endpointMetrics.map((metric) => [metric.endpoint, metric]));
+    for (const route of samples.endpoints) {
+        requireObject(route, `${expectedMode} ${route?.endpoint} route samples`);
+        const durations = route.durationsMillis;
+        const failures = route.failureFlags;
+        if (!Array.isArray(durations) || !Array.isArray(failures) || durations.length !== failures.length) {
+            throw new Error(`${expectedMode} ${route.endpoint} route sample counts must match`);
+        }
+        if (durations.length === 0) {
+            throw new Error(`${expectedMode} ${route.endpoint} route samples must not be empty`);
+        }
+        durations.forEach((duration, index) => requireNonNegativeNumber(
+                duration, `${expectedMode}.${route.endpoint}.durationsMillis[${index}]`,
+        ));
+        failures.forEach((failure, index) => {
+            if (failure !== 0 && failure !== 1) {
+                throw new Error(`${expectedMode}.${route.endpoint}.failureFlags[${index}] must be 0 or 1`);
+            }
+        });
+        const metric = metricsByEndpoint.get(route.endpoint);
+        const recomputed = {
+            p50Millis: round(percentile(durations, 0.50), 3),
+            p95Millis: round(percentile(durations, 0.95), 3),
+            throughputPerSecond: round(durations.length / measuredSeconds, 3),
+            errorRate: round(failures.reduce((sum, value) => sum + value, 0) / durations.length, 7),
+        };
+        for (const field of Object.keys(recomputed)) {
+            if (recomputed[field] !== metric[field]) {
+                throw new Error(`${expectedMode} ${route.endpoint} route samples do not reproduce ${field}`);
+            }
+        }
+    }
+}
+
+function percentile(values, percentileValue) {
+    const sorted = [...values].sort((left, right) => left - right);
+    const position = (sorted.length - 1) * percentileValue;
+    const lower = Math.floor(position);
+    const upper = Math.ceil(position);
+    if (lower === upper) {
+        return sorted[lower];
+    }
+    return sorted[lower] + ((sorted[upper] - sorted[lower]) * (position - lower));
+}
+
+function round(value, digits) {
+    const scale = 10 ** digits;
+    return Math.round((value + Number.EPSILON) * scale) / scale;
+}
+
+function normalizeQueryEvidenceBundle(bundle, expectedMode, condition, expectedSequence) {
+    requireObject(bundle, `${expectedMode} query evidence bundle`);
+    const capturedAt = requireTimestamp(bundle.capturedAt, `${expectedMode} query evidence capturedAt`);
+    if (capturedAt < Date.parse(condition.completedAt)) {
+        throw new Error(`${expectedMode} plan capture must occur after the measured run`);
+    }
+    const provenance = bundle.provenance;
+    requireObject(provenance, `${expectedMode} plan provenance`);
+    if (provenance.cacheMode !== expectedMode) {
+        throw new Error(`${expectedMode} plan provenance cacheMode must be ${expectedMode}`);
+    }
+    if (!Array.isArray(provenance.activeProfiles)
+            || new Set(provenance.activeProfiles).size !== provenance.activeProfiles.length) {
+        throw new Error(`${expectedMode} plan provenance activeProfiles must be unique`);
+    }
+    provenance.activeProfiles.forEach((profile, index) => requireText(
+            profile, `${expectedMode} plan provenance activeProfiles[${index}]`,
+    ));
+    for (const requiredProfile of ['local', 'performance-fixture', 'local-experiment']) {
+        if (!provenance.activeProfiles.includes(requiredProfile)) {
+            throw new Error(`${expectedMode} plan provenance must include ${requiredProfile}`);
+        }
+    }
+    if (expectedMode === 'OFF' && !provenance.activeProfiles.includes('cache-off')) {
+        throw new Error('OFF plan provenance must include cache-off');
+    }
+    if (expectedMode === 'ON' && provenance.activeProfiles.includes('cache-off')) {
+        throw new Error('ON plan provenance must not include cache-off');
+    }
+    requireTimestamp(provenance.fixedNow, `${expectedMode} plan provenance fixedNow`);
+    requirePositiveInteger(provenance.serverProcessId, `${expectedMode} plan provenance serverProcessId`);
+    if (provenance.healthStatus !== 'UP') {
+        throw new Error(`${expectedMode} plan provenance healthStatus must be UP`);
+    }
+    if (provenance.captureSequence !== expectedSequence) {
+        throw new Error(`${expectedMode} plan provenance captureSequence must be ${expectedSequence}`);
+    }
+    return {
+        capturedAt,
+        fixedNow: provenance.fixedNow,
+        evidence: normalizeQueryEvidence(bundle.evidence, expectedMode),
+    };
 }
 
 function normalizeQueryEvidence(evidence, expectedMode) {
@@ -276,6 +402,8 @@ async function main() {
         onSummary: await readJson(options.get('--on-summary')),
         offMetrics: await readJson(options.get('--off-metrics')),
         onMetrics: await readJson(options.get('--on-metrics')),
+        offSamples: await readJson(options.get('--off-samples')),
+        onSamples: await readJson(options.get('--on-samples')),
         queryEvidence: await readJson(options.get('--query-evidence')),
     });
     await writeFile(options.get('--out'), `${JSON.stringify(measurement, null, 2)}\n`, 'utf8');

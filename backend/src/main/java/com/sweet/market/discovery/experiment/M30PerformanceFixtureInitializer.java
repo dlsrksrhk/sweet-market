@@ -16,6 +16,7 @@ import com.sweet.market.promotion.domain.PromotionScope;
 import com.sweet.market.store.domain.Store;
 import jakarta.persistence.EntityManager;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
@@ -40,6 +41,7 @@ import java.util.Random;
 
 @Component
 @Profile("performance-fixture")
+@ConditionalOnProperty(prefix = "market.performance-fixture", name = "initialize", havingValue = "true", matchIfMissing = true)
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class M30PerformanceFixtureInitializer implements ApplicationRunner {
 

@@ -11,11 +11,16 @@ import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.store.domain.StoreType;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
@@ -72,7 +77,7 @@ public class DiscoveryRepository {
                     FROM promotion_campaigns pc
                     WHERE pc.store_id = p.store_id AND s.type = 'BUSINESS'
                       AND pc.lifecycle_status = 'SCHEDULED'
-                      AND pc.start_at <= CURRENT_TIMESTAMP AND pc.end_at > CURRENT_TIMESTAMP
+                      AND pc.start_at <= :now AND pc.end_at > :now
                       AND (pc.scope = 'STORE_WIDE' OR EXISTS (
                           SELECT 1 FROM promotion_targets pt
                           WHERE pt.promotion_campaign_id = pc.id AND pt.product_id = p.id
@@ -106,7 +111,7 @@ public class DiscoveryRepository {
                 LIMIT 1
             ) product_image ON TRUE
             WHERE pc.lifecycle_status = 'SCHEDULED'
-              AND pc.start_at <= CURRENT_TIMESTAMP AND pc.end_at > CURRENT_TIMESTAMP
+              AND pc.start_at <= :now AND pc.end_at > :now
             UNION ALL
             SELECT 'COUPON' AS event_type, cc.id AS event_id, cc.title, cc.label, s.id AS store_id,
                    s.public_name AS store_name, product_image.image_url AS representative_image_url, cc.issue_ends_at AS ends_at
@@ -128,7 +133,7 @@ public class DiscoveryRepository {
                 LIMIT 1
             ) product_image ON TRUE
             WHERE cc.lifecycle_status = 'SCHEDULED'
-              AND cc.issue_starts_at <= CURRENT_TIMESTAMP AND cc.issue_ends_at > CURRENT_TIMESTAMP
+              AND cc.issue_starts_at <= :now AND cc.issue_ends_at > :now
               AND (cc.owner_type = 'PLATFORM' OR s.id IS NOT NULL)
             """;
 
@@ -163,7 +168,7 @@ public class DiscoveryRepository {
                     FROM promotion_campaigns pc
                     WHERE pc.store_id = p.store_id AND s.type = 'BUSINESS'
                       AND pc.lifecycle_status = 'SCHEDULED'
-                      AND pc.start_at <= CURRENT_TIMESTAMP AND pc.end_at > CURRENT_TIMESTAMP
+                      AND pc.start_at <= :now AND pc.end_at > :now
                       AND (pc.scope = 'STORE_WIDE' OR EXISTS (
                           SELECT 1 FROM promotion_targets pt
                           WHERE pt.promotion_campaign_id = pc.id AND pt.product_id = p.id
@@ -180,7 +185,7 @@ public class DiscoveryRepository {
                       WHERE pc.id = :eventId
                         AND pc.store_id = p.store_id
                         AND pc.lifecycle_status = 'SCHEDULED'
-                        AND pc.start_at <= CURRENT_TIMESTAMP AND pc.end_at > CURRENT_TIMESTAMP
+                        AND pc.start_at <= :now AND pc.end_at > :now
                         AND (pc.scope = 'STORE_WIDE' OR EXISTS (
                             SELECT 1 FROM promotion_targets pt
                             WHERE pt.promotion_campaign_id = pc.id AND pt.product_id = p.id
@@ -191,7 +196,7 @@ public class DiscoveryRepository {
                       FROM coupon_campaigns cc
                       WHERE cc.id = :eventId
                         AND cc.lifecycle_status = 'SCHEDULED'
-                        AND cc.issue_starts_at <= CURRENT_TIMESTAMP AND cc.issue_ends_at > CURRENT_TIMESTAMP
+                        AND cc.issue_starts_at <= :now AND cc.issue_ends_at > :now
                         AND (cc.owner_type = 'PLATFORM' OR cc.store_id = p.store_id)
                         AND (cc.scope = 'ALL_PRODUCTS' OR EXISTS (
                             SELECT 1 FROM coupon_campaign_targets ct
@@ -204,25 +209,37 @@ public class DiscoveryRepository {
             """;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+    private final Clock clock;
 
     public DiscoveryRepository(NamedParameterJdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, Clock.systemUTC());
+    }
+
+    @Autowired
+    public DiscoveryRepository(
+            NamedParameterJdbcTemplate jdbcTemplate,
+            @Qualifier("discoveryClock") Clock clock
+    ) {
         this.jdbcTemplate = jdbcTemplate;
+        this.clock = clock;
     }
 
     public List<CatalogProductRow> findPopularProducts(OffsetDateTime since) {
-        return jdbcTemplate.query(POPULAR_PRODUCTS_SQL, new MapSqlParameterSource("since", since), this::catalogProductRow);
+        MapSqlParameterSource parameters = nowParameters().addValue("since", since);
+        return jdbcTemplate.query(POPULAR_PRODUCTS_SQL, parameters, this::catalogProductRow);
     }
 
     public List<ActiveEventResponse> findActiveEvents() {
         return jdbcTemplate.query("SELECT * FROM (" + EVENTS_SQL + ") events "
                         + "ORDER BY ends_at ASC, CASE event_type WHEN 'PROMOTION' THEN 0 ELSE 1 END ASC, event_id ASC",
-                this::activeEventResponse);
+                nowParameters(), this::activeEventResponse);
     }
 
     public Optional<EventDetailResponse> findEvent(DiscoveryEventType eventType, Long eventId) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("eventType", eventType.name())
-                .addValue("eventId", eventId);
+                .addValue("eventId", eventId)
+                .addValue("now", now());
         return jdbcTemplate.query("SELECT * FROM (" + EVENTS_SQL + ") events WHERE event_type = :eventType AND event_id = :eventId", parameters,
                 (resultSet, rowNumber) -> eventDetailResponse(resultSet)).stream().findFirst();
     }
@@ -230,8 +247,17 @@ public class DiscoveryRepository {
     public List<CatalogProductRow> findEventProducts(DiscoveryEventType eventType, Long eventId) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("eventType", eventType.name())
-                .addValue("eventId", eventId);
+                .addValue("eventId", eventId)
+                .addValue("now", now());
         return jdbcTemplate.query(EVENT_PRODUCTS_SQL, parameters, this::catalogProductRow);
+    }
+
+    private MapSqlParameterSource nowParameters() {
+        return new MapSqlParameterSource("now", now());
+    }
+
+    private OffsetDateTime now() {
+        return OffsetDateTime.ofInstant(Instant.now(clock), ZoneOffset.UTC);
     }
 
     private CatalogProductRow catalogProductRow(ResultSet resultSet, int rowNumber) throws SQLException {

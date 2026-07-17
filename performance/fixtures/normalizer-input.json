@@ -46,33 +46,77 @@
   "offMetrics": {
     "cacheMode": "OFF",
     "endpointMetrics": [
-      {"endpoint": "catalog", "p50Millis": 12.345, "p95Millis": 45.678, "throughputPerSecond": 67.891, "errorRate": 0.0001234, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
-      {"endpoint": "events", "p50Millis": 13.101, "p95Millis": 46.202, "throughputPerSecond": 67.891, "errorRate": 0, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
-      {"endpoint": "popularity", "p50Millis": 14.303, "p95Millis": 47.404, "throughputPerSecond": 67.891, "errorRate": 0, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
-      {"endpoint": "detail", "p50Millis": 15.505, "p95Millis": 48.606, "throughputPerSecond": 20.123, "errorRate": 0, "jdbcStatementCount": 700, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null}
+      {"endpoint": "catalog", "p50Millis": 25, "p95Millis": 38.5, "throughputPerSecond": 0.013, "errorRate": 0.25, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
+      {"endpoint": "events", "p50Millis": 25, "p95Millis": 38.5, "throughputPerSecond": 0.013, "errorRate": 0.25, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
+      {"endpoint": "popularity", "p50Millis": 25, "p95Millis": 38.5, "throughputPerSecond": 0.013, "errorRate": 0.25, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
+      {"endpoint": "detail", "p50Millis": 25, "p95Millis": 38.5, "throughputPerSecond": 0.013, "errorRate": 0.25, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null}
     ]
   },
   "onMetrics": {
     "cacheMode": "ON",
     "endpointMetrics": [
-      {"endpoint": "catalog", "p50Millis": 10.111, "p95Millis": 40.222, "throughputPerSecond": 70.333, "errorRate": 0, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
-      {"endpoint": "events", "p50Millis": 2.101, "p95Millis": 5.202, "throughputPerSecond": 70.333, "errorRate": 0, "jdbcStatementCount": 2, "cacheHitCount": 999, "cacheMissCount": 1, "cacheEvictionCount": 0},
-      {"endpoint": "popularity", "p50Millis": 12.303, "p95Millis": 42.404, "throughputPerSecond": 70.333, "errorRate": 0, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
-      {"endpoint": "detail", "p50Millis": 13.505, "p95Millis": 43.606, "throughputPerSecond": 21.123, "errorRate": 0, "jdbcStatementCount": 700, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null}
+      {"endpoint": "catalog", "p50Millis": 25, "p95Millis": 38.5, "throughputPerSecond": 0.013, "errorRate": 0, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
+      {"endpoint": "events", "p50Millis": 25, "p95Millis": 38.5, "throughputPerSecond": 0.013, "errorRate": 0, "jdbcStatementCount": 2, "cacheHitCount": 3, "cacheMissCount": 1, "cacheEvictionCount": 0},
+      {"endpoint": "popularity", "p50Millis": 25, "p95Millis": 38.5, "throughputPerSecond": 0.013, "errorRate": 0, "jdbcStatementCount": 1000, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null},
+      {"endpoint": "detail", "p50Millis": 25, "p95Millis": 38.5, "throughputPerSecond": 0.013, "errorRate": 0, "jdbcStatementCount": 700, "cacheHitCount": null, "cacheMissCount": null, "cacheEvictionCount": null}
+    ]
+  },
+  "offSamples": {
+    "cacheMode": "OFF",
+    "measuredScenario": "measured_catalog_reads",
+    "measuredSeconds": 300,
+    "endpoints": [
+      {"endpoint": "catalog", "durationsMillis": [10, 20, 30, 40], "failureFlags": [0, 0, 0, 1]},
+      {"endpoint": "events", "durationsMillis": [10, 20, 30, 40], "failureFlags": [0, 0, 0, 1]},
+      {"endpoint": "popularity", "durationsMillis": [10, 20, 30, 40], "failureFlags": [0, 0, 0, 1]},
+      {"endpoint": "detail", "durationsMillis": [10, 20, 30, 40], "failureFlags": [0, 0, 0, 1]}
+    ]
+  },
+  "onSamples": {
+    "cacheMode": "ON",
+    "measuredScenario": "measured_catalog_reads",
+    "measuredSeconds": 300,
+    "endpoints": [
+      {"endpoint": "catalog", "durationsMillis": [10, 20, 30, 40], "failureFlags": [0, 0, 0, 0]},
+      {"endpoint": "events", "durationsMillis": [10, 20, 30, 40], "failureFlags": [0, 0, 0, 0]},
+      {"endpoint": "popularity", "durationsMillis": [10, 20, 30, 40], "failureFlags": [0, 0, 0, 0]},
+      {"endpoint": "detail", "durationsMillis": [10, 20, 30, 40], "failureFlags": [0, 0, 0, 0]}
     ]
   },
   "queryEvidence": {
-    "off": [
-      {"cacheMode": "OFF", "queryShape": "GLOBAL_CATALOG", "bindSummary": "limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.501, "actualRows": 21, "sharedHitBlocks": 120, "sharedReadBlocks": 0},
-      {"cacheMode": "OFF", "queryShape": "FIXED_STORE_CATALOG", "bindSummary": "storeId=1, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.601, "actualRows": 21, "sharedHitBlocks": 121, "sharedReadBlocks": 0},
-      {"cacheMode": "OFF", "queryShape": "ACTIVE_EVENTS", "bindSummary": "no binds", "planSummary": "Sort -> Append", "fullPlan": "Sort (actual rows=8)\n  -> Append", "executionMillis": 2.701, "actualRows": 8, "sharedHitBlocks": 122, "sharedReadBlocks": 0},
-      {"cacheMode": "OFF", "queryShape": "POPULARITY", "bindSummary": "since=fixture run minus 7 days", "planSummary": "Limit -> Sort -> Hash Join", "fullPlan": "Limit (actual rows=8)\n  -> Sort", "executionMillis": 2.801, "actualRows": 8, "sharedHitBlocks": 123, "sharedReadBlocks": 0}
-    ],
-    "on": [
-      {"cacheMode": "ON", "queryShape": "GLOBAL_CATALOG", "bindSummary": "limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.401, "actualRows": 21, "sharedHitBlocks": 120, "sharedReadBlocks": 0},
-      {"cacheMode": "ON", "queryShape": "FIXED_STORE_CATALOG", "bindSummary": "storeId=1, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.501, "actualRows": 21, "sharedHitBlocks": 121, "sharedReadBlocks": 0},
-      {"cacheMode": "ON", "queryShape": "ACTIVE_EVENTS", "bindSummary": "no binds", "planSummary": "Sort -> Append", "fullPlan": "Sort (actual rows=8)\n  -> Append", "executionMillis": 2.601, "actualRows": 8, "sharedHitBlocks": 122, "sharedReadBlocks": 0},
-      {"cacheMode": "ON", "queryShape": "POPULARITY", "bindSummary": "since=fixture run minus 7 days", "planSummary": "Limit -> Sort -> Hash Join", "fullPlan": "Limit (actual rows=8)\n  -> Sort", "executionMillis": 2.701, "actualRows": 8, "sharedHitBlocks": 123, "sharedReadBlocks": 0}
-    ]
+    "off": {
+      "capturedAt": "2026-07-17T01:06:30Z",
+      "provenance": {
+        "cacheMode": "OFF",
+        "activeProfiles": ["local", "performance-fixture", "local-experiment", "cache-off"],
+        "fixedNow": "2026-07-17T00:00:00Z",
+        "serverProcessId": 101,
+        "healthStatus": "UP",
+        "captureSequence": 1
+      },
+      "evidence": [
+        {"cacheMode": "OFF", "queryShape": "GLOBAL_CATALOG", "bindSummary": "now=2026-07-17T00:00:00Z, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.501, "actualRows": 21, "sharedHitBlocks": 120, "sharedReadBlocks": 0},
+        {"cacheMode": "OFF", "queryShape": "FIXED_STORE_CATALOG", "bindSummary": "now=2026-07-17T00:00:00Z, storeId=1, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.601, "actualRows": 21, "sharedHitBlocks": 121, "sharedReadBlocks": 0},
+        {"cacheMode": "OFF", "queryShape": "ACTIVE_EVENTS", "bindSummary": "now=2026-07-17T00:00:00Z", "planSummary": "Sort -> Append", "fullPlan": "Sort (actual rows=8)\n  -> Append", "executionMillis": 2.701, "actualRows": 8, "sharedHitBlocks": 122, "sharedReadBlocks": 0},
+        {"cacheMode": "OFF", "queryShape": "POPULARITY", "bindSummary": "since=2026-07-10T00:00:00Z, now=2026-07-17T00:00:00Z", "planSummary": "Limit -> Sort -> Hash Join", "fullPlan": "Limit (actual rows=8)\n  -> Sort", "executionMillis": 2.801, "actualRows": 8, "sharedHitBlocks": 123, "sharedReadBlocks": 0}
+      ]
+    },
+    "on": {
+      "capturedAt": "2026-07-17T01:16:30Z",
+      "provenance": {
+        "cacheMode": "ON",
+        "activeProfiles": ["local", "performance-fixture", "local-experiment"],
+        "fixedNow": "2026-07-17T00:00:00Z",
+        "serverProcessId": 202,
+        "healthStatus": "UP",
+        "captureSequence": 2
+      },
+      "evidence": [
+        {"cacheMode": "ON", "queryShape": "GLOBAL_CATALOG", "bindSummary": "now=2026-07-17T00:00:00Z, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.401, "actualRows": 21, "sharedHitBlocks": 120, "sharedReadBlocks": 0},
+        {"cacheMode": "ON", "queryShape": "FIXED_STORE_CATALOG", "bindSummary": "now=2026-07-17T00:00:00Z, storeId=1, limitPlusOne=21", "planSummary": "Limit -> Index Scan", "fullPlan": "Limit (actual rows=21)\n  -> Index Scan", "executionMillis": 2.501, "actualRows": 21, "sharedHitBlocks": 121, "sharedReadBlocks": 0},
+        {"cacheMode": "ON", "queryShape": "ACTIVE_EVENTS", "bindSummary": "now=2026-07-17T00:00:00Z", "planSummary": "Sort -> Append", "fullPlan": "Sort (actual rows=8)\n  -> Append", "executionMillis": 2.601, "actualRows": 8, "sharedHitBlocks": 122, "sharedReadBlocks": 0},
+        {"cacheMode": "ON", "queryShape": "POPULARITY", "bindSummary": "since=2026-07-10T00:00:00Z, now=2026-07-17T00:00:00Z", "planSummary": "Limit -> Sort -> Hash Join", "fullPlan": "Limit (actual rows=8)\n  -> Sort", "executionMillis": 2.701, "actualRows": 8, "sharedHitBlocks": 123, "sharedReadBlocks": 0}
+      ]
+    }
   }
 }
