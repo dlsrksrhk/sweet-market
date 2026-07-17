@@ -71,6 +71,7 @@ function parseRecords(text) {
             const threadName = statement[1];
             if (!threadName.startsWith('http-nio-')) {
                 latestByThread.delete(threadName);
+                continue;
             }
             const closes = statement[2].endsWith(']');
             if (closes) {

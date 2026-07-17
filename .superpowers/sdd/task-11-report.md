@@ -261,3 +261,14 @@ Task-local raw 로그는 commit하지 않고 source basename, offsets, raw range
 - Normalizer 재생 request SHA-256이 등록 파일 hash와 일치
 - 모든 JSON parse와 collector-before/after/plan identity, live SQL/bind/trace, payload field stripping, route sample 비식별 audit 통과
 - Task 11 파일의 secret/absolute-path/placeholder scan과 `git diff --check` 통과
+
+### 리뷰 후 parser 보정
+
+최종 리뷰에서 `parseRecords`가 non-HTTP statement를 발견했을 때 thread map에서는 제거하지만 같은 iteration의 record 생성 경로를 계속 실행하는 문제가 확인됐습니다. Scheduler thread가 네 필수 SQL shape 중 하나를 실행하면 HTTP 증적으로 잘못 분류될 수 있었습니다.
+
+Scheduler가 global catalog SQL과 bind를 실행하는 회귀 테스트를 먼저 추가했고 수정 전 `duplicate GLOBAL_CATALOG` 실패를 확인했습니다. Non-HTTP thread 분기에서 즉시 `continue`하도록 한 줄 수정한 뒤 parser가 해당 statement를 제외하고 HTTP worker의 네 shape만 반환함을 검증했습니다.
+
+- Node normalizer/live trace parser: 24개 통과
+- Normalizer 재생 request SHA-256: `73c095ba399e30dfe249840be2cadab91b5c05c880294ceefcdc44ce21518f5e`로 등록 파일과 동일
+- 저장된 OFF/ON query evidence 8개 모두 `http-nio-` worker thread임을 재확인
+- 기존 artifact는 이미 HTTP worker에서 수집됐고 payload hash도 변하지 않아 실험과 등록을 재실행하지 않음

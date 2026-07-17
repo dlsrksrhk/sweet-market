@@ -44,3 +44,17 @@ test('live_trace의_bind가_shape계약과_다르면_거부한다', () => {
 
     assert.throws(() => parseTraceBuffer(inconsistent, 0, inconsistent.length), /bind contract/);
 });
+
+test('scheduler_thread가_필수_SQL_shape를_실행해도_HTTP_trace에서_제외한다', () => {
+    const text = fixture.toString('utf8');
+    const globalStart = text.indexOf('2026-07-17T22:00:01.000');
+    const fixedStart = text.indexOf('2026-07-17T22:00:02.000');
+    const schedulerGlobal = text.slice(globalStart, fixedStart)
+            .replaceAll('http-nio-18080-exec-1', 'scheduling-1');
+    const withSchedulerShape = Buffer.from(`${schedulerGlobal}\n${text}`);
+
+    const parsed = parseTraceBuffer(withSchedulerShape, 0, withSchedulerShape.length);
+
+    assert.equal(parsed.statements.length, 4);
+    assert.equal(parsed.statements.every(({threadName}) => threadName.startsWith('http-nio-')), true);
+});
