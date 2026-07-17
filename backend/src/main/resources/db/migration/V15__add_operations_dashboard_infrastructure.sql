@@ -53,6 +53,9 @@ CREATE TABLE projection_event_receipts (
         UNIQUE (generation_id, projection_name, event_id)
 );
 
+CREATE INDEX idx_projection_event_receipts_generation_processed_at
+    ON projection_event_receipts (generation_id, processed_at DESC);
+
 CREATE TABLE store_metric_hourly (
     generation_id BIGINT NOT NULL REFERENCES projection_generations(id) ON DELETE CASCADE,
     bucket_start TIMESTAMPTZ NOT NULL,
@@ -110,6 +113,11 @@ CREATE TABLE campaign_metric_hourly (
 CREATE INDEX idx_campaign_metric_hourly_store_bucket
     ON campaign_metric_hourly (generation_id, commerce_store_id, bucket_start, campaign_kind, campaign_id);
 
+CREATE INDEX idx_campaign_metric_hourly_owner_store_bucket
+    ON campaign_metric_hourly (
+        generation_id, campaign_owner_store_id, bucket_start, campaign_kind, campaign_id
+    );
+
 CREATE TABLE inventory_pressure_projection (
     generation_id BIGINT NOT NULL REFERENCES projection_generations(id) ON DELETE CASCADE,
     product_id BIGINT NOT NULL,
@@ -161,7 +169,10 @@ CREATE TABLE campaign_audit_projection (
 );
 
 CREATE INDEX idx_campaign_audit_projection_owner_time
-    ON campaign_audit_projection (generation_id, owner_store_id, occurred_at DESC, event_id DESC);
+    ON campaign_audit_projection (
+        generation_id, owner_store_id, occurred_at DESC,
+        aggregate_version DESC NULLS LAST, event_id DESC
+    );
 
 CREATE TABLE performance_measurement_runs (
     id BIGSERIAL PRIMARY KEY,
