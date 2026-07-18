@@ -21,6 +21,7 @@ public final class SignedRequestFilter extends OncePerRequestFilter {
 
     public static final String REQUEST_ID_ATTRIBUTE = "integration.requestId";
     public static final String CLIENT_ID_ATTRIBUTE = "integration.clientId";
+    public static final String CORRELATION_ID_ATTRIBUTE = "integration.correlationId";
 
     private static final Pattern EPOCH_SECONDS = Pattern.compile("^[0-9]+$");
     private static final Pattern LOWERCASE_SHA256 = Pattern.compile("^[0-9a-f]{64}$");
@@ -47,7 +48,8 @@ public final class SignedRequestFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/api/v1/");
+        String requestUri = request.getRequestURI();
+        return !requestUri.equals("/api/v1") && !requestUri.startsWith("/api/v1/");
     }
 
     @Override
@@ -63,14 +65,15 @@ public final class SignedRequestFilter extends OncePerRequestFilter {
             return;
         }
 
-        SignedRequest signedRequest;
+        ParsedSignedRequest parsedRequest;
         try {
-            signedRequest = parseSignedRequest(request, body);
+            parsedRequest = parseSignedRequest(request, body);
         } catch (IllegalArgumentException | DateTimeException exception) {
             writeError(response, HttpServletResponse.SC_BAD_REQUEST,
                     "INTEGRATION_REQUEST_INVALID", "Signed request headers are invalid", null);
             return;
         }
+        SignedRequest signedRequest = parsedRequest.signedRequest();
 
         ResolvedCredential credential = resolveCredential(signedRequest.apiKey(), signedRequest.keyId());
         if (credential == null) {
@@ -111,13 +114,14 @@ public final class SignedRequestFilter extends OncePerRequestFilter {
 
         request.setAttribute(REQUEST_ID_ATTRIBUTE, signedRequest.requestId());
         request.setAttribute(CLIENT_ID_ATTRIBUTE, credential.clientId());
+        request.setAttribute(CORRELATION_ID_ATTRIBUTE, parsedRequest.correlationId());
         filterChain.doFilter(new CachedBodyHttpServletRequest(request, body), response);
     }
 
-    private SignedRequest parseSignedRequest(HttpServletRequest request, byte[] body) {
+    private ParsedSignedRequest parseSignedRequest(HttpServletRequest request, byte[] body) {
         String apiKey = requiredHeader(request, "X-Api-Key");
         String keyId = requiredHeader(request, "X-Key-Id");
-        UUID requestId = UUID.fromString(requiredHeader(request, "X-Request-Id"));
+        UUID requestId = parseCanonicalUuid(requiredHeader(request, "X-Request-Id"));
         String timestampHeader = requiredHeader(request, "X-Timestamp");
         if (!EPOCH_SECONDS.matcher(timestampHeader).matches()) {
             throw new IllegalArgumentException("Invalid timestamp");
@@ -127,17 +131,30 @@ public final class SignedRequestFilter extends OncePerRequestFilter {
         if (!LOWERCASE_SHA256.matcher(signature).matches()) {
             throw new IllegalArgumentException("Invalid signature");
         }
-        if (!MediaType.APPLICATION_JSON_VALUE.equalsIgnoreCase(request.getContentType())) {
+        UUID correlationId = parseCanonicalUuid(requiredHeader(request, "X-Correlation-Id"));
+        MediaType contentType = MediaType.parseMediaType(requiredHeader(request, "Content-Type"));
+        if (!MediaType.APPLICATION_JSON.isCompatibleWith(contentType)) {
             throw new IllegalArgumentException("Invalid content type");
         }
         String rawTarget = request.getRequestURI();
         if (request.getQueryString() != null) {
             rawTarget += "?" + request.getQueryString();
         }
-        return new SignedRequest(
-                apiKey, keyId, requestId, timestamp,
-                request.getMethod(), rawTarget, body, signature
+        return new ParsedSignedRequest(
+                new SignedRequest(
+                        apiKey, keyId, requestId, timestamp,
+                        request.getMethod(), rawTarget, body, signature
+                ),
+                correlationId
         );
+    }
+
+    private UUID parseCanonicalUuid(String value) {
+        UUID parsed = UUID.fromString(value);
+        if (!parsed.toString().equals(value)) {
+            throw new IllegalArgumentException("UUID is not canonical");
+        }
+        return parsed;
     }
 
     private String requiredHeader(HttpServletRequest request, String name) {
@@ -181,4 +198,6 @@ public final class SignedRequestFilter extends OncePerRequestFilter {
     }
 
     private record ResolvedCredential(String clientId, String secret) {}
+
+    private record ParsedSignedRequest(SignedRequest signedRequest, UUID correlationId) {}
 }

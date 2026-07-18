@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -23,6 +24,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -245,7 +247,7 @@ class GatewaySignedProbeApiTest extends GatewayIntegrationTestSupport {
     }
 
     @Test
-    void 인증된_correlationId_validation_오류는_requestId를_보존한다() throws Exception {
+    void 잘못된_correlationId는_replay를_저장하지_않고_거부한다() throws Exception {
         UUID requestId = UUID.randomUUID();
         MockHttpServletRequestBuilder request = signedProbe(
                 BODY, CURRENT_API_KEY, CURRENT_KEY_ID, CURRENT_SECRET,
@@ -258,17 +260,131 @@ class GatewaySignedProbeApiTest extends GatewayIntegrationTestSupport {
 
         mockMvc.perform(request)
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.*", hasSize(3)))
                 .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
-                .andExpect(jsonPath("$.requestId").value(requestId.toString()));
+                .andExpect(jsonPath("$.requestId").value(nullValue()));
+
+        assertReplayCount(0);
+    }
+
+    @Test
+    void 누락된_correlationId는_replay를_저장하지_않고_거부한다() throws Exception {
+        MockHttpServletRequestBuilder request = signedProbe(
+                BODY, CURRENT_API_KEY, CURRENT_KEY_ID, CURRENT_SECRET,
+                UUID.randomUUID(), VECTOR_INSTANT, UUID.randomUUID()
+        ).with(servletRequest -> {
+            servletRequest.removeHeader("X-Correlation-Id");
+            return servletRequest;
+        });
+
+        mockMvc.perform(request)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.*", hasSize(3)))
+                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
+                .andExpect(jsonPath("$.requestId").value(nullValue()));
+
+        assertReplayCount(0);
+    }
+
+    @Test
+    void api_v1_namespace_root도_서명을_요구한다() throws Exception {
+        mockMvc.perform(post("/api/v1")
+                        .contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.*", hasSize(3)))
+                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
+                .andExpect(jsonPath("$.requestId").value(nullValue()));
     }
 
     @Test
     void 정의되지_않은_route는_거부한다() throws Exception {
         mockMvc.perform(get("/not-defined"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.*", hasSize(3)))
+                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
+                .andExpect(jsonPath("$.requestId").value(nullValue()));
+    }
+
+    @Test
+    void 인증된_정의되지_않은_route는_404_envelope와_requestId를_반환한다() throws Exception {
+        UUID requestId = UUID.randomUUID();
+
+        mockMvc.perform(signedRequest(
+                        HttpMethod.POST, "/api/v1/not-defined", BODY,
+                        CURRENT_API_KEY, CURRENT_KEY_ID, CURRENT_SECRET,
+                        requestId, VECTOR_INSTANT, UUID.randomUUID()
+                ))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.*", hasSize(3)))
+                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
+                .andExpect(jsonPath("$.requestId").value(requestId.toString()));
+    }
+
+    @Test
+    void 인증된_지원하지_않는_method는_405_envelope와_requestId를_반환한다() throws Exception {
+        UUID requestId = UUID.randomUUID();
+
+        mockMvc.perform(signedRequest(
+                        HttpMethod.PUT, "/api/v1/probes", BODY,
+                        CURRENT_API_KEY, CURRENT_KEY_ID, CURRENT_SECRET,
+                        requestId, VECTOR_INSTANT, UUID.randomUUID()
+                ))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.*", hasSize(3)))
+                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
+                .andExpect(jsonPath("$.requestId").value(requestId.toString()));
+    }
+
+    @Test
+    void charset_parameter가_있는_JSON_contentType을_허용한다() throws Exception {
+        mockMvc.perform(signedProbe(
+                                BODY, CURRENT_API_KEY, CURRENT_KEY_ID, CURRENT_SECRET,
+                                UUID.randomUUID(), VECTOR_INSTANT, UUID.randomUUID()
+                        )
+                        .contentType(MediaType.parseMediaType("application/json;charset=UTF-8")))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void noncanonical_UUID_alias를_거부한다() throws Exception {
+        String requestIdAlias = "1-1-1-1-1";
+        UUID normalizedRequestId = UUID.fromString(requestIdAlias);
+        MockHttpServletRequestBuilder request = signedProbe(
+                BODY, CURRENT_API_KEY, CURRENT_KEY_ID, CURRENT_SECRET,
+                normalizedRequestId, VECTOR_INSTANT, UUID.randomUUID()
+        ).with(servletRequest -> {
+            servletRequest.removeHeader("X-Request-Id");
+            servletRequest.addHeader("X-Request-Id", requestIdAlias);
+            return servletRequest;
+        });
+
+        mockMvc.perform(request)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.*", hasSize(3)))
+                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
+                .andExpect(jsonPath("$.requestId").value(nullValue()));
+
+        assertReplayCount(0);
     }
 
     private MockHttpServletRequestBuilder signedProbe(
+            String body,
+            String apiKey,
+            String keyId,
+            String secret,
+            UUID requestId,
+            Instant timestamp,
+            UUID correlationId
+    ) {
+        return signedRequest(
+                HttpMethod.POST, "/api/v1/probes", body,
+                apiKey, keyId, secret, requestId, timestamp, correlationId
+        );
+    }
+
+    private MockHttpServletRequestBuilder signedRequest(
+            HttpMethod method,
+            String rawTarget,
             String body,
             String apiKey,
             String keyId,
@@ -281,11 +397,11 @@ class GatewaySignedProbeApiTest extends GatewayIntegrationTestSupport {
                 keyId,
                 timestamp,
                 requestId,
-                "POST",
-                "/api/v1/probes",
+                method.name(),
+                rawTarget,
                 body.getBytes(StandardCharsets.UTF_8)
         );
-        return post("/api/v1/probes")
+        return request(method, rawTarget)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)
                 .header("X-Api-Key", apiKey)

@@ -5,7 +5,6 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -19,7 +18,7 @@ public class ProbeController {
     ProbeResponse probe(
             @Valid @RequestBody ProbeRequest request,
             @RequestAttribute(SignedRequestFilter.REQUEST_ID_ATTRIBUTE) UUID requestId,
-            @RequestHeader("X-Correlation-Id") UUID correlationId
+            @RequestAttribute(SignedRequestFilter.CORRELATION_ID_ATTRIBUTE) UUID correlationId
     ) {
         return new ProbeResponse(
                 "mock-payment-gateway",
