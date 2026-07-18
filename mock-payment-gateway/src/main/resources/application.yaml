@@ -1,0 +1,22 @@
+server:
+  port: ${PAYMENT_GATEWAY_PORT:8081}
+
+spring:
+  application:
+    name: mock-payment-gateway
+  datasource:
+    url: jdbc:postgresql://${PAYMENT_GATEWAY_DB_HOST:localhost}:${PAYMENT_GATEWAY_DB_PORT:15433}/${PAYMENT_GATEWAY_DB_NAME:payment_gateway}
+    username: ${PAYMENT_GATEWAY_DB_USERNAME:payment_gateway}
+    password: ${PAYMENT_GATEWAY_DB_PASSWORD:payment_gateway}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+  sql:
+    init:
+      mode: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
