@@ -14,6 +14,9 @@ Delivered backend boundaries:
 - Administrator cross-store overview and four drill-down APIs, projection health/recovery, and measurement registration/list/detail APIs.
 - Validated performance snapshot registration with idempotent measurement UUID/hash handling and strict cache OFF/ON comparability.
 - Fixed KST end-to-end reconciliation through event factories, outbox, projector, read models, and scoped query service.
+- Explicit `UNTRACKED`/`PARTIAL`/`TRACKED` coverage, with store and administrator drill-downs failing closed when provenance is unknown or unavailable.
+- Rebuild replay that isolates unknown event types and unsupported schema versions, retains the active generation on failure, aborts on supported-handler runtime failures, and uses the caller-supplied replay timestamp.
+- Authoritative cache OFF/ON actual-interval validation with a plus-or-minus 5-second tolerance, including the 361/362-second evidence boundary.
 
 Delivered web boundaries:
 
@@ -51,16 +54,18 @@ The full evidence lives at `performance/results/m30-v1`. Preserve the artifacts 
 
 ## Verification snapshot
 
-- M31 focused backend: 103/103 passed.
-- Complete backend: 846/846 passed in 4m16s across 127 suites.
-- Complete web: 53/53 passed in 26.93s.
-- Production web build: 165 modules built in 1.70s; the existing 592.83 kB chunk advisory remains non-failing.
+- M31 focused backend: 111/111 passed.
+- Fresh clean complete backend: 852/852 passed in 4m49s across 127 suites, with 0 failures, errors, or skips. An initial complete-suite run had two transient campaign-audit failures; the focused class and fresh clean complete suite passed, so no speculative code change was made.
+- Complete web with Node `v22.14.0` and npm `10.9.2`: 13 files, 62/62 tests passed; Vitest 6.26s, wall clock 7.8s.
+- Production web build: 166 modules built in 1.72s, wall clock 6.5s; the 595.71 kB chunk advisory remains non-failing.
 - Node normalizer/trace parser: 24/24 passed.
 - PowerShell parser, evidence replay/audit, and `git diff --check`: passed.
 - Rendered browser QA: OUTSIDER, OWNER, MANAGER, and ADMIN desktop flows passed. Store/admin mobile roots remained `375/375`, and the desktop root remained `1265/1265`; the admin run list alone uses intentional internal horizontal scrolling.
 - Measurement run 4 rendered valid/comparable OFF/ON details and `performance/results/m30-v1`; projector health/rebuild/DEAD privacy controls rendered without any SQL execution control.
 - Browser QA exposed nullable cache counters blanking the ADMIN route. Commit `0f41e9c` added the render regression and displays missing counters as `측정값 없음`; the ADMIN desktop/mobile retest passed.
 - Final-review hardening commits `4825671` and `0a18346` isolate unknown stored types as attempt-1 DEAD rows with zero receipts/mutations while allowing the next valid row to process, and reject producer-side `UNKNOWN` recording. Focused projection tests passed 26/26 and recorder tests passed 6/6.
+- Final hardening commits `ac1ab16` and `c74cc50` enforce explicit tracking coverage and fail-closed drill-downs, safe rebuild isolation with supplied replay timestamps, and plus-or-minus 5-second actual OFF/ON performance-interval validation.
+- Final broad branch re-review found no Critical or Important findings and marked the branch ready to merge.
 
 The role walkthrough used test-only local database memberships for store 1 (member 2 OWNER, member 13 MANAGER) because the performance fixture contained no memberships. Those rows are not durable fixtures or schema changes.
 
@@ -71,3 +76,5 @@ The role walkthrough used test-only local database memberships for store 1 (memb
 - Rebuild is an administrator recovery operation, not a routine refresh button. Concurrent rebuild conflicts are explicit.
 - Performance improvement language is valid only for runs marked both `valid` and `comparable`, and only within their recorded fixture/environment/hardware conditions.
 - Continue to use existing promotion, coupon, order, inventory, refund, settlement, and report pages for mutations and detailed source-of-truth operations.
+- Treat `projectionLagSeconds` as projection-activity age, not as the oldest-pending-backlog age; pair it with queue health until a dedicated backlog lag metric exists.
+- Enforce an HTTP-layer hard request-body limit in production in addition to the current 1 MiB canonical-payload limit, which runs after JSON parsing.

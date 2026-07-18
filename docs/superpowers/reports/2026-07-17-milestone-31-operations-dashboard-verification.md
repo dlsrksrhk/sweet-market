@@ -2,7 +2,7 @@
 
 ## Result
 
-M31 reconciles the operational projection against a fixed `Asia/Seoul` source fixture and passes the focused operations suite, complete backend suite, complete web test suite, production web build, performance-evidence replay, and repository whitespace checks. Final-review hardening also isolates forward-compatible unknown stored event types without allowing producers to emit the read-side sentinel. No M21-M30 regression was observed.
+M31 reconciles the operational projection against a fixed `Asia/Seoul` source fixture and passes the focused operations suite, a fresh clean complete backend suite, complete web test suite, production web build, performance-evidence replay, and repository whitespace checks. Final-review hardening also isolates forward-compatible unknown stored event types without allowing producers to emit the read-side sentinel, makes tracking provenance and drill-down availability fail closed, isolates unsupported rebuild rows, and validates authoritative performance intervals. No M21-M30 regression was observed.
 
 Rendered browser QA completed against the local backend and Vite application for OUTSIDER, OWNER, MANAGER, and ADMIN roles at desktop and mobile widths. The walkthrough confirmed authorization, drill-down, measurement, recovery, privacy, and responsive contracts in addition to the passing backend and jsdom suites.
 
@@ -43,17 +43,25 @@ All backend commands ran from `backend` with JDK 21 and a configured `JWT_SECRET
 | Reconciliation assertion RED | The first implemented run executed 1 test and failed at platform attribution because PostgreSQL `SUM(BIGINT)` returned numeric `600` while the assertion required a `Long`. The projection value and dimensions were correct; the assertion now compares `Number.longValue()` without changing the expected value. |
 | Reconciliation GREEN | Same focused command: `BUILD SUCCESSFUL in 16s`; 1 test, 0 failures. |
 | Final forced reconciliation | Same test with `--rerun-tasks`: `BUILD SUCCESSFUL in 30s`; all 5 Gradle tasks executed. |
-| Focused M31 backend | `gradlew.bat test --tests 'com.sweet.market.operations.*'`: `BUILD SUCCESSFUL in 39s`; 15 suites, 103 tests, 0 failures, 0 errors, 0 skipped. |
-| Complete backend | `gradlew.bat --no-daemon test`: `BUILD SUCCESSFUL in 4m 16s`; 127 suites, 846 tests, 0 failures, 0 errors, 0 skipped. |
-| Complete web | `npm test`: 13 files and 53 tests passed in 26.93s. |
-| Production web | `npm run build`: TypeScript passed; Vite transformed 165 modules and built in 1.70s. |
+| Focused M31 backend | `gradlew.bat test --tests 'com.sweet.market.operations.*'`: 111/111 tests passed with no failures, errors, or skips. |
+| Complete backend | Fresh `gradlew.bat --no-daemon cleanTest test`: `BUILD SUCCESSFUL in 4m 49s`; 127 suites, 852 tests, 0 failures, 0 errors, 0 skipped. An immediately preceding complete-suite run reported two campaign-audit projection failures, but the focused class passed and this fresh clean complete suite passed; the failure was non-reproducible, so no speculative code change was made. |
+| Complete web | Node `v22.14.0`, npm `10.9.2`; `npm test`: 13 files and 62 tests passed, Vitest 6.26s and wall clock 7.8s. |
+| Production web | `npm run build`: TypeScript passed; Vite transformed 166 modules and built in 1.72s, wall clock 6.5s. The main chunk is 595.71 kB and retains the non-failing size advisory. |
 | Node performance tools | `node --test performance/normalize-m30-measurement.test.mjs performance/parse-m30-jdbc-trace.test.mjs`: 24 passed, 0 failed. |
 | PowerShell tools | Both `collect-m30-measurement.ps1` and `capture-m30-query-evidence.ps1` parsed with zero PowerShell parser errors. |
 | Evidence replay | Normalizer replay SHA-256 `73c095ba399e30dfe249840be2cadab91b5c05c880294ceefcdc44ce21518f5e` exactly matched the registered request-file hash. The separately computed server canonical-payload SHA-256 is `122d6823d9c8fccea5678228dcb8d417ae0be5b8535e02c6a6da7d422c8b791c`. |
 | Evidence audit | 10 JSON artifacts parsed; collector before/after/plan identity, fixed clock, HTTP trace threads, bind counts, full plans, route-sample allowlist, secret/absolute-path/placeholder scan all passed. |
-| Hygiene | `git diff --check` exited 0. Pre-existing Task 2-4 scratch report modifications remained unstaged and unmodified by Task 14. |
+| Hygiene | Provenance/privacy checks and `git diff --check` passed. Pre-existing Task 2-4 scratch report modifications remained unstaged and unmodified by Task 14. |
 
 Final-review hardening commits `4825671` and `0a18346` cover forward compatibility at both sides of the outbox boundary. An unknown raw `event_type` is mapped to an unsupported read-side sentinel, marked DEAD on its first attempt with no receipt or projection mutation, and does not stop a following valid row in the same batch. `JdbcOperationalEventRecorder` rejects that sentinel before lock or SQL execution, so application producers cannot persist `UNKNOWN`. The focused projection package passed 26/26 tests and `OperationalEventRecorderTest` passed 6/6.
+
+Final hardening commits `ac1ab16` and `c74cc50` complete the remaining review findings:
+
+- Tracking coverage is classified explicitly as `UNTRACKED`, `PARTIAL`, or `TRACKED`; store and administrator drill-downs are enabled only for known partial/tracked coverage and fail closed when overview/provenance resolution is unknown or errors.
+- Rebuild replay isolates unknown event types and unsupported schema versions while preserving the active generation. Runtime failures from supported handlers still abort the rebuild rather than silently publishing an incomplete generation. Replay uses the supplied timestamp instead of a new wall-clock value.
+- Performance registration validates actual cache OFF/ON elapsed intervals against their authoritative durations with a plus-or-minus 5-second tolerance, including the 361/362-second authoritative evidence case.
+
+The final broad branch re-review found no Critical or Important issues and marked the branch ready to merge.
 
 ## Registered M30 measurement consumed by M31
 
@@ -110,6 +118,8 @@ The four SQL shapes are global catalog, fixed-store catalog, active events, and 
 
 ## Remaining limitations
 
-1. Vite emits a non-failing chunk-size advisory: the main minified JavaScript chunk is 592.83 kB (165.46 kB gzip).
-2. Dashboard queries have bounded statement counts and plan-shape evidence, but no dedicated dashboard load-test latency distribution. A daily rollup remains conditional on such measurement.
-3. The database outbox poller is the current transport. Kafka remains a documented replacement boundary, not an installed dependency or an evidenced immediate need.
+1. Vite emits a non-failing chunk-size advisory: the main minified JavaScript chunk is 595.71 kB.
+2. `projectionLagSeconds` currently describes the age of projection activity, not the true age of the oldest pending backlog item. Operators should pair it with queue health until a pending-backlog lag metric is introduced.
+3. The 1 MiB canonical measurement limit is enforced after JSON parsing. A production edge should also enforce a hard HTTP request-body limit before materialization.
+4. Dashboard queries have bounded statement counts and plan-shape evidence, but no dedicated dashboard load-test latency distribution. A daily rollup remains conditional on such measurement.
+5. The database outbox poller is the current transport. Kafka remains a documented replacement boundary, not an installed dependency or an evidenced immediate need.
