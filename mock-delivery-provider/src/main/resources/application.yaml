@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: mock-delivery-provider
+  datasource:
+    url: jdbc:postgresql://${DELIVERY_PROVIDER_DB_HOST:localhost}:${DELIVERY_PROVIDER_DB_PORT:15434}/${DELIVERY_PROVIDER_DB_NAME:delivery_provider}
+    username: ${DELIVERY_PROVIDER_DB_USERNAME:delivery_provider}
+    password: ${DELIVERY_PROVIDER_DB_PASSWORD:delivery_provider}
+
+server:
+  port: ${DELIVERY_PROVIDER_PORT:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
