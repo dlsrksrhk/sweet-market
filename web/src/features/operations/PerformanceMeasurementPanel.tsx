@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { type ApiError } from '../../shared/api/http';
 import { EmptyState, ErrorState } from '../../shared/ui/ResourceStates';
 import {
@@ -12,9 +12,7 @@ import {
 
 const PAGE_SIZE = 20;
 
-export function PerformanceMeasurementPanel() {
-  const [page, setPage] = useState(0);
-  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+export function PerformanceMeasurementPanel({ page, selectedRunId, onPageChange, onSelectedRunChange }: { page: number; selectedRunId: number | null; onPageChange: (page: number) => void; onSelectedRunChange: (runId: number | null) => void }) {
   const listQuery = useQuery({
     queryKey: adminOperationsDashboardQueryKeys.measurements(page, PAGE_SIZE),
     queryFn: () => getPerformanceMeasurements(page, PAGE_SIZE),
@@ -22,9 +20,9 @@ export function PerformanceMeasurementPanel() {
 
   useEffect(() => {
     if (selectedRunId === null && listQuery.data?.content[0]) {
-      setSelectedRunId(listQuery.data.content[0].runId);
+      onSelectedRunChange(listQuery.data.content[0].runId);
     }
-  }, [listQuery.data, selectedRunId]);
+  }, [listQuery.data, onSelectedRunChange, selectedRunId]);
 
   const detailQuery = useQuery({
     queryKey: adminOperationsDashboardQueryKeys.measurement(selectedRunId),
@@ -55,7 +53,7 @@ export function PerformanceMeasurementPanel() {
                   type="button"
                   key={run.runId}
                   aria-current={selectedRunId === run.runId ? 'true' : undefined}
-                  onClick={() => setSelectedRunId(run.runId)}
+                  onClick={() => onSelectedRunChange(run.runId)}
                 >
                   <strong>실행 #{run.runId}</strong>
                   <span>{formatKstDateTime(run.registeredAt)}</span>
@@ -75,7 +73,7 @@ export function PerformanceMeasurementPanel() {
             totalPages={listQuery.data.totalPages}
             first={listQuery.data.first}
             last={listQuery.data.last}
-            onChange={(next) => { setPage(next); setSelectedRunId(null); }}
+            onChange={onPageChange}
           />
         </>
       ) : null}

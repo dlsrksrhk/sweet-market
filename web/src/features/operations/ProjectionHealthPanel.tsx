@@ -12,9 +12,8 @@ import {
 
 const PAGE_SIZE = 20;
 
-export function ProjectionHealthPanel({ health }: { health: ProjectionHealth | null }) {
+export function ProjectionHealthPanel({ health, page, onPageChange }: { health: ProjectionHealth | null; page: number; onPageChange: (page: number) => void }) {
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const deadQuery = useQuery({
     queryKey: adminOperationsDashboardQueryKeys.deadEvents(page, PAGE_SIZE),
@@ -80,7 +79,7 @@ export function ProjectionHealthPanel({ health }: { health: ProjectionHealth | n
                 ))}</tbody>
               </table>
             </div>
-            {deadQuery.data.totalPages > 1 ? <nav className="operations-pagination" aria-label="DEAD event 페이지 이동"><button type="button" disabled={deadQuery.data.first} onClick={() => setPage(page - 1)}>이전</button><span>{page + 1} / {deadQuery.data.totalPages}</span><button type="button" disabled={deadQuery.data.last} onClick={() => setPage(page + 1)}>다음</button></nav> : null}
+            {deadQuery.data.totalPages > 1 ? <nav className="operations-pagination" aria-label="DEAD event 페이지 이동"><button type="button" disabled={deadQuery.data.first} onClick={() => onPageChange(page - 1)}>이전</button><span>{page + 1} / {deadQuery.data.totalPages}</span><button type="button" disabled={deadQuery.data.last} onClick={() => onPageChange(page + 1)}>다음</button></nav> : null}
           </>
         ) : null}
       </section>

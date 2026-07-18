@@ -137,6 +137,64 @@ describe('AdminOperationsDashboardPage', () => {
     await userEvent.setup().click(await screen.findByRole('button', { name: '재시도' }));
     expect(await screen.findByText('이미 처리 중인 event입니다.')).toBeTruthy();
   });
+
+  it('DEAD와_성능_page와_선택run을_URL에서_복원하고_page변경을_URL에_기록한다', async () => {
+    const fetchMock = installApi({ performanceAvailable: true });
+    const user = userEvent.setup();
+    renderPage('/admin/dashboard?deadPage=1&performancePage=1&performanceRun=33');
+
+    await waitFor(() => expect(called(fetchMock, '/operational-events/dead').some(([url]) => String(url).includes('page=1'))).toBe(true));
+    await waitFor(() => expect(called(fetchMock, '/performance-measurements?page=1').length).toBeGreaterThan(0));
+    await waitFor(() => expect(called(fetchMock, '/performance-measurements/33').length).toBeGreaterThan(0));
+    expect(screen.getByTestId('location-search').textContent).toContain('performanceRun=33');
+
+    const deadNavigation = screen.getByRole('navigation', { name: 'DEAD event 페이지 이동' });
+    await user.click(within(deadNavigation).getByRole('button', { name: '다음' }));
+    await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('deadPage=2'));
+    const performanceNavigation = screen.getByRole('navigation', { name: '성능 측정 목록 페이지 이동' });
+    await user.click(within(performanceNavigation).getByRole('button', { name: '다음' }));
+    await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('performancePage=2'));
+  });
+
+  it('overview가_확정되기전에는_상세query와_측정값해석을_보류하고_추적전이면_조회하지_않는다', async () => {
+    let releaseOverview!: (response: Response) => void;
+    const overviewResponse = new Promise<Response>((resolve) => { releaseOverview = resolve; });
+    const fetchMock = installApi({ overviewResponse });
+    renderPage('/admin/dashboard?from=2026-01-01&to=2026-01-31');
+
+    expect((await screen.findAllByText('추적 범위를 확인하고 있습니다.')).length).toBeGreaterThan(1);
+    expect(called(fetchMock, '/operations-dashboard/campaigns')).toHaveLength(0);
+    expect(called(fetchMock, '/operations-dashboard/outcomes')).toHaveLength(0);
+    releaseOverview(await jsonResponse({ ...dashboard, trackingStartedAt: '2026-02-01T00:00:00Z', period: { ...dashboard.period, from: '2026-01-01', to: '2026-01-31', fromInclusive: '2025-12-31T15:00:00Z', toExclusive: '2026-01-31T15:00:00Z' } }));
+
+    expect((await screen.findAllByText('측정 전')).length).toBeGreaterThan(1);
+    expect(called(fetchMock, '/operations-dashboard/campaigns')).toHaveLength(0);
+    expect(called(fetchMock, '/operations-dashboard/outcomes')).toHaveLength(0);
+  });
+
+  it('재구축은_진행중_비활성화하고_성공후_query를_무효화하며_BUILDING충돌을_표시한다', async () => {
+    let releaseRebuild!: (response: Response) => void;
+    const rebuildResponse = new Promise<Response>((resolve) => { releaseRebuild = resolve; });
+    const fetchMock = installApi({ rebuildResponse });
+    const user = userEvent.setup();
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: '프로젝션 재구축' }));
+    expect((await screen.findByRole('button', { name: '재구축 중…' }) as HTMLButtonElement).disabled).toBe(true);
+    releaseRebuild(await jsonResponse({ generationId: 3, status: 'ACTIVE', cutoff: '2026-07-17T00:00:00Z', activatedAt: '2026-07-17T00:01:00Z' }));
+    expect(await screen.findByText('프로젝션 재구축 generation #3이 활성화되었습니다.')).toBeTruthy();
+    await waitFor(() => expect(called(fetchMock, '/operations-dashboard?').length).toBeGreaterThan(1));
+    await waitFor(() => expect(called(fetchMock, '/operational-events/dead').length).toBeGreaterThan(1));
+
+    cleanup();
+    vi.unstubAllGlobals();
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    installApi({ rebuildConflict: true });
+    renderPage();
+    await userEvent.setup().click(await screen.findByRole('button', { name: '프로젝션 재구축' }));
+    expect(await screen.findByText('이미 BUILDING generation이 있습니다.')).toBeTruthy();
+  });
 });
 
 function renderPage(initialEntry = '/admin/dashboard') {
@@ -150,7 +208,7 @@ function LocationProbe() {
   return <><output data-testid="location-search">{location.search}</output><button type="button" onClick={() => navigate(-1)}>뒤로</button></>;
 }
 
-function installApi(options: { overviewError?: boolean; preTracking?: boolean; retryResponse?: Promise<Response>; retryConflict?: boolean } = {}) {
+function installApi(options: { overviewError?: boolean; overviewResponse?: Promise<Response>; preTracking?: boolean; retryResponse?: Promise<Response>; retryConflict?: boolean; rebuildResponse?: Promise<Response>; rebuildConflict?: boolean; performanceAvailable?: boolean } = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes('/operations-dashboard/campaigns')) return json(page(campaigns, url));
@@ -158,17 +216,23 @@ function installApi(options: { overviewError?: boolean; preTracking?: boolean; r
     if (url.includes('/operations-dashboard/inventory-pressure')) return json(page(inventory, url));
     if (url.includes('/operations-dashboard/audits')) return json(page(audits, url));
     if (url.includes('/operations-dashboard')) {
+      if (options.overviewResponse) return options.overviewResponse;
       if (options.overviewError) return new Response(JSON.stringify({ code: 'OVERVIEW_FAILED', message: '플랫폼 운영 요약을 불러오지 못했습니다.' }), { status: 500 });
       return json(options.preTracking ? { ...dashboard, trackingStartedAt: '2026-02-01T00:00:00Z', period: { ...dashboard.period, from: '2026-01-01', to: '2026-01-31', fromInclusive: '2025-12-31T15:00:00Z', toExclusive: '2026-01-31T15:00:00Z' } } : dashboard);
     }
-    if (url.includes('/performance-measurements')) return json(page([]));
+    if (url.includes('/performance-measurements/')) return json(performanceMeasurement);
+    if (url.includes('/performance-measurements')) return json(page(options.performanceAvailable ? [performanceMeasurement] : [], url));
     if (url.includes('/operational-events/dead')) return json(page(deadEvents));
     if (url.includes('/operational-events/') && url.endsWith('/retry')) {
       if (options.retryResponse) return options.retryResponse;
       if (options.retryConflict) return new Response(JSON.stringify({ code: 'CONFLICT', message: '이미 처리 중인 event입니다.' }), { status: 409 });
       return json(null);
     }
-    if (url.includes('/operational-projections/rebuild')) return json({ generationId: 2, status: 'ACTIVE', cutoff: '2026-07-17T00:00:00Z', activatedAt: '2026-07-17T00:01:00Z' });
+    if (url.includes('/operational-projections/rebuild')) {
+      if (options.rebuildResponse) return options.rebuildResponse;
+      if (options.rebuildConflict) return new Response(JSON.stringify({ code: 'CONFLICT', message: '이미 BUILDING generation이 있습니다.' }), { status: 409 });
+      return json({ generationId: 2, status: 'ACTIVE', cutoff: '2026-07-17T00:00:00Z', activatedAt: '2026-07-17T00:01:00Z' });
+    }
     throw new Error(`Unexpected request: ${url}`);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -192,3 +256,4 @@ const outcomes = [{ id: 'outcome', outcomeType: 'PURCHASE', latestBucketStart: '
 const inventory = [{ productId: 3, salesPolicy: 'STOCK_MANAGED', availableQuantity: 1, lowStock: true, lastSoldOutAt: null, reservationFailureCount: 1, lastReservationFailureAt: '2026-07-17T00:00:00Z', updatedAt: '2026-07-17T00:00:00Z' }];
 const audits = [{ id: 1, eventId: '00000000-0000-0000-0000-000000000001', campaignKind: 'COUPON', campaignId: 2, ownerType: 'STORE', ownerStoreId: 7, actorMemberId: 1, command: 'PAUSE', occurredAt: '2026-07-17T00:00:00Z', aggregateVersion: 1, beforeSummary: '{}', afterSummary: '{}' }];
 const deadEvents = [{ id: 1, eventId: '00000000-0000-0000-0000-000000000002', eventType: 'CAMPAIGN_CHANGED', schemaVersion: 1, aggregateType: 'COUPON_CAMPAIGN', aggregateId: 2, aggregateVersion: 1, storeId: 7, campaignId: 2, partitionKey: 'campaign-2', occurredAt: '2026-07-17T00:00:00Z', payload: { hidden: true }, deliveryState: 'DEAD', attemptCount: 5, nextAttemptAt: null, lastError: 'projection failed', createdAt: '2026-07-17T00:00:00Z' }];
+const performanceMeasurement = { runId: 33, measurementId: '385b4525-21a2-4f4a-875f-364449f59957', payloadHash: 'abc', gitCommit: '0123456789abcdef0123456789abcdef01234567', dirtyWorktree: false, fixtureVersion: 'm30-v1', scenarioVersion: 'm30-v1', environmentName: 'local', hardwareDescription: 'test', artifactDirectory: 'performance/results/test', warmupSeconds: 60, measuredSeconds: 300, offStartedAt: '2026-07-17T00:00:00Z', offCompletedAt: '2026-07-17T00:05:00Z', onStartedAt: '2026-07-17T00:10:00Z', onCompletedAt: '2026-07-17T00:15:00Z', registeredBy: 1, registeredAt: '2026-07-17T00:20:00Z', valid: true, comparable: true, endpointMetrics: [], queryEvidence: [] };

@@ -75,11 +75,13 @@ export function AdminOperationsDashboardPage() {
   const auditsInput: AdminAuditInput = { ...shared, page: urlState.pages.audits, size: PAGE_SIZE };
 
   const dashboardQuery = useQuery({ queryKey: adminOperationsDashboardQueryKeys.dashboard(period), queryFn: () => getAdminOperationsDashboard(period) });
+  const provenancePending = dashboardQuery.isPending;
   const periodUnmeasured = dashboardQuery.data ? !isPeriodMeasured(dashboardQuery.data) : false;
-  const campaignsQuery = useQuery({ queryKey: adminOperationsDashboardQueryKeys.campaigns(campaignsInput), queryFn: () => getAdminCampaignMetrics(campaignsInput) });
-  const outcomesQuery = useQuery({ queryKey: adminOperationsDashboardQueryKeys.outcomes(outcomesInput), queryFn: () => getAdminOutcomeMetrics(outcomesInput), enabled: !productInputInvalid });
-  const inventoryQuery = useQuery({ queryKey: adminOperationsDashboardQueryKeys.inventory(inventoryInput), queryFn: () => getAdminInventoryPressure(inventoryInput), enabled: !productInputInvalid });
-  const auditsQuery = useQuery({ queryKey: adminOperationsDashboardQueryKeys.audits(auditsInput), queryFn: () => getAdminCampaignAudits(auditsInput) });
+  const drilldownsEnabled = !provenancePending && !periodUnmeasured;
+  const campaignsQuery = useQuery({ queryKey: adminOperationsDashboardQueryKeys.campaigns(campaignsInput), queryFn: () => getAdminCampaignMetrics(campaignsInput), enabled: drilldownsEnabled });
+  const outcomesQuery = useQuery({ queryKey: adminOperationsDashboardQueryKeys.outcomes(outcomesInput), queryFn: () => getAdminOutcomeMetrics(outcomesInput), enabled: drilldownsEnabled && !productInputInvalid });
+  const inventoryQuery = useQuery({ queryKey: adminOperationsDashboardQueryKeys.inventory(inventoryInput), queryFn: () => getAdminInventoryPressure(inventoryInput), enabled: drilldownsEnabled && !productInputInvalid });
+  const auditsQuery = useQuery({ queryKey: adminOperationsDashboardQueryKeys.audits(auditsInput), queryFn: () => getAdminCampaignAudits(auditsInput), enabled: drilldownsEnabled });
 
   const applyPreset = (preset: DashboardPeriodPreset) => {
     setPeriodValidation(null);
@@ -133,30 +135,35 @@ export function AdminOperationsDashboardPage() {
         </div>
         {productInputInvalid ? <p className="error-text" role="alert">상품 ID는 1 이상의 정수여야 합니다.</p> : null}
         <AggregateProvenance dashboard={dashboardQuery.data} period={period} />
-        <DrilldownBlock title="캠페인 성과" query={campaignsQuery} empty="해당 조건의 캠페인 성과가 없습니다." unmeasured={periodUnmeasured}><CampaignTable page={campaignsQuery.data} /></DrilldownBlock>
-        <PageNavigation page={urlState.pages.campaigns} data={periodUnmeasured ? undefined : campaignsQuery.data} label="캠페인 성과 페이지 이동" onChange={(campaigns) => updateUrlState((next) => { next.pages.campaigns = campaigns; })} />
+        <DrilldownBlock title="캠페인 성과" query={campaignsQuery} empty="해당 조건의 캠페인 성과가 없습니다." unmeasured={periodUnmeasured} provenancePending={provenancePending}><CampaignTable page={campaignsQuery.data} /></DrilldownBlock>
+        <PageNavigation page={urlState.pages.campaigns} data={provenancePending || periodUnmeasured ? undefined : campaignsQuery.data} label="캠페인 성과 페이지 이동" onChange={(campaigns) => updateUrlState((next) => { next.pages.campaigns = campaigns; })} />
         <AggregateProvenance dashboard={dashboardQuery.data} period={period} />
-        <DrilldownBlock title="구매·발급 결과" query={outcomesQuery} empty="해당 조건의 결과 지표가 없습니다." disabled={productInputInvalid} unmeasured={periodUnmeasured}><OutcomeTable page={outcomesQuery.data} /></DrilldownBlock>
-        <PageNavigation page={urlState.pages.outcomes} data={periodUnmeasured || productInputInvalid ? undefined : outcomesQuery.data} label="결과 지표 페이지 이동" onChange={(outcomes) => updateUrlState((next) => { next.pages.outcomes = outcomes; })} />
+        <DrilldownBlock title="구매·발급 결과" query={outcomesQuery} empty="해당 조건의 결과 지표가 없습니다." disabled={productInputInvalid} unmeasured={periodUnmeasured} provenancePending={provenancePending}><OutcomeTable page={outcomesQuery.data} /></DrilldownBlock>
+        <PageNavigation page={urlState.pages.outcomes} data={provenancePending || periodUnmeasured || productInputInvalid ? undefined : outcomesQuery.data} label="결과 지표 페이지 이동" onChange={(outcomes) => updateUrlState((next) => { next.pages.outcomes = outcomes; })} />
       </section>
 
       <section className="operations-dashboard-panel" aria-labelledby="admin-inventory-title">
         <PanelHeading eyebrow="INVENTORY PRESSURE" title="재고 압력" id="admin-inventory-title" />
         <AggregateProvenance dashboard={dashboardQuery.data} period={period} />
         <label className="operations-checkbox"><input type="checkbox" checked={urlState.attentionOnly} onChange={(event) => updateUrlState((next) => { next.attentionOnly = event.target.checked; next.pages.inventory = 0; })} />주의가 필요한 상품만</label>
-        <DrilldownBlock query={inventoryQuery} empty="해당 조건의 재고 압력 지표가 없습니다." disabled={productInputInvalid} unmeasured={periodUnmeasured}><InventoryTable page={inventoryQuery.data} /></DrilldownBlock>
-        <PageNavigation page={urlState.pages.inventory} data={periodUnmeasured || productInputInvalid ? undefined : inventoryQuery.data} label="재고 압력 페이지 이동" onChange={(inventory) => updateUrlState((next) => { next.pages.inventory = inventory; })} />
+        <DrilldownBlock query={inventoryQuery} empty="해당 조건의 재고 압력 지표가 없습니다." disabled={productInputInvalid} unmeasured={periodUnmeasured} provenancePending={provenancePending}><InventoryTable page={inventoryQuery.data} /></DrilldownBlock>
+        <PageNavigation page={urlState.pages.inventory} data={provenancePending || periodUnmeasured || productInputInvalid ? undefined : inventoryQuery.data} label="재고 압력 페이지 이동" onChange={(inventory) => updateUrlState((next) => { next.pages.inventory = inventory; })} />
       </section>
 
       <section className="operations-dashboard-panel" aria-labelledby="admin-audit-title">
         <PanelHeading eyebrow="CAMPAIGN AUDIT" title="캠페인 감사" id="admin-audit-title" />
         <AggregateProvenance dashboard={dashboardQuery.data} period={period} />
-        <DrilldownBlock query={auditsQuery} empty="해당 조건의 캠페인 감사 기록이 없습니다." unmeasured={periodUnmeasured}><AuditTable page={auditsQuery.data} /></DrilldownBlock>
-        <PageNavigation page={urlState.pages.audits} data={periodUnmeasured ? undefined : auditsQuery.data} label="캠페인 감사 페이지 이동" onChange={(audits) => updateUrlState((next) => { next.pages.audits = audits; })} />
+        <DrilldownBlock query={auditsQuery} empty="해당 조건의 캠페인 감사 기록이 없습니다." unmeasured={periodUnmeasured} provenancePending={provenancePending}><AuditTable page={auditsQuery.data} /></DrilldownBlock>
+        <PageNavigation page={urlState.pages.audits} data={provenancePending || periodUnmeasured ? undefined : auditsQuery.data} label="캠페인 감사 페이지 이동" onChange={(audits) => updateUrlState((next) => { next.pages.audits = audits; })} />
       </section>
 
-      <PerformanceMeasurementPanel />
-      <ProjectionHealthPanel health={dashboardQuery.data?.health ?? null} />
+      <PerformanceMeasurementPanel
+        page={urlState.pages.performance}
+        selectedRunId={urlState.selectedPerformanceRunId}
+        onPageChange={(performance) => updateUrlState((next) => { next.pages.performance = performance; next.selectedPerformanceRunId = null; })}
+        onSelectedRunChange={(runId) => updateUrlState((next) => { next.selectedPerformanceRunId = runId; })}
+      />
+      <ProjectionHealthPanel health={dashboardQuery.data?.health ?? null} page={urlState.pages.deadEvents} onPageChange={(deadEvents) => updateUrlState((next) => { next.pages.deadEvents = deadEvents; })} />
     </main>
   );
 }
@@ -194,8 +201,8 @@ function AuditTable({ page }: { page?: Page<StoreCampaignAudit> }) {
   return <TableFrame label="관리자 캠페인 감사" headers={['캠페인', '소유', '명령', '실행자', '버전', '발생 시각']}>{page.content.map((row) => <tr key={row.eventId}><Cell label="캠페인">{kindLabel(row.campaignKind)} #{row.campaignId}</Cell><Cell label="소유">{ownershipLabel(row.ownerType, row.ownerStoreId)}</Cell><Cell label="명령">{row.command}</Cell><Cell label="실행자">{row.actorMemberId ? `회원 #${row.actorMemberId}` : '시스템'}</Cell><Cell label="버전">{row.aggregateVersion ?? '—'}</Cell><Cell label="발생 시각">{formatKstDateTime(row.occurredAt)}</Cell></tr>)}</TableFrame>;
 }
 
-function DrilldownBlock({ title, query, empty, disabled = false, unmeasured = false, children }: { title?: string; query: { isLoading: boolean; error: unknown; data?: Page<unknown> }; empty: string; disabled?: boolean; unmeasured?: boolean; children: ReactNode }) {
-  return <section className="admin-drilldown-block">{title ? <h3>{title}</h3> : null}{disabled ? <EmptyState title="올바른 상품 ID를 입력해주세요" description="필터를 수정할 때까지 기존 조건을 넓혀 조회하지 않습니다." /> : null}{!disabled && unmeasured ? <EmptyState title="측정 전" description="선택한 기간은 운영 이벤트 추적 시작 전이므로 0으로 해석하지 않습니다." /> : null}{!disabled && !unmeasured && query.isLoading ? <p className="status-text" role="status">상세 지표를 불러오고 있습니다.</p> : null}{!disabled && !unmeasured && query.error ? <ErrorState message={errorMessage(query.error, '상세 지표를 불러오지 못했습니다.')} /> : null}{!disabled && !unmeasured && query.data?.content.length === 0 ? <EmptyState title={empty} description="기간이나 필터를 바꿔 다시 확인해보세요." /> : null}{!disabled && !unmeasured && query.data?.content.length ? children : null}</section>;
+function DrilldownBlock({ title, query, empty, disabled = false, unmeasured = false, provenancePending = false, children }: { title?: string; query: { isLoading: boolean; error: unknown; data?: Page<unknown> }; empty: string; disabled?: boolean; unmeasured?: boolean; provenancePending?: boolean; children: ReactNode }) {
+  return <section className="admin-drilldown-block">{title ? <h3>{title}</h3> : null}{disabled ? <EmptyState title="올바른 상품 ID를 입력해주세요" description="필터를 수정할 때까지 기존 조건을 넓혀 조회하지 않습니다." /> : null}{!disabled && provenancePending ? <p className="status-text" role="status">추적 범위를 확인하고 있습니다.</p> : null}{!disabled && !provenancePending && unmeasured ? <EmptyState title="측정 전" description="선택한 기간은 운영 이벤트 추적 시작 전이므로 0으로 해석하지 않습니다." /> : null}{!disabled && !provenancePending && !unmeasured && query.isLoading ? <p className="status-text" role="status">상세 지표를 불러오고 있습니다.</p> : null}{!disabled && !provenancePending && !unmeasured && query.error ? <ErrorState message={errorMessage(query.error, '상세 지표를 불러오지 못했습니다.')} /> : null}{!disabled && !provenancePending && !unmeasured && query.data?.content.length === 0 ? <EmptyState title={empty} description="기간이나 필터를 바꿔 다시 확인해보세요." /> : null}{!disabled && !provenancePending && !unmeasured && query.data?.content.length ? children : null}</section>;
 }
 
 function QueryState({ query, loading, fallback, children }: { query: { isLoading: boolean; error: unknown }; loading: string; fallback: string; children: ReactNode }) {

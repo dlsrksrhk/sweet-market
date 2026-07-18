@@ -5,6 +5,8 @@ export type AdminDashboardPages = {
   outcomes: number;
   inventory: number;
   audits: number;
+  deadEvents: number;
+  performance: number;
 };
 
 export type AdminDashboardUrlState = {
@@ -16,6 +18,7 @@ export type AdminDashboardUrlState = {
   outcomeReason: string;
   productId: number | null;
   attentionOnly: boolean;
+  selectedPerformanceRunId: number | null;
   pages: AdminDashboardPages;
 };
 
@@ -39,11 +42,14 @@ export function deriveAdminDashboardUrlState(params: URLSearchParams): AdminDash
     outcomeReason: cleanText(params.get('reason')),
     productId: positiveInteger(params.get('productId')),
     attentionOnly: params.get('attentionOnly') === 'false' ? false : true,
+    selectedPerformanceRunId: positiveInteger(params.get('performanceRun')),
     pages: {
       campaigns: nonNegativeInteger(params.get('campaignPage')),
       outcomes: nonNegativeInteger(params.get('outcomePage')),
       inventory: nonNegativeInteger(params.get('inventoryPage')),
       audits: nonNegativeInteger(params.get('auditPage')),
+      deadEvents: nonNegativeInteger(params.get('deadPage')),
+      performance: nonNegativeInteger(params.get('performancePage')),
     },
   };
 }
@@ -66,6 +72,9 @@ export function toAdminDashboardSearchParams(state: AdminDashboardUrlState) {
   params.set('outcomePage', String(state.pages.outcomes));
   params.set('inventoryPage', String(state.pages.inventory));
   params.set('auditPage', String(state.pages.audits));
+  params.set('deadPage', String(state.pages.deadEvents));
+  params.set('performancePage', String(state.pages.performance));
+  if (state.selectedPerformanceRunId !== null) params.set('performanceRun', String(state.selectedPerformanceRunId));
   return params;
 }
 
@@ -74,7 +83,10 @@ export function copyAdminDashboardUrlState(state: AdminDashboardUrlState): Admin
 }
 
 export function resetAdminDashboardPages(state: AdminDashboardUrlState) {
-  state.pages = { campaigns: 0, outcomes: 0, inventory: 0, audits: 0 };
+  state.pages.campaigns = 0;
+  state.pages.outcomes = 0;
+  state.pages.inventory = 0;
+  state.pages.audits = 0;
 }
 
 function positiveInteger(value: string | null) {
