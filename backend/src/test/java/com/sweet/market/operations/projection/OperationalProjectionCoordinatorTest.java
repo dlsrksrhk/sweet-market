@@ -207,6 +207,26 @@ class OperationalProjectionCoordinatorTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 알수없는_event_type은_DEAD로_격리하고_다음_event는_계속_처리한다() {
+        UUID unknownEventId = insertEvent("FUTURE_OPERATIONAL_EVENT", 1, 0, "PENDING", NOW);
+        UUID validEventId = insertEvent(OperationalEventType.PURCHASE_OUTCOME, 1, 0, "PENDING", NOW);
+
+        assertThat(coordinator.projectNextBatch(NOW, 100)).isEqualTo(2);
+
+        Map<String, Object> unknownDelivery = delivery(unknownEventId);
+        assertThat(unknownDelivery.get("delivery_state")).isEqualTo("DEAD");
+        assertThat(unknownDelivery.get("attempt_count")).isEqualTo(1);
+        assertThat(unknownDelivery.get("last_error")).asString()
+                .contains("UnsupportedOperationalEventSchemaException");
+        assertThat(receiptCount(unknownEventId)).isZero();
+        assertThat(eventType(unknownEventId)).isEqualTo("FUTURE_OPERATIONAL_EVENT");
+
+        assertThat(delivery(validEventId).get("delivery_state")).isEqualTo("PROCESSED");
+        assertThat(receiptCount(validEventId)).isOne();
+        assertThat(mutationCount("first-projection", validEventId)).isOne();
+    }
+
+    @Test
     void 실패_요약은_1000자로_자르고_stack_trace를_저장하지_않는다() {
         firstHandler.failNext(1, "x".repeat(1_200) + "\n\tat example.Stack.trace(Stack.java:1)");
         UUID eventId = insertEvent(OperationalEventType.PURCHASE_OUTCOME, 1, 0, "PENDING", NOW);
@@ -285,6 +305,12 @@ class OperationalProjectionCoordinatorTest extends IntegrationTestSupport {
     private UUID insertEvent(
             OperationalEventType type, int schemaVersion, int attemptCount, String state, Instant timestamp
     ) {
+        return insertEvent(type.name(), schemaVersion, attemptCount, state, timestamp);
+    }
+
+    private UUID insertEvent(
+            String type, int schemaVersion, int attemptCount, String state, Instant timestamp
+    ) {
         UUID eventId = UUID.randomUUID();
         jdbcTemplate.update("""
                 INSERT INTO operational_event_outbox (
@@ -294,11 +320,17 @@ class OperationalProjectionCoordinatorTest extends IntegrationTestSupport {
                 ) VALUES (?, ?, ?, 'purchase', 101, 3, 11, 21, 'purchase:101', ?,
                           CAST(? AS JSONB), ?, ?, ?, ?, ?)
                 """,
-                eventId, type.name(), schemaVersion, Timestamp.from(timestamp),
+                eventId, type, schemaVersion, Timestamp.from(timestamp),
                 payload().toString(), state, attemptCount, Timestamp.from(NOW),
                 "PROCESSED".equals(state) ? Timestamp.from(timestamp) : null,
                 Timestamp.from(timestamp));
         return eventId;
+    }
+
+    private String eventType(UUID eventId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT event_type FROM operational_event_outbox WHERE event_id = ?
+                """, String.class, eventId);
     }
 
     private JsonNode payload() {

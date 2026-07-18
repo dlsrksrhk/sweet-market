@@ -393,7 +393,7 @@ public class OperationalProjectionRepository {
     private OperationalEventEnvelopeRow envelope(ResultSet resultSet) throws SQLException {
         OperationalEvent event = new OperationalEvent(
                 resultSet.getObject("event_id", UUID.class),
-                OperationalEventType.valueOf(resultSet.getString("event_type")),
+                OperationalEventType.fromStoredValue(resultSet.getString("event_type")),
                 resultSet.getInt("schema_version"),
                 resultSet.getString("aggregate_type"),
                 nullableLong(resultSet, "aggregate_id"),
