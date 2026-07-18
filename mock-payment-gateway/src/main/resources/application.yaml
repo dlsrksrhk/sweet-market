@@ -26,12 +26,12 @@ gateway:
     cleanup-batch-size: 1000
     clients:
       - client-id: sweet-market
-        api-key: ${PAYMENT_GATEWAY_MERCHANT_API_KEY}
+        api-key: ${PAYMENT_GATEWAY_MERCHANT_API_KEY:}
         keys:
-          - key-id: ${PAYMENT_GATEWAY_HMAC_CURRENT_KEY_ID}
-            secret: ${PAYMENT_GATEWAY_HMAC_CURRENT_SECRET}
-          - key-id: ${PAYMENT_GATEWAY_HMAC_NEXT_KEY_ID}
-            secret: ${PAYMENT_GATEWAY_HMAC_NEXT_SECRET}
+          - key-id: ${PAYMENT_GATEWAY_HMAC_CURRENT_KEY_ID:}
+            secret: ${PAYMENT_GATEWAY_HMAC_CURRENT_SECRET:}
+          - key-id: ${PAYMENT_GATEWAY_HMAC_NEXT_KEY_ID:}
+            secret: ${PAYMENT_GATEWAY_HMAC_NEXT_SECRET:}
 
 management:
   endpoints:
