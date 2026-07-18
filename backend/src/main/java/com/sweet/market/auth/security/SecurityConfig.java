@@ -3,6 +3,8 @@ package com.sweet.market.auth.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.common.error.ErrorResponse;
+import com.sweet.market.integration.security.SignedWebhookFilter;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,15 +27,19 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthenticationFilter jwtAuthenticationFilter,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ObjectProvider<SignedWebhookFilter> signedWebhookFilterProvider
     ) throws Exception {
-        return http
+        http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {
                 })
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/integrations/payment-gateway/v1/probes",
+                                "/api/integrations/delivery-provider/v1/probes").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/products/*/views").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/me").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/products", "/api/products/**").permitAll()
@@ -57,9 +63,14 @@ public class SecurityConfig {
                             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                             objectMapper.writeValue(response.getWriter(), ErrorResponse.of(ErrorCode.ACCESS_DENIED));
                         })
-                )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .build();
+                );
+
+        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+        SignedWebhookFilter signedWebhookFilter = signedWebhookFilterProvider.getIfAvailable();
+        if (signedWebhookFilter != null) {
+            http.addFilterBefore(signedWebhookFilter, JwtAuthenticationFilter.class);
+        }
+        return http.build();
     }
 
     @Bean

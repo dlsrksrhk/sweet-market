@@ -54,6 +54,34 @@ market:
     enabled: true
     fixed-delay-ms: 1000
     batch-size: 100
+  external-integrations:
+    enabled: ${EXTERNAL_INTEGRATIONS_ENABLED:false}
+    allowed-clock-skew: PT5M
+    max-body-bytes: 1048576
+    replay-retention: PT10M
+    cleanup-batch-size: 1000
+    inbound:
+      payment-gateway:
+        api-key: ${MARKET_PAYMENT_WEBHOOK_API_KEY:}
+        current-key-id: ${MARKET_PAYMENT_WEBHOOK_CURRENT_KEY_ID:}
+        current-secret: ${MARKET_PAYMENT_WEBHOOK_CURRENT_SECRET:}
+        next-key-id: ${MARKET_PAYMENT_WEBHOOK_NEXT_KEY_ID:}
+        next-secret: ${MARKET_PAYMENT_WEBHOOK_NEXT_SECRET:}
+      delivery-provider:
+        api-key: ${MARKET_DELIVERY_WEBHOOK_API_KEY:}
+        current-key-id: ${MARKET_DELIVERY_WEBHOOK_CURRENT_KEY_ID:}
+        current-secret: ${MARKET_DELIVERY_WEBHOOK_CURRENT_SECRET:}
+        next-key-id: ${MARKET_DELIVERY_WEBHOOK_NEXT_KEY_ID:}
+        next-secret: ${MARKET_DELIVERY_WEBHOOK_NEXT_SECRET:}
+    outbound:
+      payment-gateway:
+        api-key: ${MARKET_PAYMENT_GATEWAY_API_KEY:}
+        current-key-id: ${MARKET_PAYMENT_GATEWAY_HMAC_KEY_ID:}
+        current-secret: ${MARKET_PAYMENT_GATEWAY_HMAC_SECRET:}
+      delivery-provider:
+        api-key: ${MARKET_DELIVERY_PROVIDER_API_KEY:}
+        current-key-id: ${MARKET_DELIVERY_PROVIDER_HMAC_KEY_ID:}
+        current-secret: ${MARKET_DELIVERY_PROVIDER_HMAC_SECRET:}
 
 jwt:
   secret: ${JWT_SECRET}
