@@ -8,7 +8,21 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.NONE,
+        properties = {
+                "gateway.integration-security.allowed-clock-skew=PT5M",
+                "gateway.integration-security.max-body-bytes=1048576",
+                "gateway.integration-security.replay-retention=PT10M",
+                "gateway.integration-security.cleanup-batch-size=1000",
+                "gateway.integration-security.clients[0].client-id=sweet-market",
+                "gateway.integration-security.clients[0].api-key=migration-test-api-key",
+                "gateway.integration-security.clients[0].keys[0].key-id=migration-current-key",
+                "gateway.integration-security.clients[0].keys[0].secret=migration-current-secret-32bytes-minimum",
+                "gateway.integration-security.clients[0].keys[1].key-id=migration-next-key",
+                "gateway.integration-security.clients[0].keys[1].secret=migration-next-secret-32bytes-minimum"
+        }
+)
 class GatewayFreshDatabaseStartupTest extends GatewayIntegrationTestSupport {
 
     @Autowired
