@@ -27,6 +27,7 @@ export function Shell() {
               {member.role === 'ADMIN' ? (
                 <>
                   <NavLink to="/admin/operations">관리자</NavLink>
+                  <NavLink to="/admin/dashboard">운영 대시보드</NavLink>
                   <NavLink to="/admin/business-stores">사업자 상점 심사</NavLink>
                   <NavLink to="/admin/refunds">관리자 환불</NavLink>
                   <NavLink to="/admin/coupons">쿠폰 캠페인</NavLink>

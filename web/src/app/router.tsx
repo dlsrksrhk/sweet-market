@@ -4,6 +4,7 @@ import { RequireAuth } from '../features/auth/RequireAuth';
 import { AdminBusinessStoresPage } from '../pages/AdminBusinessStoresPage';
 import { AdminCouponCampaignsPage } from '../pages/AdminCouponCampaignsPage';
 import { AdminOperationsPage } from '../pages/AdminOperationsPage';
+import { AdminOperationsDashboardPage } from '../pages/AdminOperationsDashboardPage';
 import { AdminRefundRequestsPage } from '../pages/AdminRefundRequestsPage';
 import { AdminSettlementBatchPage } from '../pages/AdminSettlementBatchPage';
 import { BusinessStoreApplicationPage } from '../pages/BusinessStoreApplicationPage';
@@ -177,6 +178,14 @@ export function AppRouter() {
           element={
             <RequireAdmin>
               <AdminOperationsPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="admin/dashboard"
+          element={
+            <RequireAdmin>
+              <AdminOperationsDashboardPage />
             </RequireAdmin>
           }
         />

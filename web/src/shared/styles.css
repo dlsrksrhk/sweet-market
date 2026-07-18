@@ -3900,6 +3900,285 @@ a.wishlist-card-main:hover h2 {
   }
 }
 
+/* Administrator operations and performance dashboard */
+.admin-operations-dashboard .operations-dashboard-panel {
+  gap: 22px;
+}
+
+.admin-dashboard-primary-filters > button {
+  min-height: 40px;
+}
+
+.admin-summary-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.admin-drilldown-block,
+.dead-events,
+.performance-evidence {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.admin-drilldown-block + .admin-drilldown-block,
+.dead-events {
+  border-top: 1px solid #e7edf3;
+  padding-top: 20px;
+}
+
+.admin-drilldown-block h3,
+.dead-events h3,
+.performance-detail h3,
+.performance-evidence h4 {
+  margin: 0;
+}
+
+.admin-dashboard-table td:first-child,
+.dead-event-table td:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.admin-dashboard-table td:first-child a,
+.dead-event-table td:first-child small {
+  font-size: 11px;
+}
+
+.performance-measurement-layout {
+  display: grid;
+  grid-template-columns: minmax(190px, .28fr) minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+}
+
+.performance-run-list {
+  display: flex;
+  max-height: 600px;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.performance-run-list button {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f9fbfd;
+  color: #52616f;
+  cursor: pointer;
+  text-align: left;
+}
+
+.performance-run-list button[aria-current='true'] {
+  border-color: #0f7b78;
+  background: #eef8f7;
+}
+
+.performance-run-list button span,
+.performance-run-list button small {
+  color: #637282;
+  font-size: 11px;
+}
+
+.performance-run-detail,
+.performance-detail {
+  min-width: 0;
+}
+
+.performance-detail {
+  display: grid;
+  gap: 18px;
+}
+
+.performance-detail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.performance-detail-heading p {
+  margin: 5px 0 0;
+  color: #637282;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.operations-notice,
+.operations-success {
+  margin: 0;
+  border-left: 4px solid #d47a20;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #fff7e8;
+  color: #6f4b18;
+  font-weight: 700;
+}
+
+.operations-success {
+  border-left-color: #0f7b78;
+  background: #eef8f7;
+  color: #0f6d6a;
+}
+
+.performance-conditions,
+.projection-health-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0;
+}
+
+.performance-conditions > div,
+.projection-health-grid > div {
+  min-width: 0;
+  border: 1px solid #e1e8ee;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f9fbfd;
+}
+
+.performance-conditions dt,
+.projection-health-grid dt {
+  color: #758391;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.performance-conditions dd,
+.projection-health-grid dd {
+  margin: 6px 0 0;
+  color: #172026;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.projection-health-grid > div.is-warning {
+  border-color: #f1c78f;
+  background: #fff7e8;
+}
+
+.performance-metric-value {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  font-size: 11px;
+}
+
+.performance-metric-value + .performance-metric-value {
+  margin-top: 8px;
+}
+
+.performance-evidence details {
+  border: 1px solid #e1e8ee;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #f9fbfd;
+}
+
+.performance-evidence summary {
+  cursor: pointer;
+}
+
+.performance-evidence dl {
+  display: grid;
+  gap: 9px;
+  margin: 14px 0 0;
+}
+
+.performance-evidence dl > div {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.performance-evidence dt {
+  color: #758391;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.performance-evidence dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.danger-button {
+  border-color: #e7b0aa !important;
+  color: #a12a1f !important;
+}
+
+.dead-event-table button {
+  border: 1px solid #e7b0aa;
+  border-radius: 7px;
+  padding: 7px 10px;
+  background: #fff6f5;
+  color: #a12a1f;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.dead-event-table button:disabled,
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+@media (max-width: 1200px) {
+  .admin-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .performance-measurement-layout {
+    grid-template-columns: minmax(165px, .24fr) minmax(620px, 1fr);
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-dashboard-primary-filters > label,
+  .admin-dashboard-primary-filters > button,
+  .admin-dashboard-primary-filters select,
+  .admin-dashboard-primary-filters input {
+    width: 100%;
+  }
+
+  .admin-summary-grid,
+  .performance-conditions,
+  .projection-health-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .performance-measurement-layout {
+    display: block;
+    overflow: visible;
+  }
+
+  .performance-run-list {
+    max-height: none;
+    flex-direction: row;
+    margin-bottom: 16px;
+    overflow-x: auto;
+  }
+
+  .performance-run-list button {
+    min-width: 180px;
+  }
+
+  .performance-detail-heading {
+    flex-direction: column;
+  }
+
+  .performance-evidence dl > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Store operations dashboard */
 .operations-dashboard,
 .operations-dashboard-header,

@@ -16,6 +16,7 @@ describe('AuthProvider private query cleanup', () => {
   it('로그아웃하면_운영대시보드_cache를_제거한다', async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(['store-operations-dashboard', 7, 'dashboard'], { secret: true });
+    queryClient.setQueryData(['admin-operations-dashboard', 'dashboard'], { secret: true });
     localStorage.setItem('sweet-market-token', 'token');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(memberResponse()));
     renderAuth(queryClient);
@@ -23,6 +24,7 @@ describe('AuthProvider private query cleanup', () => {
     await userEvent.setup().click(await screen.findByRole('button', { name: '로그아웃' }));
 
     expect(queryClient.getQueryData(['store-operations-dashboard', 7, 'dashboard'])).toBeUndefined();
+    expect(queryClient.getQueryData(['admin-operations-dashboard', 'dashboard'])).toBeUndefined();
   });
 
   it('다른계정으로_로그인할때도_이전_운영대시보드_cache를_제거한다', async () => {
