@@ -61,10 +61,10 @@ export function AdminOperationsDashboardPage() {
     setProductIdText(urlState.productId ? String(urlState.productId) : '');
   }, [canonicalSearch, urlState.period.from, urlState.period.to, urlState.storeId, urlState.productId]);
 
-  const updateUrlState = (update: (next: AdminDashboardUrlState) => void) => {
+  const updateUrlState = (update: (next: AdminDashboardUrlState) => void, options?: { replace?: boolean }) => {
     const next = copyAdminDashboardUrlState(urlState);
     update(next);
-    setSearchParams(toAdminDashboardSearchParams(next));
+    setSearchParams(toAdminDashboardSearchParams(next), { replace: options?.replace ?? false });
   };
   const period: AdminDashboardInput = { ...urlState.period, storeId: urlState.storeId ?? undefined };
   const shared = { ...period, ownerType: urlState.ownerType || undefined, campaignKind: urlState.campaignKind || undefined };
@@ -160,10 +160,10 @@ export function AdminOperationsDashboardPage() {
       <PerformanceMeasurementPanel
         page={urlState.pages.performance}
         selectedRunId={urlState.selectedPerformanceRunId}
-        onPageChange={(performance) => updateUrlState((next) => { next.pages.performance = performance; next.selectedPerformanceRunId = null; })}
-        onSelectedRunChange={(runId) => updateUrlState((next) => { next.selectedPerformanceRunId = runId; })}
+        onPageChange={(performance, replace) => updateUrlState((next) => { next.pages.performance = performance; next.selectedPerformanceRunId = null; }, { replace })}
+        onSelectedRunChange={(runId, replace) => updateUrlState((next) => { next.selectedPerformanceRunId = runId; }, { replace })}
       />
-      <ProjectionHealthPanel health={dashboardQuery.data?.health ?? null} page={urlState.pages.deadEvents} onPageChange={(deadEvents) => updateUrlState((next) => { next.pages.deadEvents = deadEvents; })} />
+      <ProjectionHealthPanel health={dashboardQuery.data?.health ?? null} page={urlState.pages.deadEvents} onPageChange={(deadEvents, replace) => updateUrlState((next) => { next.pages.deadEvents = deadEvents; }, { replace })} />
     </main>
   );
 }

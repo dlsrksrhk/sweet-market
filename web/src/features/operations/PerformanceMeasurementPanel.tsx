@@ -12,17 +12,21 @@ import {
 
 const PAGE_SIZE = 20;
 
-export function PerformanceMeasurementPanel({ page, selectedRunId, onPageChange, onSelectedRunChange }: { page: number; selectedRunId: number | null; onPageChange: (page: number) => void; onSelectedRunChange: (runId: number | null) => void }) {
+export function PerformanceMeasurementPanel({ page, selectedRunId, onPageChange, onSelectedRunChange }: { page: number; selectedRunId: number | null; onPageChange: (page: number, replace?: boolean) => void; onSelectedRunChange: (runId: number | null, replace?: boolean) => void }) {
   const listQuery = useQuery({
     queryKey: adminOperationsDashboardQueryKeys.measurements(page, PAGE_SIZE),
     queryFn: () => getPerformanceMeasurements(page, PAGE_SIZE),
   });
 
   useEffect(() => {
-    if (selectedRunId === null && listQuery.data?.content[0]) {
-      onSelectedRunChange(listQuery.data.content[0].runId);
+    if (listQuery.data && listQuery.data.totalPages > 0 && page >= listQuery.data.totalPages) {
+      onPageChange(listQuery.data.totalPages - 1, true);
+      return;
     }
-  }, [listQuery.data, onSelectedRunChange, selectedRunId]);
+    if (selectedRunId === null && listQuery.data?.content[0]) {
+      onSelectedRunChange(listQuery.data.content[0].runId, true);
+    }
+  }, [listQuery.data, onPageChange, onSelectedRunChange, page, selectedRunId]);
 
   const detailQuery = useQuery({
     queryKey: adminOperationsDashboardQueryKeys.measurement(selectedRunId),
@@ -38,13 +42,13 @@ export function PerformanceMeasurementPanel({ page, selectedRunId, onPageChange,
       </div>
       {listQuery.isLoading ? <p className="status-text" role="status">성능 측정 목록을 불러오고 있습니다.</p> : null}
       {listQuery.error ? <ErrorState message={errorMessage(listQuery.error, '성능 측정 목록을 불러오지 못했습니다.')} /> : null}
-      {listQuery.data?.content.length === 0 ? (
+      {listQuery.data?.totalElements === 0 ? (
         <EmptyState
           title="성능 측정 전"
           description="performance/collect-m30-measurement.ps1로 OFF/ON 증거를 수집한 뒤 POST /api/admin/performance-measurements에 등록해주세요."
         />
       ) : null}
-      {listQuery.data?.content.length ? (
+      {listQuery.data && listQuery.data.totalElements > 0 ? (
         <>
           <div className="performance-measurement-layout">
             <nav className="performance-run-list" aria-label="성능 측정 실행 목록">
@@ -53,13 +57,14 @@ export function PerformanceMeasurementPanel({ page, selectedRunId, onPageChange,
                   type="button"
                   key={run.runId}
                   aria-current={selectedRunId === run.runId ? 'true' : undefined}
-                  onClick={() => onSelectedRunChange(run.runId)}
+                  onClick={() => onSelectedRunChange(run.runId, false)}
                 >
                   <strong>실행 #{run.runId}</strong>
                   <span>{formatKstDateTime(run.registeredAt)}</span>
                   <small>{run.valid ? (run.comparable ? '비교 가능' : '비교 조건 불일치') : '유효하지 않음'}</small>
                 </button>
               ))}
+              {listQuery.data.content.length === 0 ? <p className="status-text" role="status">유효한 성능 측정 페이지로 이동하고 있습니다.</p> : null}
             </nav>
             <div className="performance-run-detail">
               {detailQuery.isLoading ? <p className="status-text" role="status">선택한 측정을 불러오고 있습니다.</p> : null}

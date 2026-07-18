@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { type ApiError } from '../../shared/api/http';
 import { EmptyState, ErrorState } from '../../shared/ui/ResourceStates';
 import {
@@ -12,13 +12,18 @@ import {
 
 const PAGE_SIZE = 20;
 
-export function ProjectionHealthPanel({ health, page, onPageChange }: { health: ProjectionHealth | null; page: number; onPageChange: (page: number) => void }) {
+export function ProjectionHealthPanel({ health, page, onPageChange }: { health: ProjectionHealth | null; page: number; onPageChange: (page: number, replace?: boolean) => void }) {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState<string | null>(null);
   const deadQuery = useQuery({
     queryKey: adminOperationsDashboardQueryKeys.deadEvents(page, PAGE_SIZE),
     queryFn: () => getDeadOperationalEvents(page, PAGE_SIZE),
   });
+  useEffect(() => {
+    if (deadQuery.data && deadQuery.data.totalPages > 0 && page >= deadQuery.data.totalPages) {
+      onPageChange(deadQuery.data.totalPages - 1, true);
+    }
+  }, [deadQuery.data, onPageChange, page]);
   const invalidateOperations = async () => {
     await queryClient.invalidateQueries({ queryKey: adminOperationsDashboardQueryKeys.all });
   };
@@ -60,10 +65,10 @@ export function ProjectionHealthPanel({ health, page, onPageChange }: { health: 
         <div className="operations-panel-heading"><div><h3 id="dead-event-title">DEAD events</h3><p>payload는 노출하거나 다시 전송하지 않습니다.</p></div></div>
         {deadQuery.isLoading ? <p className="status-text" role="status">DEAD event를 불러오고 있습니다.</p> : null}
         {deadQuery.error ? <ErrorState message={errorMessage(deadQuery.error, 'DEAD event 목록을 불러오지 못했습니다.')} /> : null}
-        {deadQuery.data?.content.length === 0 ? <EmptyState title="DEAD event가 없습니다" description="현재 수동 복구가 필요한 이벤트가 없습니다." /> : null}
+        {deadQuery.data?.totalElements === 0 ? <EmptyState title="DEAD event가 없습니다" description="현재 수동 복구가 필요한 이벤트가 없습니다." /> : null}
+        {deadQuery.data && deadQuery.data.totalElements > 0 && deadQuery.data.content.length === 0 ? <p className="status-text" role="status">유효한 DEAD event 페이지로 이동하고 있습니다.</p> : null}
         {deadQuery.data?.content.length ? (
-          <>
-            <div className="operations-table-scroll">
+          <div className="operations-table-scroll">
               <table className="operations-table dead-event-table" aria-label="DEAD event 목록">
                 <thead><tr><th scope="col">Event</th><th scope="col">대상</th><th scope="col">상점·캠페인</th><th scope="col">시도</th><th scope="col">오류</th><th scope="col">발생 시각</th><th scope="col">작업</th></tr></thead>
                 <tbody>{deadQuery.data.content.map((event) => (
@@ -78,10 +83,9 @@ export function ProjectionHealthPanel({ health, page, onPageChange }: { health: 
                   </tr>
                 ))}</tbody>
               </table>
-            </div>
-            {deadQuery.data.totalPages > 1 ? <nav className="operations-pagination" aria-label="DEAD event 페이지 이동"><button type="button" disabled={deadQuery.data.first} onClick={() => onPageChange(page - 1)}>이전</button><span>{page + 1} / {deadQuery.data.totalPages}</span><button type="button" disabled={deadQuery.data.last} onClick={() => onPageChange(page + 1)}>다음</button></nav> : null}
-          </>
+          </div>
         ) : null}
+        {deadQuery.data && deadQuery.data.totalElements > 0 && deadQuery.data.totalPages > 1 ? <nav className="operations-pagination" aria-label="DEAD event 페이지 이동"><button type="button" disabled={page <= 0} onClick={() => onPageChange(page - 1, false)}>이전</button><span>{Math.min(page + 1, deadQuery.data.totalPages)} / {deadQuery.data.totalPages}</span><button type="button" disabled={page >= deadQuery.data.totalPages - 1} onClick={() => onPageChange(page + 1, false)}>다음</button></nav> : null}
       </section>
     </section>
   );

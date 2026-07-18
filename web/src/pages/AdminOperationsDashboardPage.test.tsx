@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { AdminOperationsDashboardPage } from './AdminOperationsDashboardPage';
 
 afterEach(() => {
@@ -195,6 +195,44 @@ describe('AdminOperationsDashboardPage', () => {
     await userEvent.setup().click(await screen.findByRole('button', { name: '프로젝션 재구축' }));
     expect(await screen.findByText('이미 BUILDING generation이 있습니다.')).toBeTruthy();
   });
+
+  it('기본_성능run_자동선택은_history를_replace해서_뒤로가기로_선택이_사라지지_않는다', async () => {
+    installApi({ performanceAvailable: true });
+    const user = userEvent.setup();
+    renderPage('/admin/dashboard?performancePage=0');
+
+    await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('performanceRun=33'));
+    expect(screen.getByTestId('navigation-type').textContent).toBe('REPLACE');
+    await user.click(await screen.findByRole('button', { name: /실행 #34/ }));
+    await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('performanceRun=34'));
+    expect(screen.getByTestId('navigation-type').textContent).toBe('PUSH');
+    await user.click(screen.getByRole('button', { name: '뒤로' }));
+    await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('performanceRun=33'));
+  });
+
+  it('범위를_벗어난_DEAD와_성능page는_빈상태로_오해하지_않고_마지막page로_replace한다', async () => {
+    const fetchMock = installApi({ performanceAvailable: true, staleEvidencePages: true });
+    renderPage('/admin/dashboard?deadPage=5&performancePage=5');
+
+    await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('deadPage=2'));
+    await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('performancePage=2'));
+    expect(screen.queryByText('성능 측정 전')).toBeNull();
+    expect(screen.queryByText('DEAD event가 없습니다')).toBeNull();
+    expect(called(fetchMock, '/operational-events/dead').some(([url]) => String(url).includes('page=2'))).toBe(true);
+    expect(called(fetchMock, '/performance-measurements?page=2').length).toBeGreaterThan(0);
+  });
+
+  it('마지막_DEAD행_재시도후_page가_줄면_이전_유효page로_replace한다', async () => {
+    installApi({ deadShrinksAfterRetry: true });
+    const user = userEvent.setup();
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    renderPage('/admin/dashboard?deadPage=2');
+
+    await user.click(await screen.findByRole('button', { name: '재시도' }));
+    expect(await screen.findByText('DEAD event를 재시도 대기열로 이동했습니다.')).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('deadPage=1'));
+    expect(screen.queryByText('DEAD event가 없습니다')).toBeNull();
+  });
 });
 
 function renderPage(initialEntry = '/admin/dashboard') {
@@ -205,10 +243,12 @@ function renderPage(initialEntry = '/admin/dashboard') {
 function LocationProbe() {
   const location = useLocation();
   const navigate = useNavigate();
-  return <><output data-testid="location-search">{location.search}</output><button type="button" onClick={() => navigate(-1)}>뒤로</button></>;
+  const navigationType = useNavigationType();
+  return <><output data-testid="location-search">{location.search}</output><output data-testid="navigation-type">{navigationType}</output><button type="button" onClick={() => navigate(-1)}>뒤로</button></>;
 }
 
-function installApi(options: { overviewError?: boolean; overviewResponse?: Promise<Response>; preTracking?: boolean; retryResponse?: Promise<Response>; retryConflict?: boolean; rebuildResponse?: Promise<Response>; rebuildConflict?: boolean; performanceAvailable?: boolean } = {}) {
+function installApi(options: { overviewError?: boolean; overviewResponse?: Promise<Response>; preTracking?: boolean; retryResponse?: Promise<Response>; retryConflict?: boolean; rebuildResponse?: Promise<Response>; rebuildConflict?: boolean; performanceAvailable?: boolean; staleEvidencePages?: boolean; deadShrinksAfterRetry?: boolean } = {}) {
+  let deadRetried = false;
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes('/operations-dashboard/campaigns')) return json(page(campaigns, url));
@@ -221,11 +261,22 @@ function installApi(options: { overviewError?: boolean; overviewResponse?: Promi
       return json(options.preTracking ? { ...dashboard, trackingStartedAt: '2026-02-01T00:00:00Z', period: { ...dashboard.period, from: '2026-01-01', to: '2026-01-31', fromInclusive: '2025-12-31T15:00:00Z', toExclusive: '2026-01-31T15:00:00Z' } } : dashboard);
     }
     if (url.includes('/performance-measurements/')) return json(performanceMeasurement);
-    if (url.includes('/performance-measurements')) return json(page(options.performanceAvailable ? [performanceMeasurement] : [], url));
-    if (url.includes('/operational-events/dead')) return json(page(deadEvents));
+    if (url.includes('/performance-measurements')) {
+      if (options.staleEvidencePages && url.includes('page=5')) return json(paged([], url, 60, 3));
+      return json(options.performanceAvailable ? paged([performanceMeasurement, performanceMeasurement34], url, 60, 3) : page([], url));
+    }
+    if (url.includes('/operational-events/dead')) {
+      if (options.staleEvidencePages && url.includes('page=5')) return json(paged([], url, 60, 3));
+      if (options.deadShrinksAfterRetry) {
+        if (deadRetried && url.includes('page=2')) return json(paged([], url, 40, 2));
+        return json(paged(deadEvents, url, deadRetried ? 40 : 41, deadRetried ? 2 : 3));
+      }
+      return json(page(deadEvents, url));
+    }
     if (url.includes('/operational-events/') && url.endsWith('/retry')) {
       if (options.retryResponse) return options.retryResponse;
       if (options.retryConflict) return new Response(JSON.stringify({ code: 'CONFLICT', message: '이미 처리 중인 event입니다.' }), { status: 409 });
+      deadRetried = true;
       return json(null);
     }
     if (url.includes('/operational-projections/rebuild')) {
@@ -246,6 +297,7 @@ function called(fetchMock: ReturnType<typeof vi.fn>, fragment: string) {
 function json(data: unknown) { return jsonResponse(data); }
 function jsonResponse(data: unknown) { return Promise.resolve(new Response(JSON.stringify({ data }), { status: 200 })); }
 function page<T>(content: T[], url?: string) { const number = url ? Number(new URL(url).searchParams.get('page') ?? 0) : 0; return { content, totalElements: content.length ? 60 : 0, totalPages: content.length ? 3 : 0, size: 20, number, first: number === 0, last: number === 2, empty: content.length === 0 }; }
+function paged<T>(content: T[], url: string, totalElements: number, totalPages: number) { const number = Number(new URL(url).searchParams.get('page') ?? 0); return { content, totalElements, totalPages, size: 20, number, first: number === 0, last: number >= totalPages - 1, empty: content.length === 0 }; }
 
 const zeroDiscounts = { applied: 0, realized: 0, canceled: 0, refunded: 0 };
 const health = { pendingCount: 1, retryCount: 0, deadCount: 1, oldestUnprocessedAt: '2026-07-17T00:00:00Z', projectionLagSeconds: 10, projectionUpdatedAt: '2026-07-17T00:05:00Z' };
@@ -257,3 +309,4 @@ const inventory = [{ productId: 3, salesPolicy: 'STOCK_MANAGED', availableQuanti
 const audits = [{ id: 1, eventId: '00000000-0000-0000-0000-000000000001', campaignKind: 'COUPON', campaignId: 2, ownerType: 'STORE', ownerStoreId: 7, actorMemberId: 1, command: 'PAUSE', occurredAt: '2026-07-17T00:00:00Z', aggregateVersion: 1, beforeSummary: '{}', afterSummary: '{}' }];
 const deadEvents = [{ id: 1, eventId: '00000000-0000-0000-0000-000000000002', eventType: 'CAMPAIGN_CHANGED', schemaVersion: 1, aggregateType: 'COUPON_CAMPAIGN', aggregateId: 2, aggregateVersion: 1, storeId: 7, campaignId: 2, partitionKey: 'campaign-2', occurredAt: '2026-07-17T00:00:00Z', payload: { hidden: true }, deliveryState: 'DEAD', attemptCount: 5, nextAttemptAt: null, lastError: 'projection failed', createdAt: '2026-07-17T00:00:00Z' }];
 const performanceMeasurement = { runId: 33, measurementId: '385b4525-21a2-4f4a-875f-364449f59957', payloadHash: 'abc', gitCommit: '0123456789abcdef0123456789abcdef01234567', dirtyWorktree: false, fixtureVersion: 'm30-v1', scenarioVersion: 'm30-v1', environmentName: 'local', hardwareDescription: 'test', artifactDirectory: 'performance/results/test', warmupSeconds: 60, measuredSeconds: 300, offStartedAt: '2026-07-17T00:00:00Z', offCompletedAt: '2026-07-17T00:05:00Z', onStartedAt: '2026-07-17T00:10:00Z', onCompletedAt: '2026-07-17T00:15:00Z', registeredBy: 1, registeredAt: '2026-07-17T00:20:00Z', valid: true, comparable: true, endpointMetrics: [], queryEvidence: [] };
+const performanceMeasurement34 = { ...performanceMeasurement, runId: 34, measurementId: '485b4525-21a2-4f4a-875f-364449f59958' };
