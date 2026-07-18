@@ -52,7 +52,7 @@ The full evidence lives at `performance/results/m30-v1`. Preserve the artifacts 
 
 - M31 focused backend: 103/103 passed.
 - Complete backend: 844/844 passed.
-- Complete web: 52/52 passed.
+- Complete web: 53/53 passed.
 - Production web build: passed.
 - Node normalizer/trace parser: 24/24 passed.
 - PowerShell parser, evidence replay/audit, and `git diff --check`: passed.

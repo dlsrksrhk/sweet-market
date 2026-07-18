@@ -44,9 +44,9 @@ All backend commands ran from `backend` with JDK 21 and a configured `JWT_SECRET
 | Reconciliation GREEN | Same focused command: `BUILD SUCCESSFUL in 16s`; 1 test, 0 failures. |
 | Final forced reconciliation | Same test with `--rerun-tasks`: `BUILD SUCCESSFUL in 30s`; all 5 Gradle tasks executed. |
 | Focused M31 backend | `gradlew.bat test --tests 'com.sweet.market.operations.*'`: `BUILD SUCCESSFUL in 39s`; 15 suites, 103 tests, 0 failures, 0 errors, 0 skipped. |
-| Complete backend | `gradlew.bat --no-daemon test`: `BUILD SUCCESSFUL in 4m 21s`; 127 suites, 844 tests, 0 failures, 0 errors, 0 skipped. |
-| Complete web | `npm test`: 13 files and 52 tests passed in 4.85s. |
-| Production web | `npm run build`: TypeScript passed; Vite transformed 165 modules and built in 1.59s. |
+| Complete backend | `gradlew.bat --no-daemon test`: `BUILD SUCCESSFUL in 4m 22s`; 127 suites, 844 tests, 0 failures, 0 errors, 0 skipped. |
+| Complete web | `npm test`: 13 files and 53 tests passed in 4.92s. |
+| Production web | `npm run build`: TypeScript passed; Vite transformed 165 modules and built in 1.54s. |
 | Node performance tools | `node --test performance/normalize-m30-measurement.test.mjs performance/parse-m30-jdbc-trace.test.mjs`: 24 passed, 0 failed. |
 | PowerShell tools | Both `collect-m30-measurement.ps1` and `capture-m30-query-evidence.ps1` parsed with zero PowerShell parser errors. |
 | Evidence replay | Normalizer replay SHA-256 `73c095ba399e30dfe249840be2cadab91b5c05c880294ceefcdc44ce21518f5e` exactly matched the registered request-file hash. The separately computed server canonical-payload SHA-256 is `122d6823d9c8fccea5678228dcb8d417ae0be5b8535e02c6a6da7d422c8b791c`. |

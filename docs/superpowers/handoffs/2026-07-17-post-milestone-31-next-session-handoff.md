@@ -27,7 +27,7 @@ Do not infer an M32 scope from this handoff. A future product phase needs its ow
 - Projection retry, DEAD inspection, and atomic rebuild are available to administrators.
 - M30 measurement UUID `385b4525-21a2-4f4a-875f-364449f59957` is registered as run `4`, valid and comparable, with live SQL provenance.
 - JDK 21 backend: 844 tests passed with no failures/errors/skips.
-- Web: 52 tests and the production build passed.
+- Web: 53 tests and the production build passed.
 - Evidence-tool and artifact integrity checks passed.
 - Rendered OUTSIDER/OWNER/MANAGER/ADMIN desktop flows passed. Store/admin mobile document roots remained `375/375`, the desktop root remained `1265/1265`, and only the admin run-list table used intentional internal horizontal scrolling.
 - ADMIN rendered run 4 as valid/comparable with OFF/ON evidence and projector recovery/privacy controls, without browser-side SQL execution controls.
