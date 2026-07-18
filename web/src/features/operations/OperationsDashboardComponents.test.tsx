@@ -50,6 +50,25 @@ describe('OperationsSummaryCards', () => {
     expect(html).not.toContain('측정된 0건');
   });
 
+  it('선택기간이_추적시작전이면_0이_아닌_미측정상태로_표시한다', () => {
+    const html = renderToStaticMarkup(
+      <OperationsSummaryCards dashboard={{ ...dashboard, trackingStartedAt: '2026-08-01T00:00:00Z' }} />,
+    );
+
+    expect(html).toContain('선택 기간은 추적 시작 전');
+    expect(html).not.toContain('측정된 0건');
+  });
+
+  it('선택기간이_추적시작을_포함하면_추적시작이후_집계임을_표시한다', () => {
+    const html = renderToStaticMarkup(
+      <OperationsSummaryCards dashboard={{ ...dashboard, trackingStartedAt: '2026-07-10T00:00:00Z' }} />,
+    );
+
+    expect(html).toContain('추적 시작 이후 측정된 0건');
+    expect(html).toContain('추적 시작 이후 측정된 0원');
+    expect(html).not.toContain('조회 기간 누적');
+  });
+
   it('취소액과_환불액을_합치지_않고_각각_표시한다', () => {
     const html = renderToStaticMarkup(<OperationsSummaryCards dashboard={{
       ...dashboard,

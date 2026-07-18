@@ -37,6 +37,7 @@ import type {
 } from '../features/operations/storeOperationsDashboardApi';
 import { type ApiError } from '../shared/api/http';
 import { EmptyState, ErrorState, StatusBadge } from '../shared/ui/ResourceStates';
+import { deriveTrackingCoverage, type TrackingCoverage } from '../features/operations/trackingCoverage';
 
 const PAGE_SIZE = 20;
 
@@ -76,7 +77,8 @@ export function AdminOperationsDashboardPage() {
 
   const dashboardQuery = useQuery({ queryKey: adminOperationsDashboardQueryKeys.dashboard(period), queryFn: () => getAdminOperationsDashboard(period) });
   const provenancePending = dashboardQuery.isPending;
-  const periodUnmeasured = dashboardQuery.data ? !isPeriodMeasured(dashboardQuery.data) : false;
+  const coverage = dashboardQuery.data ? deriveTrackingCoverage(dashboardQuery.data.period, dashboardQuery.data.trackingStartedAt) : undefined;
+  const periodUnmeasured = coverage === 'UNTRACKED';
   const drilldownsEnabled = !provenancePending && !periodUnmeasured;
   const campaignsQuery = useQuery({ queryKey: adminOperationsDashboardQueryKeys.campaigns(campaignsInput), queryFn: () => getAdminCampaignMetrics(campaignsInput), enabled: drilldownsEnabled });
   const outcomesQuery = useQuery({ queryKey: adminOperationsDashboardQueryKeys.outcomes(outcomesInput), queryFn: () => getAdminOutcomeMetrics(outcomesInput), enabled: drilldownsEnabled && !productInputInvalid });
@@ -169,16 +171,16 @@ export function AdminOperationsDashboardPage() {
 }
 
 function AdminSummary({ dashboard }: { dashboard: AdminOperationsDashboard }) {
-  const tracked = isPeriodMeasured(dashboard);
+  const coverage = deriveTrackingCoverage(dashboard.period, dashboard.trackingStartedAt);
   const items: [string, number, boolean?][] = [
     ['쿠폰 발급 성공', dashboard.claimSuccessCount], ['쿠폰 사용 성공', dashboard.redemptionSuccessCount], ['주문 성공', dashboard.orderSuccessCount],
     ['구매 실패', dashboard.purchaseFailureCount, true], ['저재고', dashboard.lowStockCount, true], ['품절 전환', dashboard.soldOutTransitionCount, true], ['감사 이벤트', dashboard.auditCount],
   ];
-  return <><AggregateProvenance dashboard={dashboard} period={dashboard.period} /><div className={dashboard.projectionUpdatedAt ? 'operations-freshness' : 'operations-freshness is-delayed'} role="status"><strong>{dashboard.projectionUpdatedAt ? '프로젝션 최신성' : '프로젝션 갱신 지연'}</strong><span>{dashboard.projectionUpdatedAt ? `갱신 ${formatKstDateTime(dashboard.projectionUpdatedAt)} · 생성 ${formatKstDateTime(dashboard.generatedAt)} · 지연 ${formatLag(dashboard.projectionLagSeconds)}` : `생성 ${formatKstDateTime(dashboard.generatedAt)} · 마지막 갱신 시각이 없습니다.`}</span></div><dl className="operations-summary-grid admin-summary-grid">{items.map(([label, value, warning]) => <div className={warning ? 'operations-summary-card is-warning' : 'operations-summary-card'} key={label}><dt>{label}</dt><dd>{tracked ? `${value.toLocaleString('ko-KR')}건` : '측정 전'}</dd><small>{tracked ? '조회 기간 누적' : '선택 기간은 추적 시작 전'}</small></div>)}</dl><div className="operations-amount-sections"><AmountPanel title="프로모션 할인" values={dashboard.promotionDiscounts} tracked={tracked} /><AmountPanel title="쿠폰 할인" values={dashboard.couponDiscounts} tracked={tracked} /></div></>;
+  return <><AggregateProvenance dashboard={dashboard} period={dashboard.period} /><div className={dashboard.projectionUpdatedAt ? 'operations-freshness' : 'operations-freshness is-delayed'} role="status"><strong>{dashboard.projectionUpdatedAt ? '프로젝션 최신성' : '프로젝션 갱신 지연'}</strong><span>{dashboard.projectionUpdatedAt ? `갱신 ${formatKstDateTime(dashboard.projectionUpdatedAt)} · 생성 ${formatKstDateTime(dashboard.generatedAt)} · 지연 ${formatLag(dashboard.projectionLagSeconds)}` : `생성 ${formatKstDateTime(dashboard.generatedAt)} · 마지막 갱신 시각이 없습니다.`}</span></div><dl className="operations-summary-grid admin-summary-grid">{items.map(([label, value, warning]) => <div className={warning ? 'operations-summary-card is-warning' : 'operations-summary-card'} key={label}><dt>{label}</dt><dd>{coverage !== 'UNTRACKED' ? `${value.toLocaleString('ko-KR')}건` : '측정 전'}</dd><small>{coverage === 'UNTRACKED' ? '선택 기간은 추적 시작 전' : coverage === 'PARTIAL' ? '추적 시작 이후 누적' : '조회 기간 누적'}</small></div>)}</dl><div className="operations-amount-sections"><AmountPanel title="프로모션 할인" values={dashboard.promotionDiscounts} coverage={coverage} /><AmountPanel title="쿠폰 할인" values={dashboard.couponDiscounts} coverage={coverage} /></div></>;
 }
 
-function AmountPanel({ title, values, tracked }: { title: string; values: { applied: number; realized: number; canceled: number; refunded: number }; tracked: boolean }) {
-  return <section className="operations-amount-panel"><h3>{title}</h3><dl>{Object.entries({ 적용: values.applied, 실현: values.realized, 취소: values.canceled, 환불: values.refunded }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{tracked ? `${value.toLocaleString('ko-KR')}원` : '측정 전'}</dd></div>)}</dl></section>;
+function AmountPanel({ title, values, coverage }: { title: string; values: { applied: number; realized: number; canceled: number; refunded: number }; coverage: TrackingCoverage }) {
+  return <section className="operations-amount-panel"><h3>{title}</h3><dl>{Object.entries({ 적용: values.applied, 실현: values.realized, 취소: values.canceled, 환불: values.refunded }).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{coverage !== 'UNTRACKED' ? `${value.toLocaleString('ko-KR')}원` : '측정 전'}</dd><small>{coverage === 'UNTRACKED' ? '선택 기간은 추적 시작 전' : coverage === 'PARTIAL' ? '추적 시작 이후 누적' : '조회 기간 누적'}</small></div>)}</dl></section>;
 }
 
 function CampaignTable({ page }: { page?: Page<StoreCampaignMetric> }) {
@@ -214,13 +216,13 @@ function AggregateProvenance({ dashboard, period }: { dashboard?: AdminOperation
   const from = dashboard?.period.from ?? period.from;
   const to = dashboard?.period.to ?? period.to;
   if (!dashboard) return <p className="operations-provenance">집계 기준 · {from && to ? `${from} ~ ${to} KST` : 'preset' in period ? period.preset ?? '선택 기간' : '선택 기간'} · 생성/프로젝션 정보 확인 불가</p>;
-  return <p className="operations-provenance">집계 기준 · {dashboard.period.from} ~ {dashboard.period.to} KST · 생성 {formatKstDateTime(dashboard.generatedAt)} · 프로젝션 {dashboard.projectionUpdatedAt ? formatKstDateTime(dashboard.projectionUpdatedAt) : '갱신 기록 없음'}</p>;
+  const coverage = deriveTrackingCoverage(dashboard.period, dashboard.trackingStartedAt);
+  return <p className="operations-provenance">집계 기준 · {dashboard.period.from} ~ {dashboard.period.to} KST · 생성 {formatKstDateTime(dashboard.generatedAt)} · 프로젝션 {dashboard.projectionUpdatedAt ? formatKstDateTime(dashboard.projectionUpdatedAt) : '갱신 기록 없음'}{coverage === 'PARTIAL' ? ` · 추적 시작 ${formatKstDateTime(dashboard.trackingStartedAt!)} 이후 집계만 포함합니다.` : ''}</p>;
 }
 function TableFrame({ label, headers, children }: { label: string; headers: string[]; children: ReactNode }) { return <div className="operations-table-scroll"><table className="operations-table admin-dashboard-table" aria-label={label}><thead><tr>{headers.map((header) => <th scope="col" key={header}>{header}</th>)}</tr></thead><tbody>{children}</tbody></table></div>; }
 function Cell({ label, children }: { label: string; children: ReactNode }) { return <td data-label={label}>{children}</td>; }
 function PageNavigation({ page, data, label, onChange }: { page: number; data?: Page<unknown>; label: string; onChange: (page: number) => void }) { if (!data || data.totalPages <= 1) return null; return <nav className="operations-pagination" aria-label={label}><button type="button" disabled={data.first} onClick={() => onChange(page - 1)}>이전</button><span>{page + 1} / {data.totalPages}</span><button type="button" disabled={data.last} onClick={() => onChange(page + 1)}>다음</button></nav>; }
 function positiveInteger(value: string) { const parsed = Number(value); return /^\d+$/.test(value.trim()) && Number.isSafeInteger(parsed) && parsed >= 1 ? parsed : undefined; }
-function isPeriodMeasured(dashboard: AdminOperationsDashboard) { return dashboard.trackingStartedAt !== null && Date.parse(dashboard.period.toExclusive) > Date.parse(dashboard.trackingStartedAt); }
 function ownershipLabel(ownerType: string, ownerStoreId: number | null) { return ownerType === 'PLATFORM' ? '플랫폼' : ownerStoreId ? `상점 #${ownerStoreId}` : '상점'; }
 function kindLabel(kind: string) { return kind === 'PROMOTION' ? '프로모션' : kind === 'COUPON' ? '쿠폰' : kind; }
 function money(value: number) { return `${value.toLocaleString('ko-KR')}원`; }

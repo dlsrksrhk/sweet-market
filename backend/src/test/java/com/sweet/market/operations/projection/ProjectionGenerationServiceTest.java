@@ -251,6 +251,52 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 재구축_replay는_지원불가_event를_DEAD로_격리하고_다음_event를_반영해_활성화한다() throws Exception {
+        long previousId = service.ensureActiveGeneration(NOW.minusSeconds(120));
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try (Connection lockHolder = dataSource.getConnection()) {
+            eventWriterSharedLock(lockHolder, true);
+            Future<ProjectionRebuildResult> rebuild = executor.submit(() -> service.rebuild(1L, NOW));
+            long buildingId = awaitBuildingGeneration(previousId);
+            String unknownPayload = "{\"future\":\"raw-value\"}";
+            String purchasePayload = """
+                    {"result":"SUCCESS","reason":"NONE","orderId":301,
+                     "storeId":10,"productId":20,"promotionCampaignId":null,
+                     "couponCampaignId":null,"promotionDiscountAmount":0,
+                     "couponDiscountAmount":0}
+                    """;
+            UUID unknownEventId = insertOutbox(
+                    "FUTURE_OPERATIONAL_EVENT", 1, NOW.plusSeconds(1),
+                    unknownPayload, 300L, 10L);
+            UUID unsupportedEventId = insertOutbox(
+                    "PURCHASE_OUTCOME", 2, NOW.plusSeconds(2),
+                    purchasePayload, 301L, 10L);
+            UUID validEventId = insertOutbox(
+                    "PURCHASE_OUTCOME", 1, NOW.plusSeconds(3),
+                    purchasePayload, 302L, 10L);
+
+            eventWriterSharedLock(lockHolder, false);
+            ProjectionRebuildResult result = rebuild.get(10, TimeUnit.SECONDS);
+
+            assertThat(result.generationId()).isEqualTo(buildingId);
+            assertThat(result.status()).isEqualTo("ACTIVE");
+            assertThat(activeGenerationId()).isEqualTo(buildingId);
+            assertPoisonReplayEvent(unknownEventId, "FUTURE_OPERATIONAL_EVENT", unknownPayload);
+            assertPoisonReplayEvent(unsupportedEventId, "PURCHASE_OUTCOME", purchasePayload);
+            assertStoreReceipt(buildingId, validEventId);
+            assertThat(jdbcTemplate.queryForObject("""
+                    SELECT processed_at FROM projection_event_receipts
+                    WHERE generation_id = ? AND projection_name = 'store-commerce-metrics'
+                      AND event_id = ?
+                    """, Timestamp.class, buildingId, validEventId)).isEqualTo(Timestamp.from(NOW));
+            assertThat(metricSum("store_metric_hourly", buildingId, "order_success_count"))
+                    .isOne();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
     void 사용시각없는_과거쿠폰사용과_실패와_감사를_추정하지_않는다() {
         CommerceFixture fixture = createCommerceFixture();
         jdbcTemplate.update(
@@ -476,11 +522,40 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
                 """, Long.class, generationId, eventId)).isOne();
     }
 
+    private void assertPoisonReplayEvent(UUID eventId, String eventType, String payload) {
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                SELECT event_type, delivery_state, attempt_count, next_attempt_at,
+                       last_error, payload = CAST(? AS JSONB) AS payload_unchanged
+                FROM operational_event_outbox
+                WHERE event_id = ?
+                """, payload, eventId);
+        assertThat(row)
+                .containsEntry("event_type", eventType)
+                .containsEntry("delivery_state", "DEAD")
+                .containsEntry("attempt_count", 1)
+                .containsEntry("next_attempt_at", Timestamp.from(NOW))
+                .containsEntry("payload_unchanged", true);
+        assertThat(row.get("last_error")).asString()
+                .contains("UnsupportedOperationalEventSchemaException")
+                .hasSizeLessThanOrEqualTo(1_000);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM projection_event_receipts WHERE event_id = ?
+                """, Long.class, eventId)).isZero();
+    }
+
     private void advisoryLock(Connection connection, boolean acquire) throws Exception {
         String function = acquire ? "pg_advisory_lock" : "pg_advisory_unlock";
         try (PreparedStatement statement = connection.prepareStatement(
                 "SELECT " + function + "(?)")) {
             statement.setLong(1, 310032L);
+            statement.execute();
+        }
+    }
+
+    private void eventWriterSharedLock(Connection connection, boolean acquire) throws Exception {
+        String function = acquire ? "pg_advisory_lock_shared" : "pg_advisory_unlock_shared";
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT " + function + "(310031)")) {
             statement.execute();
         }
     }
@@ -584,14 +659,25 @@ class ProjectionGenerationServiceTest extends IntegrationTestSupport {
             Long aggregateId,
             Long storeId
     ) {
+        return insertOutbox(eventType, 1, occurredAt, payload, aggregateId, storeId);
+    }
+
+    private UUID insertOutbox(
+            String eventType,
+            int schemaVersion,
+            Instant occurredAt,
+            String payload,
+            Long aggregateId,
+            Long storeId
+    ) {
         UUID eventId = UUID.randomUUID();
         jdbcTemplate.update("""
                 INSERT INTO operational_event_outbox (
                     event_id, event_type, schema_version, aggregate_type,
                     aggregate_id, aggregate_version, store_id, partition_key,
                     occurred_at, payload, delivery_state, next_attempt_at
-                ) VALUES (?, ?, 1, 'test', ?, 1, ?, ?, ?, CAST(? AS JSONB), 'PENDING', ?)
-                """, eventId, eventType, aggregateId, storeId,
+                ) VALUES (?, ?, ?, 'test', ?, 1, ?, ?, ?, CAST(? AS JSONB), 'PENDING', ?)
+                """, eventId, eventType, schemaVersion, aggregateId, storeId,
                 "test:" + eventId, Timestamp.from(occurredAt), payload, Timestamp.from(occurredAt));
         return eventId;
     }

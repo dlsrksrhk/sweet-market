@@ -73,12 +73,13 @@ public class ProjectionGenerationService {
                     bootstrapRepository.createBuildingAndPopulate(now, trackingStartedAt);
             generationId = snapshot.generationId();
             coordinator.replayNonDerivableEvents(
-                    generationId, trackingStartedAt, snapshot.outboxHighWaterId());
-            coordinator.replayAfterOutboxId(generationId, snapshot.outboxHighWaterId());
+                    generationId, trackingStartedAt, snapshot.outboxHighWaterId(), now);
+            coordinator.replayAfterOutboxId(
+                    generationId, snapshot.outboxHighWaterId(), now);
             repository.verifyNoDuplicateReceipts(generationId);
             long finalGenerationId = generationId;
             Instant activatedAt = repository.withExclusiveAdvisoryLock(EVENT_WRITER_LOCK_KEY, () -> {
-                coordinator.replayAfterCurrentCheckpoint(finalGenerationId);
+                coordinator.replayAfterCurrentCheckpoint(finalGenerationId, now);
                 repository.verifyNoDuplicateReceipts(finalGenerationId);
                 Instant activationTime = clock.instant().truncatedTo(ChronoUnit.MICROS);
                 repository.activateAtomically(finalGenerationId, activationTime);

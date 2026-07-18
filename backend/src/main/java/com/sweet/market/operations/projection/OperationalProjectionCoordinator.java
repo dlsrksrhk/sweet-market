@@ -49,20 +49,22 @@ public class OperationalProjectionCoordinator {
     public void replayNonDerivableEvents(
             long generationId,
             Instant trackingStartedAt,
-            long throughOutboxId
+            long throughOutboxId,
+            Instant replayedAt
     ) {
         replay(generationId,
-                repository.findNonDerivableEvents(trackingStartedAt, throughOutboxId));
+                repository.findNonDerivableEvents(trackingStartedAt, throughOutboxId),
+                replayedAt);
     }
 
-    public void replayAfterOutboxId(long generationId, long outboxId) {
-        replay(generationId, repository.findEventsAfterOutboxId(outboxId));
+    public void replayAfterOutboxId(long generationId, long outboxId, Instant replayedAt) {
+        replay(generationId, repository.findEventsAfterOutboxId(outboxId), replayedAt);
     }
 
-    public void replayAfterCurrentCheckpoint(long generationId) {
+    public void replayAfterCurrentCheckpoint(long generationId, Instant replayedAt) {
         long highWaterId = repository.findBootstrapHighWaterId(generationId);
-        replay(generationId, repository.findLateCommittedEvents(generationId, highWaterId));
-        replayAfterOutboxId(generationId, highWaterId);
+        replay(generationId, repository.findLateCommittedEvents(generationId, highWaterId), replayedAt);
+        replayAfterOutboxId(generationId, highWaterId, replayedAt);
     }
 
     private int projectLockedBatch(Instant now, int batchSize) {
@@ -107,11 +109,19 @@ public class OperationalProjectionCoordinator {
         }
     }
 
-    private void replay(long generationId, List<OperationalEventEnvelopeRow> events) {
+    private void replay(
+            long generationId,
+            List<OperationalEventEnvelopeRow> events,
+            Instant replayedAt
+    ) {
         for (OperationalEventEnvelopeRow envelope : events) {
-            eventTransaction.executeWithoutResult(status ->
-                    projectAllSupportingHandlers(
-                            generationId, envelope.event(), Instant.now()));
+            try {
+                eventTransaction.executeWithoutResult(status ->
+                        projectAllSupportingHandlers(
+                                generationId, envelope.event(), replayedAt));
+            } catch (UnsupportedOperationalEventSchemaException exception) {
+                markDead(envelope, replayedAt, exception);
+            }
         }
     }
 

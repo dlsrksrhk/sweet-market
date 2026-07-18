@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -193,6 +194,61 @@ class PerformanceMeasurementApiTest extends IntegrationTestSupport {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.fieldErrors[0].field").value("on.endpointMetrics[0].errorRate"));
         }
+    }
+
+    @Test
+    void 서비스는_모드별_실제시간이_선언시간_허용범위를_벗어나면_저장하지_않는다() throws Exception {
+        Member admin = saveAdmin("performance-duration-service@example.com");
+        ObjectNode request = validRequest();
+        ((ObjectNode) request.path("off")).put("completedAt", "2026-07-17T00:05:36Z");
+
+        assertThatThrownBy(() -> performanceMeasurementService.register(
+                typedRequest(request), admin.getId()))
+                .isInstanceOf(PerformanceMeasurementService.PerformanceMeasurementValidationException.class)
+                .satisfies(exception -> assertThat(((PerformanceMeasurementService
+                        .PerformanceMeasurementValidationException) exception).fieldViolations())
+                        .extracting(PerformanceMeasurementService.FieldViolation::field)
+                        .containsExactly("off.completedAt"));
+        assertThat(countRows("performance_measurement_runs")).isZero();
+    }
+
+    @Test
+    void API는_OFF_ON_실제시간차가_허용범위를_벗어나면_검증오류로_거부한다() throws Exception {
+        String token = bearer(saveAdmin("performance-duration-api@example.com"));
+        ObjectNode request = validRequest();
+        ((ObjectNode) request.path("off")).put("completedAt", "2026-07-17T00:05:25Z");
+        ((ObjectNode) request.path("on")).put("completedAt", "2026-07-17T00:15:35Z");
+
+        mockMvc.perform(post("/api/admin/performance-measurements")
+                        .header(HttpHeaders.AUTHORIZATION, token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request.toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("off.on.duration"));
+        assertThat(countRows("performance_measurement_runs")).isZero();
+    }
+
+    @Test
+    void 실제시간은_선언시간과_5초경계이고_OFF_ON차도_5초이면_등록한다() throws Exception {
+        String token = bearer(saveAdmin("performance-duration-boundary@example.com"));
+        ObjectNode request = validRequest();
+        ((ObjectNode) request.path("off")).put("completedAt", "2026-07-17T00:05:25Z");
+
+        register(token, request);
+
+        assertThat(countRows("performance_measurement_runs")).isOne();
+    }
+
+    @Test
+    void 권위_run4의_OFF_361초_ON_362초는_유효하고_비교가능하다() throws Exception {
+        String token = bearer(saveAdmin("performance-run4@example.com"));
+        JsonNode request = objectMapper.readTree(Path.of(
+                "..", "performance", "results", "m30-v1", "measurement.json").toFile());
+
+        register(token, request);
+
+        assertThat(countRows("performance_measurement_runs")).isOne();
     }
 
     @Test
@@ -624,8 +680,8 @@ class PerformanceMeasurementApiTest extends IntegrationTestSupport {
         return objectMapper.valueToTree(Map.of(
                 "measurementId", MEASUREMENT_ID,
                 "artifactDirectory", "performance/results/m30-v1",
-                "off", mode("OFF", "2026-07-17T00:00:00Z", "2026-07-17T00:05:00Z"),
-                "on", mode("ON", "2026-07-17T00:10:00Z", "2026-07-17T00:15:00Z")
+                "off", mode("OFF", "2026-07-17T00:00:00Z", "2026-07-17T00:05:30Z"),
+                "on", mode("ON", "2026-07-17T00:10:00Z", "2026-07-17T00:15:30Z")
         ));
     }
 

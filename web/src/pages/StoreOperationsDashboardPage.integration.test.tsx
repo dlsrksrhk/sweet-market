@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { StoreOperationsDashboardPage } from './StoreOperationsDashboardPage';
 
-type FetchMode = 'normal' | 'no-stores' | 'overview-error' | 'personal-empty';
+type FetchMode = 'normal' | 'no-stores' | 'overview-error' | 'personal-empty' | 'pre-tracking' | 'partial-tracking';
 
 afterEach(() => {
   cleanup();
@@ -117,6 +117,34 @@ describe('StoreOperationsDashboardPage mounted experience', () => {
     expect(await screen.findByText('개인 상점에는 운영할 상점 캠페인이 없습니다')).toBeTruthy();
     expect((screen.getByLabelText('상태') as HTMLSelectElement).value).toBe('ACTIVE');
   });
+
+  it('추적전_기간은_측정값과_상세를_표시하거나_조회하지_않는다', async () => {
+    const fetchMock = installApi('pre-tracking');
+    renderPage('/me/store/dashboard?storeId=1&from=2026-07-01&to=2026-07-17&tab=campaigns');
+
+    expect((await screen.findAllByText('선택 기간은 추적 시작 전')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('1건')).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(calledUrls(fetchMock, '/operations/campaigns')).toHaveLength(0);
+  });
+
+  it('부분추적_기간은_추적시작이후_집계임을_알리고_상세를_조회한다', async () => {
+    const fetchMock = installApi('partial-tracking');
+    renderPage('/me/store/dashboard?storeId=1&from=2026-07-01&to=2026-07-17&tab=campaigns');
+
+    expect(await screen.findByText(/추적 시작.*이후 집계만 포함합니다/)).toBeTruthy();
+    expect(await screen.findByRole('table', { name: '캠페인 성과' })).toBeTruthy();
+    expect(calledUrls(fetchMock, '/operations/campaigns').length).toBeGreaterThan(0);
+  });
+
+  it('전체추적_기간은_현재_누적표시를_유지하고_상세를_조회한다', async () => {
+    const fetchMock = installApi('normal');
+    renderPage('/me/store/dashboard?storeId=1&from=2026-07-01&to=2026-07-17&tab=campaigns');
+
+    expect((await screen.findAllByText('조회 기간 누적')).length).toBeGreaterThan(0);
+    expect(await screen.findByRole('table', { name: '캠페인 성과' })).toBeTruthy();
+    expect(calledUrls(fetchMock, '/operations/campaigns').length).toBeGreaterThan(0);
+  });
 });
 
 function renderPage(initialEntry: string) {
@@ -148,7 +176,8 @@ function installApi(mode: FetchMode) {
     if (url.includes('/operations/dashboard')) {
       if (mode === 'overview-error') return new Response(JSON.stringify({ code: 'DASHBOARD_FAILED', message: '운영 요약을 불러오지 못했습니다.' }), { status: 500 });
       const storeId = url.includes('/stores/2/') ? 2 : 1;
-      return json({ ...dashboard, storeId, storeName: storeId === 2 ? '개인 상점' : '달콤 상점' });
+      const trackingStartedAt = mode === 'pre-tracking' ? '2026-07-17T15:00:00Z' : mode === 'partial-tracking' ? '2026-07-10T00:00:00Z' : dashboard.trackingStartedAt;
+      return json({ ...dashboard, storeId, storeName: storeId === 2 ? '개인 상점' : '달콤 상점', trackingStartedAt });
     }
     if (url.includes('/operations/campaigns')) return json(page(mode === 'personal-empty' || url.includes('/stores/2/') ? [] : campaignRows, url));
     if (url.includes('/operations/coupon-outcomes')) return json(page(couponRows, url));
@@ -164,6 +193,10 @@ function installApi(mode: FetchMode) {
 function calledUrl(fetchMock: ReturnType<typeof vi.fn>, route: string) {
   const call = [...fetchMock.mock.calls].reverse().find(([url]) => String(url).includes(route));
   return call ? String(call[0]) : '';
+}
+
+function calledUrls(fetchMock: ReturnType<typeof vi.fn>, route: string) {
+  return fetchMock.mock.calls.filter(([url]) => String(url).includes(route));
 }
 
 function json(data: unknown) {

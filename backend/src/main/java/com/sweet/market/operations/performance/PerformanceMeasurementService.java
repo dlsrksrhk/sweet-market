@@ -15,6 +15,7 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -29,6 +30,7 @@ public class PerformanceMeasurementService {
 
     private static final int MAX_CANONICAL_PAYLOAD_BYTES = 1024 * 1024;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final long ACTUAL_DURATION_TOLERANCE_SECONDS = 5L;
     private static final Set<String> REQUIRED_ENDPOINTS = Set.of("catalog", "events", "popularity", "detail");
     private static final Set<String> REQUIRED_QUERY_SHAPES = Set.of(
             "GLOBAL_CATALOG", "FIXED_STORE_CATALOG", "ACTIVE_EVENTS", "POPULARITY"
@@ -171,6 +173,16 @@ public class PerformanceMeasurementService {
         if (!mode.completedAt().isAfter(mode.startedAt())) {
             throw invalid(field + ".completedAt", "완료 시각은 시작 시각보다 뒤여야 합니다.");
         }
+        Duration expectedDuration = Duration.ofSeconds(
+                (long) mode.warmupSeconds() + mode.measuredSeconds());
+        Duration actualDuration = Duration.between(mode.startedAt(), mode.completedAt());
+        if (actualDuration.compareTo(expectedDuration.minusSeconds(
+                ACTUAL_DURATION_TOLERANCE_SECONDS)) < 0
+                || actualDuration.compareTo(expectedDuration.plusSeconds(
+                ACTUAL_DURATION_TOLERANCE_SECONDS)) > 0) {
+            throw invalid(field + ".completedAt",
+                    "실제 측정 시간은 warmupSeconds + measuredSeconds의 ±5초 이내여야 합니다.");
+        }
         validateEndpointMetrics(mode.endpointMetrics(), requiredMode, field + ".endpointMetrics");
         validateQueryEvidence(mode.queryEvidence(), requiredMode, field + ".queryEvidence");
         return mode;
@@ -262,6 +274,12 @@ public class PerformanceMeasurementService {
                 && off.measuredSeconds() == on.measuredSeconds();
         if (!comparable) {
             throw invalid("off.on.comparability", "OFF/ON 측정의 환경 및 시나리오 메타데이터가 일치해야 합니다.");
+        }
+        Duration offDuration = Duration.between(off.startedAt(), off.completedAt());
+        Duration onDuration = Duration.between(on.startedAt(), on.completedAt());
+        if (offDuration.minus(onDuration).abs()
+                .compareTo(Duration.ofSeconds(ACTUAL_DURATION_TOLERANCE_SECONDS)) > 0) {
+            throw invalid("off.on.duration", "OFF/ON 실제 측정 시간 차이는 5초 이내여야 합니다.");
         }
     }
 
