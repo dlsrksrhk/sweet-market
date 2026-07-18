@@ -20,6 +20,10 @@ export function ProjectionHealthPanel({ health, page, onPageChange }: { health: 
     queryFn: () => getDeadOperationalEvents(page, PAGE_SIZE),
   });
   useEffect(() => {
+    if (deadQuery.data?.totalPages === 0 && page !== 0) {
+      onPageChange(0, true);
+      return;
+    }
     if (deadQuery.data && deadQuery.data.totalPages > 0 && page >= deadQuery.data.totalPages) {
       onPageChange(deadQuery.data.totalPages - 1, true);
     }

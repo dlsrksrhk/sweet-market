@@ -233,6 +233,28 @@ describe('AdminOperationsDashboardPage', () => {
     await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('deadPage=1'));
     expect(screen.queryByText('DEAD event가 없습니다')).toBeNull();
   });
+
+  it('전역_마지막_DEAD행을_재시도하면_stale_page를_0으로_replace한다', async () => {
+    installApi({ deadBecomesEmptyAfterRetry: true });
+    const user = userEvent.setup();
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true));
+    renderPage('/admin/dashboard?deadPage=2');
+
+    await user.click(await screen.findByRole('button', { name: '재시도' }));
+    expect(await screen.findByText('DEAD event를 재시도 대기열로 이동했습니다.')).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('deadPage=0'));
+    expect(await screen.findByText('DEAD event가 없습니다')).toBeTruthy();
+  });
+
+  it('측정이_0건이면_stale_performance_page와_run을_지우고_상세를_요청하지_않는다', async () => {
+    const fetchMock = installApi();
+    renderPage('/admin/dashboard?performancePage=5&performanceRun=33');
+
+    expect(await screen.findByText('성능 측정 전')).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId('location-search').textContent).toContain('performancePage=0'));
+    expect(screen.getByTestId('location-search').textContent).not.toContain('performanceRun=');
+    expect(called(fetchMock, '/performance-measurements/33')).toHaveLength(0);
+  });
 });
 
 function renderPage(initialEntry = '/admin/dashboard') {
@@ -247,7 +269,7 @@ function LocationProbe() {
   return <><output data-testid="location-search">{location.search}</output><output data-testid="navigation-type">{navigationType}</output><button type="button" onClick={() => navigate(-1)}>뒤로</button></>;
 }
 
-function installApi(options: { overviewError?: boolean; overviewResponse?: Promise<Response>; preTracking?: boolean; retryResponse?: Promise<Response>; retryConflict?: boolean; rebuildResponse?: Promise<Response>; rebuildConflict?: boolean; performanceAvailable?: boolean; staleEvidencePages?: boolean; deadShrinksAfterRetry?: boolean } = {}) {
+function installApi(options: { overviewError?: boolean; overviewResponse?: Promise<Response>; preTracking?: boolean; retryResponse?: Promise<Response>; retryConflict?: boolean; rebuildResponse?: Promise<Response>; rebuildConflict?: boolean; performanceAvailable?: boolean; staleEvidencePages?: boolean; deadShrinksAfterRetry?: boolean; deadBecomesEmptyAfterRetry?: boolean } = {}) {
   let deadRetried = false;
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
@@ -270,6 +292,9 @@ function installApi(options: { overviewError?: boolean; overviewResponse?: Promi
       if (options.deadShrinksAfterRetry) {
         if (deadRetried && url.includes('page=2')) return json(paged([], url, 40, 2));
         return json(paged(deadEvents, url, deadRetried ? 40 : 41, deadRetried ? 2 : 3));
+      }
+      if (options.deadBecomesEmptyAfterRetry) {
+        return json(deadRetried ? paged([], url, 0, 0) : paged(deadEvents, url, 41, 3));
       }
       return json(page(deadEvents, url));
     }

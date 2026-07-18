@@ -19,6 +19,10 @@ export function PerformanceMeasurementPanel({ page, selectedRunId, onPageChange,
   });
 
   useEffect(() => {
+    if (listQuery.data?.totalPages === 0 && (page !== 0 || selectedRunId !== null)) {
+      onPageChange(0, true);
+      return;
+    }
     if (listQuery.data && listQuery.data.totalPages > 0 && page >= listQuery.data.totalPages) {
       onPageChange(listQuery.data.totalPages - 1, true);
       return;
@@ -31,7 +35,7 @@ export function PerformanceMeasurementPanel({ page, selectedRunId, onPageChange,
   const detailQuery = useQuery({
     queryKey: adminOperationsDashboardQueryKeys.measurement(selectedRunId),
     queryFn: () => getPerformanceMeasurement(selectedRunId!),
-    enabled: selectedRunId !== null,
+    enabled: selectedRunId !== null && listQuery.data !== undefined && listQuery.data.totalElements > 0,
   });
 
   return (
