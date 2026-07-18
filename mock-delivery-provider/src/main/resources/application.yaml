@@ -19,3 +19,18 @@ management:
     web:
       exposure:
         include: health,info
+
+provider:
+  integration-security:
+    allowed-clock-skew: PT5M
+    max-body-bytes: 1048576
+    replay-retention: PT10M
+    cleanup-batch-size: 1000
+    clients:
+      - client-id: sweet-market
+        api-key: ${DELIVERY_PROVIDER_MERCHANT_API_KEY}
+        keys:
+          - key-id: ${DELIVERY_PROVIDER_HMAC_CURRENT_KEY_ID}
+            secret: ${DELIVERY_PROVIDER_HMAC_CURRENT_SECRET}
+          - key-id: ${DELIVERY_PROVIDER_HMAC_NEXT_KEY_ID}
+            secret: ${DELIVERY_PROVIDER_HMAC_NEXT_SECRET}
