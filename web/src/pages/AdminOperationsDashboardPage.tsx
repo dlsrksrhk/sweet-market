@@ -59,7 +59,7 @@ export function AdminOperationsDashboardPage() {
     setCustomTo(urlState.period.to ?? '');
     setStoreIdText(urlState.storeId ? String(urlState.storeId) : '');
     setProductIdText(urlState.productId ? String(urlState.productId) : '');
-  }, [urlState.period.from, urlState.period.to, urlState.storeId, urlState.productId]);
+  }, [canonicalSearch, urlState.period.from, urlState.period.to, urlState.storeId, urlState.productId]);
 
   const updateUrlState = (update: (next: AdminDashboardUrlState) => void) => {
     const next = copyAdminDashboardUrlState(urlState);
