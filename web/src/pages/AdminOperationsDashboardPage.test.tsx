@@ -64,6 +64,12 @@ describe('AdminOperationsDashboardPage', () => {
 
     expect(await screen.findByText('플랫폼 운영 요약을 불러오지 못했습니다.')).toBeTruthy();
     expect(await screen.findByText('프로젝터 상태를 확인할 수 없습니다')).toBeTruthy();
+    expect((await screen.findAllByText('추적 범위를 확인할 수 없습니다.')).length).toBeGreaterThan(1);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(called(fetchMock, '/operations-dashboard/campaigns')).toHaveLength(0);
+    expect(called(fetchMock, '/operations-dashboard/outcomes')).toHaveLength(0);
+    expect(called(fetchMock, '/operations-dashboard/inventory-pressure')).toHaveLength(0);
+    expect(called(fetchMock, '/operations-dashboard/audits')).toHaveLength(0);
     const retry = await screen.findByRole('button', { name: '재시도' });
     await user.click(retry);
     await waitFor(() => expect(called(fetchMock, '/retry')).toHaveLength(1));
@@ -106,12 +112,16 @@ describe('AdminOperationsDashboardPage', () => {
   });
 
   it('선택기간이_추적시작전이면_0이_아니라_측정전으로_표시하고_각_집계에_근거를_표시한다', async () => {
-    installApi({ preTracking: true });
+    const fetchMock = installApi({ preTracking: true });
     renderPage('/admin/dashboard?from=2026-01-01&to=2026-01-31');
 
     expect((await screen.findAllByText('측정 전')).length).toBeGreaterThan(1);
     expect(screen.queryByText('10건')).toBeNull();
     expect(screen.getAllByText(/집계 기준.*2026-01-01.*2026-01-31.*생성/).length).toBeGreaterThanOrEqual(4);
+    expect(called(fetchMock, '/operations-dashboard/campaigns')).toHaveLength(0);
+    expect(called(fetchMock, '/operations-dashboard/outcomes')).toHaveLength(0);
+    expect(called(fetchMock, '/operations-dashboard/inventory-pressure')).toHaveLength(0);
+    expect(called(fetchMock, '/operations-dashboard/audits')).toHaveLength(0);
   });
 
   it('부분추적_기간은_추적시작이후_집계임을_알리고_상세를_조회한다', async () => {
@@ -121,6 +131,9 @@ describe('AdminOperationsDashboardPage', () => {
     expect((await screen.findAllByText(/추적 시작.*이후 집계만 포함합니다/)).length).toBeGreaterThan(1);
     expect(await screen.findByRole('table', { name: '관리자 캠페인 성과' })).toBeTruthy();
     expect(called(fetchMock, '/operations-dashboard/campaigns').length).toBeGreaterThan(0);
+    expect(called(fetchMock, '/operations-dashboard/outcomes').length).toBeGreaterThan(0);
+    expect(called(fetchMock, '/operations-dashboard/inventory-pressure').length).toBeGreaterThan(0);
+    expect(called(fetchMock, '/operations-dashboard/audits').length).toBeGreaterThan(0);
   });
 
   it('전체추적_기간은_조회기간_누적을_표시하고_상세를_조회한다', async () => {
@@ -130,6 +143,9 @@ describe('AdminOperationsDashboardPage', () => {
     expect((await screen.findAllByText('조회 기간 누적')).length).toBeGreaterThan(0);
     expect(await screen.findByRole('table', { name: '관리자 캠페인 성과' })).toBeTruthy();
     expect(called(fetchMock, '/operations-dashboard/campaigns').length).toBeGreaterThan(0);
+    expect(called(fetchMock, '/operations-dashboard/outcomes').length).toBeGreaterThan(0);
+    expect(called(fetchMock, '/operations-dashboard/inventory-pressure').length).toBeGreaterThan(0);
+    expect(called(fetchMock, '/operations-dashboard/audits').length).toBeGreaterThan(0);
   });
 
   it('재시도는_진행상태를_표시하고_성공후_운영과_DEAD_query를_무효화하며_충돌을_표시한다', async () => {
@@ -183,11 +199,15 @@ describe('AdminOperationsDashboardPage', () => {
     expect((await screen.findAllByText('추적 범위를 확인하고 있습니다.')).length).toBeGreaterThan(1);
     expect(called(fetchMock, '/operations-dashboard/campaigns')).toHaveLength(0);
     expect(called(fetchMock, '/operations-dashboard/outcomes')).toHaveLength(0);
+    expect(called(fetchMock, '/operations-dashboard/inventory-pressure')).toHaveLength(0);
+    expect(called(fetchMock, '/operations-dashboard/audits')).toHaveLength(0);
     releaseOverview(await jsonResponse({ ...dashboard, trackingStartedAt: '2026-02-01T00:00:00Z', period: { ...dashboard.period, from: '2026-01-01', to: '2026-01-31', fromInclusive: '2025-12-31T15:00:00Z', toExclusive: '2026-01-31T15:00:00Z' } }));
 
     expect((await screen.findAllByText('측정 전')).length).toBeGreaterThan(1);
     expect(called(fetchMock, '/operations-dashboard/campaigns')).toHaveLength(0);
     expect(called(fetchMock, '/operations-dashboard/outcomes')).toHaveLength(0);
+    expect(called(fetchMock, '/operations-dashboard/inventory-pressure')).toHaveLength(0);
+    expect(called(fetchMock, '/operations-dashboard/audits')).toHaveLength(0);
   });
 
   it('재구축은_진행중_비활성화하고_성공후_query를_무효화하며_BUILDING충돌을_표시한다', async () => {

@@ -77,7 +77,7 @@ export function StoreOperationsDashboardPage() {
   const auditsInput = { ...urlState.period, campaignKind: urlState.auditKind || undefined, command: urlState.auditCommand || undefined, page: urlState.pages['campaign-audits'], size: PAGE_SIZE };
   const dashboardQuery = useQuery({ queryKey: storeOperationsDashboardQueryKeys.dashboard(storeId, urlState.period), queryFn: () => getStoreOperationsDashboard(storeId, urlState.period), enabled: selectedStore !== null });
   const coverage = dashboardQuery.data ? deriveTrackingCoverage(dashboardQuery.data.period, dashboardQuery.data.trackingStartedAt) : undefined;
-  const drilldownsEnabled = selectedStore !== null && (dashboardQuery.isError || (coverage !== undefined && coverage !== 'UNTRACKED'));
+  const drilldownsEnabled = selectedStore !== null && (coverage === 'PARTIAL' || coverage === 'TRACKED');
   const campaignsQuery = useQuery({ queryKey: storeOperationsDashboardQueryKeys.campaigns(storeId, campaignsInput), queryFn: () => getStoreCampaignMetrics(storeId, campaignsInput), enabled: drilldownsEnabled && urlState.tab === 'campaigns' });
   const couponOutcomesQuery = useQuery({ queryKey: storeOperationsDashboardQueryKeys.couponOutcomes(storeId, couponOutcomesInput), queryFn: () => getStoreCouponOutcomes(storeId, couponOutcomesInput), enabled: drilldownsEnabled && urlState.tab === 'coupon-outcomes' });
   const inventoryQuery = useQuery({ queryKey: storeOperationsDashboardQueryKeys.inventoryPressure(storeId, inventoryInput), queryFn: () => getStoreInventoryPressure(storeId, inventoryInput), enabled: drilldownsEnabled && urlState.tab === 'inventory-pressure' });
@@ -129,7 +129,7 @@ export function StoreOperationsDashboardPage() {
         <nav className="operations-drilldown-tabs" aria-label="운영 상세 영역">{drilldownTabs.map((tab) => <button type="button" key={tab.value} aria-current={urlState.tab === tab.value ? 'page' : undefined} onClick={() => updateUrlState((next) => { next.tab = tab.value; })}>{tab.label}</button>)}</nav>
         <DrilldownFilters state={urlState} update={(field, value) => updateUrlState((next) => { (next as unknown as Record<string, unknown>)[field] = value; next.pages[urlState.tab] = 0; })} />
         <DrilldownContent activeTab={urlState.tab} store={selectedStore} coverage={coverage} provenancePending={dashboardQuery.isPending} campaigns={campaignsQuery.data} couponOutcomes={couponOutcomesQuery.data} inventory={inventoryQuery.data} purchaseOutcomes={purchaseOutcomesQuery.data} audits={campaignAuditsQuery.data} loading={urlState.tab === 'campaigns' ? campaignsQuery.isLoading : urlState.tab === 'coupon-outcomes' ? couponOutcomesQuery.isLoading : urlState.tab === 'inventory-pressure' ? inventoryQuery.isLoading : urlState.tab === 'purchase-outcomes' ? purchaseOutcomesQuery.isLoading : campaignAuditsQuery.isLoading} error={urlState.tab === 'campaigns' ? campaignsQuery.error : urlState.tab === 'coupon-outcomes' ? couponOutcomesQuery.error : urlState.tab === 'inventory-pressure' ? inventoryQuery.error : urlState.tab === 'purchase-outcomes' ? purchaseOutcomesQuery.error : campaignAuditsQuery.error} />
-        <DashboardPagination data={coverage === 'UNTRACKED' ? undefined : urlState.tab === 'campaigns' ? campaignsQuery.data : urlState.tab === 'coupon-outcomes' ? couponOutcomesQuery.data : urlState.tab === 'inventory-pressure' ? inventoryQuery.data : urlState.tab === 'purchase-outcomes' ? purchaseOutcomesQuery.data : campaignAuditsQuery.data} page={activePage} onPageChange={(page) => updateUrlState((next) => { next.pages[urlState.tab] = page; })} />
+        <DashboardPagination data={drilldownsEnabled ? urlState.tab === 'campaigns' ? campaignsQuery.data : urlState.tab === 'coupon-outcomes' ? couponOutcomesQuery.data : urlState.tab === 'inventory-pressure' ? inventoryQuery.data : urlState.tab === 'purchase-outcomes' ? purchaseOutcomesQuery.data : campaignAuditsQuery.data : undefined} page={activePage} onPageChange={(page) => updateUrlState((next) => { next.pages[urlState.tab] = page; })} />
       </section>
     </main>
   );
@@ -167,6 +167,7 @@ type DrilldownContentProps = { activeTab: DrilldownTab; store: OperableStore; co
 
 function DrilldownContent({ activeTab, store, coverage, provenancePending, campaigns, couponOutcomes, inventory, purchaseOutcomes, audits, loading, error }: DrilldownContentProps) {
   if (provenancePending) return <p className="status-text" role="status">추적 범위를 확인하고 있습니다.</p>;
+  if (coverage === undefined) return <EmptyState title="추적 범위를 확인할 수 없습니다." description="운영 요약을 다시 불러온 뒤 상세 지표를 확인해주세요." />;
   if (coverage === 'UNTRACKED') return <EmptyState title="측정 전" description="선택한 기간은 운영 이벤트 추적 시작 전이므로 0으로 해석하지 않습니다." />;
   if (loading) return <p className="status-text" role="status">상세 운영 지표를 불러오고 있습니다.</p>;
   if (error) return <ErrorState message={errorMessage(error, '상세 운영 지표 요청에 실패했습니다. 요약 지표는 계속 확인할 수 있습니다.')} />;

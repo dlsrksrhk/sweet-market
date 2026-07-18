@@ -241,6 +241,17 @@ class PerformanceMeasurementApiTest extends IntegrationTestSupport {
     }
 
     @Test
+    void 실제시간은_선언시간보다_5초길어도_등록한다() throws Exception {
+        String token = bearer(saveAdmin("performance-duration-positive-boundary@example.com"));
+        ObjectNode request = validRequest();
+        ((ObjectNode) request.path("off")).put("completedAt", "2026-07-17T00:05:35Z");
+
+        register(token, request);
+
+        assertThat(countRows("performance_measurement_runs")).isOne();
+    }
+
+    @Test
     void 권위_run4의_OFF_361초_ON_362초는_유효하고_비교가능하다() throws Exception {
         String token = bearer(saveAdmin("performance-run4@example.com"));
         JsonNode request = objectMapper.readTree(Path.of(

@@ -105,10 +105,21 @@ describe('StoreOperationsDashboardPage mounted experience', () => {
 
     cleanup();
     vi.unstubAllGlobals();
-    installApi('overview-error');
+    const overviewErrorFetch = installApi('overview-error');
+    const user = userEvent.setup();
     renderPage('/me/store/dashboard?storeId=1');
     expect(await screen.findByText('운영 요약을 불러오지 못했습니다.')).toBeTruthy();
-    expect(await screen.findByRole('table', { name: '캠페인 성과' })).toBeTruthy();
+    expect(await screen.findByText('추적 범위를 확인할 수 없습니다.')).toBeTruthy();
+    for (const tab of ['쿠폰 결과', '재고 주의', '주문 결과', '캠페인 변경']) {
+      await user.click(screen.getByRole('button', { name: tab }));
+      expect(await screen.findByText('추적 범위를 확인할 수 없습니다.')).toBeTruthy();
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(calledUrls(overviewErrorFetch, '/operations/campaigns')).toHaveLength(0);
+    expect(calledUrls(overviewErrorFetch, '/operations/coupon-outcomes')).toHaveLength(0);
+    expect(calledUrls(overviewErrorFetch, '/operations/inventory-pressure')).toHaveLength(0);
+    expect(calledUrls(overviewErrorFetch, '/operations/purchase-outcomes')).toHaveLength(0);
+    expect(calledUrls(overviewErrorFetch, '/operations/campaign-audits')).toHaveLength(0);
 
     cleanup();
     vi.unstubAllGlobals();

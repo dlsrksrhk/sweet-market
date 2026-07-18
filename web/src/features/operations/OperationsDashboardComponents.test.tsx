@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { OperationsPeriodControls } from './OperationsPeriodControls';
 import { OperationsSummaryCards } from './OperationsSummaryCards';
 import type { StoreOperationsDashboard } from './storeOperationsDashboardApi';
+import { deriveTrackingCoverage } from './trackingCoverage';
 
 const dashboard: StoreOperationsDashboard = {
   storeId: 7,
@@ -80,6 +81,18 @@ describe('OperationsSummaryCards', () => {
     expect(html).toContain('<dt>환불</dt><dd>10원</dd>');
     expect(html).toContain('<dt>취소</dt><dd>15원</dd>');
     expect(html).toContain('<dt>환불</dt><dd>5원</dd>');
+  });
+});
+
+describe('deriveTrackingCoverage', () => {
+  it('종료경계가_추적시작과_같으면_UNTRACKED다', () => {
+    expect(deriveTrackingCoverage(dashboard.period, dashboard.period.toExclusive))
+      .toBe('UNTRACKED');
+  });
+
+  it('시작경계가_추적시작과_같으면_TRACKED다', () => {
+    expect(deriveTrackingCoverage(dashboard.period, dashboard.period.fromInclusive))
+      .toBe('TRACKED');
   });
 });
 
