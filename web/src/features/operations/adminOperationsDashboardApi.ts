@@ -118,9 +118,9 @@ export type EndpointMetric = {
   throughputPerSecond: number;
   errorRate: number;
   jdbcStatementCount: number;
-  cacheHitCount: number;
-  cacheMissCount: number;
-  cacheEvictionCount: number;
+  cacheHitCount: number | null;
+  cacheMissCount: number | null;
+  cacheEvictionCount: number | null;
 };
 
 export type QueryEvidence = {

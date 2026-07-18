@@ -40,6 +40,27 @@ describe('PerformanceMeasurementDetail', () => {
     expect(html).not.toContain('개선');
     expect(html).not.toContain('악화');
   });
+
+  it('nullable_cache_측정값은_대시보드를_중단하지않고_측정값없음으로_표시한다', () => {
+    const nullableMeasurement: PerformanceMeasurement = {
+      ...measurement,
+      endpointMetrics: measurement.endpointMetrics.map((metric) => ({
+        ...metric,
+        cacheHitCount: null,
+        cacheMissCount: null,
+        cacheEvictionCount: null,
+      })),
+    };
+
+    const render = () => renderToStaticMarkup(
+      <PerformanceMeasurementDetail measurement={nullableMeasurement} />,
+    );
+
+    expect(render).not.toThrow();
+    expect(render()).toContain('hit: 측정값 없음');
+    expect(render()).toContain('miss: 측정값 없음');
+    expect(render()).toContain('eviction: 측정값 없음');
+  });
 });
 
 describe('ProjectionHealthSummary', () => {

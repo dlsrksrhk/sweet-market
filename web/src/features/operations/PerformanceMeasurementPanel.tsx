@@ -163,8 +163,8 @@ function MetricCell({ label, ...props }: { label: string; off?: number; on?: num
   return <td data-label={label}><MetricValue {...props} /></td>;
 }
 
-function MetricValue({ name, off, on, comparable, better }: { name?: string; off?: number; on?: number; comparable: boolean; better: 'higher' | 'lower' }) {
-  if (off === undefined || on === undefined) return <span>{name ? `${name}: ` : ''}측정값 없음</span>;
+function MetricValue({ name, off, on, comparable, better }: { name?: string; off?: number | null; on?: number | null; comparable: boolean; better: 'higher' | 'lower' }) {
+  if (off == null || on == null) return <span>{name ? `${name}: ` : ''}측정값 없음</span>;
   const delta = on - off;
   const improved = better === 'lower' ? delta < 0 : delta > 0;
   return (
