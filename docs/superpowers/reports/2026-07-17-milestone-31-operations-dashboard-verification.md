@@ -4,7 +4,7 @@
 
 M31 reconciles the operational projection against a fixed `Asia/Seoul` source fixture and passes the focused operations suite, complete backend suite, complete web test suite, production web build, performance-evidence replay, and repository whitespace checks. No M21-M30 regression was observed.
 
-Rendered browser QA remains unexecuted because the Codex browser runtime reported no available browser instances. The role, recovery, URL-state, accessibility, and responsive contracts were therefore verified through the passing backend and jsdom suites plus source inspection, not represented as a manual browser pass.
+Rendered browser QA completed against the local backend and Vite application for OUTSIDER, OWNER, MANAGER, and ADMIN roles at desktop and mobile widths. The walkthrough confirmed authorization, drill-down, measurement, recovery, privacy, and responsive contracts in addition to the passing backend and jsdom suites.
 
 ## Reconciliation fixture
 
@@ -35,7 +35,7 @@ The test additionally proves that the foreign store sees only its own one order,
 
 ## Verification commands
 
-All backend commands ran from `backend` with JDK 21 and `JWT_SECRET=sweet-market-local-test-secret-key-32bytes-minimum`.
+All backend commands ran from `backend` with JDK 21 and a configured `JWT_SECRET=[REDACTED]` value of the required length.
 
 | Check | Exact result |
 | --- | --- |
@@ -49,7 +49,7 @@ All backend commands ran from `backend` with JDK 21 and `JWT_SECRET=sweet-market
 | Production web | `npm run build`: TypeScript passed; Vite transformed 165 modules and built in 1.59s. |
 | Node performance tools | `node --test performance/normalize-m30-measurement.test.mjs performance/parse-m30-jdbc-trace.test.mjs`: 24 passed, 0 failed. |
 | PowerShell tools | Both `collect-m30-measurement.ps1` and `capture-m30-query-evidence.ps1` parsed with zero PowerShell parser errors. |
-| Evidence replay | Normalizer replay SHA-256 `73c095ba399e30dfe249840be2cadab91b5c05c880294ceefcdc44ce21518f5e` exactly matched the registered request hash. |
+| Evidence replay | Normalizer replay SHA-256 `73c095ba399e30dfe249840be2cadab91b5c05c880294ceefcdc44ce21518f5e` exactly matched the registered request-file hash. The separately computed server canonical-payload SHA-256 is `122d6823d9c8fccea5678228dcb8d417ae0be5b8535e02c6a6da7d422c8b791c`. |
 | Evidence audit | 10 JSON artifacts parsed; collector before/after/plan identity, fixed clock, HTTP trace threads, bind counts, full plans, route-sample allowlist, secret/absolute-path/placeholder scan all passed. |
 | Hygiene | `git diff --check` exited 0. Pre-existing Task 2-4 scratch report modifications remained unstaged and unmodified by Task 14. |
 
@@ -94,11 +94,20 @@ The four SQL shapes are global catalog, fixed-store catalog, active events, and 
 - ADMIN: backend verifies cross-store/platform overview and denies ordinary members; web exposes only the platform-coupon management link and no store campaign mutation.
 - ADMIN recovery: backend and web verify payload-preserving DEAD retry and explicit, payload-free rebuild confirmation, including success and conflict states.
 - ADMIN measurement: API registration/list/detail and web comparable/unavailable/invalid states are covered; the registered run artifacts independently pass replay and provenance audit.
-- MOBILE: native table headers and mobile CSS contracts are covered by source/jsdom tests, but rendered no-horizontal-overflow inspection could not run without a browser instance.
+- MOBILE: native table headers and mobile CSS contracts are covered by source/jsdom tests and the rendered store/admin routes both kept the document root at `375/375` client/scroll width. The admin measurement run list uses its intended internal `overflow-x: auto` container without global page overflow.
+
+## Rendered browser QA
+
+- OUTSIDER: `/me/store/dashboard` rendered the no-authorized-store guidance and did not expose store metrics.
+- OWNER: store 1 rendered the overview and drill-downs, kept applied/realized/canceled/refunded amounts separate, and exposed promotion/coupon owner controls. The coupon-outcome drill-down restored its URL-backed state.
+- MANAGER: the same store overview and drill-down evidence remained readable, while promotion/coupon owner controls were absent.
+- ADMIN: `/admin/dashboard` rendered overview and investigation drill-downs, projector health/rebuild/DEAD privacy controls, and measurement run 4 (`385b4525-21a2-4f4a-875f-364449f59957`) as valid/comparable with OFF/ON details and the `performance/results/m30-v1` evidence path. No SQL execution control was present.
+- Responsive inspection: the desktop dashboard root was `1265/1265` client/scroll width. The store and admin routes were each `375/375` on mobile, with only the intentional admin run-list table container scrolling horizontally.
+- Fixture note: the performance fixture had no store memberships, so the walkthrough inserted test-only store-1 memberships for member 2 as OWNER and member 13 as MANAGER. These local database rows are not application migrations or repository fixtures.
+- Browser-discovered correction: the initial ADMIN render exposed nullable cache counters from run 4 and blanked the route. Commit `0f41e9c` added a failing render regression first, then typed and rendered nullable metrics as `측정값 없음`; the ADMIN desktop/mobile walkthrough passed after the fix.
 
 ## Remaining limitations
 
-1. Rendered desktop/mobile operator flows require a future browser-enabled pass; this run had no browser instance.
-2. Vite emits a non-failing chunk-size advisory: the main minified JavaScript chunk is 592.84 kB (165.46 kB gzip).
-3. Dashboard queries have bounded statement counts and plan-shape evidence, but no dedicated dashboard load-test latency distribution. A daily rollup remains conditional on such measurement.
-4. The database outbox poller is the current transport. Kafka remains a documented replacement boundary, not an installed dependency or an evidenced immediate need.
+1. Vite emits a non-failing chunk-size advisory: the main minified JavaScript chunk is 592.84 kB (165.46 kB gzip).
+2. Dashboard queries have bounded statement counts and plan-shape evidence, but no dedicated dashboard load-test latency distribution. A daily rollup remains conditional on such measurement.
+3. The database outbox poller is the current transport. Kafka remains a documented replacement boundary, not an installed dependency or an evidenced immediate need.

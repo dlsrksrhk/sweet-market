@@ -56,7 +56,11 @@ The full evidence lives at `performance/results/m30-v1`. Preserve the artifacts 
 - Production web build: passed.
 - Node normalizer/trace parser: 24/24 passed.
 - PowerShell parser, evidence replay/audit, and `git diff --check`: passed.
-- Rendered browser QA: not run because no browser instance was available; see the verification report limitation.
+- Rendered browser QA: OUTSIDER, OWNER, MANAGER, and ADMIN desktop flows passed. Store/admin mobile roots remained `375/375`, and the desktop root remained `1265/1265`; the admin run list alone uses intentional internal horizontal scrolling.
+- Measurement run 4 rendered valid/comparable OFF/ON details and `performance/results/m30-v1`; projector health/rebuild/DEAD privacy controls rendered without any SQL execution control.
+- Browser QA exposed nullable cache counters blanking the ADMIN route. Commit `0f41e9c` added the render regression and displays missing counters as `측정값 없음`; the ADMIN desktop/mobile retest passed.
+
+The role walkthrough used test-only local database memberships for store 1 (member 2 OWNER, member 13 MANAGER) because the performance fixture contained no memberships. Those rows are not durable fixtures or schema changes.
 
 ## Operator notes
 

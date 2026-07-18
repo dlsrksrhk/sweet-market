@@ -29,13 +29,15 @@ Do not infer an M32 scope from this handoff. A future product phase needs its ow
 - JDK 21 backend: 844 tests passed with no failures/errors/skips.
 - Web: 52 tests and the production build passed.
 - Evidence-tool and artifact integrity checks passed.
+- Rendered OUTSIDER/OWNER/MANAGER/ADMIN desktop flows passed. Store/admin mobile document roots remained `375/375`, the desktop root remained `1265/1265`, and only the admin run-list table used intentional internal horizontal scrolling.
+- ADMIN rendered run 4 as valid/comparable with OFF/ON evidence and projector recovery/privacy controls, without browser-side SQL execution controls.
+- Browser QA found nullable cache counters blanking the ADMIN route; TDD commit `0f41e9c` renders them as `측정값 없음`, and the desktop/mobile retest passed.
 
 ## Evidence-backed deferred candidates only
 
-1. **Rendered multi-viewport operator QA.** The current environment exposed no browser instances, so desktop and mobile flows still need a browser-enabled visual pass, particularly horizontal page overflow on both dashboard routes.
-2. **Route-level web code splitting.** Vite reports the main minified chunk at 592.84 kB (165.46 kB gzip), above its 500 kB advisory threshold.
-3. **Active-event and popularity SQL work followed by remeasurement.** The live plans record roughly 69/66 ms and 95/91 ms OFF/ON execution and 107,767/85,817 shared-hit blocks. Any optimization must preserve the exact fixture/workload/provenance gate and be followed by a new UUID, not overwrite or relabel run 4.
-4. **Production-context capacity measurement before production claims.** The registered comparison is valid for its recorded Windows/Docker/PostgreSQL 17/Redis 7.4/JDK 21 environment and hardware; it is not a fixed production RPS guarantee.
+1. **Route-level web code splitting.** Vite reports the main minified chunk at 592.84 kB (165.46 kB gzip), above its 500 kB advisory threshold.
+2. **Active-event and popularity SQL work followed by remeasurement.** The live plans record roughly 69/66 ms and 95/91 ms OFF/ON execution and 107,767/85,817 shared-hit blocks. Any optimization must preserve the exact fixture/workload/provenance gate and be followed by a new UUID, not overwrite or relabel run 4.
+3. **Production-context capacity measurement before production claims.** The registered comparison is valid for its recorded Windows/Docker/PostgreSQL 17/Redis 7.4/JDK 21 environment and hardware; it is not a fixed production RPS guarantee.
 
 Daily projection rollups, Kafka transport, distributed cache, search infrastructure, warehouse inventory, multi-store checkout, and autonomous campaign optimization are not promoted here: the current evidence does not establish an immediate requirement. Revisit them only when a measured constraint or new approved product phase supplies that evidence.
 
@@ -45,4 +47,5 @@ Daily projection rollups, Kafka transport, distributed cache, search infrastruct
 - Preserve `trackingStartedAt` semantics when changing projection retention or bootstrap.
 - Preserve the measurement artifacts under `performance/results/m30-v1` and distinguish historical superseded runs from the authoritative run 4.
 - Preserve unrelated primary-worktree documents and the Task 2-4 scratch reports; they are not Task 14 cleanup targets.
+- The browser walkthrough used test-only store-1 memberships (member 2 OWNER, member 13 MANAGER) in the local performance database; do not treat them as repository fixture data.
 - Use the M31 verification report and milestone handoff as the starting evidence for any next design.

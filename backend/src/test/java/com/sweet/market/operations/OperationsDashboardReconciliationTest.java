@@ -84,7 +84,10 @@ class OperationsDashboardReconciliationTest extends IntegrationTestSupport {
         recordSourceEvents(fixture);
         int recordedEventCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM operational_event_outbox", Integer.class);
-        Instant projectionTime = Instant.now().plusSeconds(5);
+        Instant projectionTime = kst(2026, 7, 17, 12, 0);
+        jdbcTemplate.update(
+                "UPDATE operational_event_outbox SET next_attempt_at = ?",
+                timestamp(projectionTime));
 
         assertThat(projectionCoordinator.projectNextBatch(projectionTime, 100))
                 .isEqualTo(recordedEventCount);
