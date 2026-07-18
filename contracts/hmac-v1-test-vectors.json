@@ -1,0 +1,13 @@
+{
+  "apiKey": "m32-test-api-key",
+  "keyId": "m32-test-key-1",
+  "secret": "m32-test-hmac-secret-32bytes-minimum",
+  "timestamp": 1784386800,
+  "requestId": "3b2f8c6a-2f88-4f75-8c7b-4ad40b519a41",
+  "method": "POST",
+  "rawTarget": "/api/v1/probes",
+  "bodyUtf8": "{\"message\":\"m32-contract-probe\"}",
+  "bodySha256": "1858662b42bc7be12235617df1cc1938fb5a3488e7132fc3a035bf5e8a4327d4",
+  "canonical": "v1\nm32-test-key-1\n1784386800\n3b2f8c6a-2f88-4f75-8c7b-4ad40b519a41\nPOST\n/api/v1/probes\n1858662b42bc7be12235617df1cc1938fb5a3488e7132fc3a035bf5e8a4327d4",
+  "signature": "00c0d3767207c817239881c692fb37de931444242e18186c08a95c51114cd2ac"
+}

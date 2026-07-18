@@ -1,0 +1,52 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Sweet Market Payment Gateway Probe Webhook API", "version": "v1" },
+  "servers": [{ "url": "http://localhost:8080" }],
+  "paths": {
+    "/api/integrations/payment-gateway/v1/probes": {
+      "post": {
+        "parameters": [
+          { "name": "X-Api-Key", "in": "header", "required": true, "schema": { "type": "string" } },
+          { "name": "X-Key-Id", "in": "header", "required": true, "schema": { "type": "string" } },
+          { "name": "X-Request-Id", "in": "header", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "X-Timestamp", "in": "header", "required": true, "description": "Epoch seconds accepted within plus or minus 300 seconds.", "schema": { "type": "string", "pattern": "^[0-9]+$" } },
+          { "name": "X-Signature", "in": "header", "required": true, "description": "Lowercase HMAC-SHA256 hex of the v1 canonical payload.", "schema": { "type": "string", "pattern": "^[0-9a-f]{64}$" } },
+          { "name": "X-Correlation-Id", "in": "header", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "traceparent", "in": "header", "required": false, "schema": { "type": "string" } },
+          { "name": "Content-Type", "in": "header", "required": true, "schema": { "const": "application/json" } }
+        ],
+        "x-raw-body-limit-bytes": 1048576,
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProbeWebhook" } } } },
+        "responses": {
+          "204": { "description": "Probe webhook accepted" },
+          "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Conflict" }, "413": { "$ref": "#/components/responses/PayloadTooLarge" }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "XApiKey": { "name": "X-Api-Key", "in": "header", "required": true, "schema": { "type": "string" } },
+      "XKeyId": { "name": "X-Key-Id", "in": "header", "required": true, "schema": { "type": "string" } },
+      "XRequestId": { "name": "X-Request-Id", "in": "header", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "XTimestamp": { "name": "X-Timestamp", "in": "header", "required": true, "description": "Epoch seconds accepted within plus or minus 300 seconds.", "schema": { "type": "string", "pattern": "^[0-9]+$" } },
+      "XSignature": { "name": "X-Signature", "in": "header", "required": true, "description": "Lowercase HMAC-SHA256 hex of the v1 canonical payload.", "schema": { "type": "string", "pattern": "^[0-9a-f]{64}$" } },
+      "XCorrelationId": { "name": "X-Correlation-Id", "in": "header", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "Traceparent": { "name": "traceparent", "in": "header", "required": false, "schema": { "type": "string" } },
+      "ContentType": { "name": "Content-Type", "in": "header", "required": true, "schema": { "const": "application/json" } }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid signed request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IntegrationError" } } } },
+      "Unauthorized": { "description": "Authentication failed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IntegrationError" } } } },
+      "Conflict": { "description": "Replay detected", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IntegrationError" } } } },
+      "PayloadTooLarge": { "description": "Raw body exceeds 1048576 bytes", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IntegrationError" } } } }
+    },
+    "schemas": {
+      "ProbeRequest": { "type": "object", "additionalProperties": false, "required": ["message"], "properties": { "message": { "type": "string", "minLength": 1, "maxLength": 100 } } },
+      "ProbeResponse": { "type": "object", "additionalProperties": false, "required": ["service", "message", "requestId", "correlationId"], "properties": { "service": { "type": "string" }, "message": { "type": "string" }, "requestId": { "type": "string", "format": "uuid" }, "correlationId": { "type": "string", "format": "uuid" } } },
+      "ProbeWebhook": { "type": "object", "additionalProperties": false, "required": ["source", "message"], "properties": { "source": { "enum": ["PAYMENT_GATEWAY", "DELIVERY_PROVIDER"] }, "message": { "type": "string", "minLength": 1, "maxLength": 100 } } },
+      "IntegrationError": { "type": "object", "additionalProperties": false, "required": ["code", "message", "requestId"], "properties": { "code": { "type": "string" }, "message": { "type": "string" }, "requestId": { "type": ["string", "null"], "format": "uuid" } } }
+    }
+  }
+}
