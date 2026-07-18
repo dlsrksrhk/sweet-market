@@ -2,7 +2,7 @@
 
 ## Result
 
-M31 reconciles the operational projection against a fixed `Asia/Seoul` source fixture and passes the focused operations suite, complete backend suite, complete web test suite, production web build, performance-evidence replay, and repository whitespace checks. No M21-M30 regression was observed.
+M31 reconciles the operational projection against a fixed `Asia/Seoul` source fixture and passes the focused operations suite, complete backend suite, complete web test suite, production web build, performance-evidence replay, and repository whitespace checks. Final-review hardening also isolates forward-compatible unknown stored event types without allowing producers to emit the read-side sentinel. No M21-M30 regression was observed.
 
 Rendered browser QA completed against the local backend and Vite application for OUTSIDER, OWNER, MANAGER, and ADMIN roles at desktop and mobile widths. The walkthrough confirmed authorization, drill-down, measurement, recovery, privacy, and responsive contracts in addition to the passing backend and jsdom suites.
 
@@ -44,14 +44,16 @@ All backend commands ran from `backend` with JDK 21 and a configured `JWT_SECRET
 | Reconciliation GREEN | Same focused command: `BUILD SUCCESSFUL in 16s`; 1 test, 0 failures. |
 | Final forced reconciliation | Same test with `--rerun-tasks`: `BUILD SUCCESSFUL in 30s`; all 5 Gradle tasks executed. |
 | Focused M31 backend | `gradlew.bat test --tests 'com.sweet.market.operations.*'`: `BUILD SUCCESSFUL in 39s`; 15 suites, 103 tests, 0 failures, 0 errors, 0 skipped. |
-| Complete backend | `gradlew.bat --no-daemon test`: `BUILD SUCCESSFUL in 4m 22s`; 127 suites, 844 tests, 0 failures, 0 errors, 0 skipped. |
-| Complete web | `npm test`: 13 files and 53 tests passed in 4.92s. |
-| Production web | `npm run build`: TypeScript passed; Vite transformed 165 modules and built in 1.54s. |
+| Complete backend | `gradlew.bat --no-daemon test`: `BUILD SUCCESSFUL in 4m 16s`; 127 suites, 846 tests, 0 failures, 0 errors, 0 skipped. |
+| Complete web | `npm test`: 13 files and 53 tests passed in 26.93s. |
+| Production web | `npm run build`: TypeScript passed; Vite transformed 165 modules and built in 1.70s. |
 | Node performance tools | `node --test performance/normalize-m30-measurement.test.mjs performance/parse-m30-jdbc-trace.test.mjs`: 24 passed, 0 failed. |
 | PowerShell tools | Both `collect-m30-measurement.ps1` and `capture-m30-query-evidence.ps1` parsed with zero PowerShell parser errors. |
 | Evidence replay | Normalizer replay SHA-256 `73c095ba399e30dfe249840be2cadab91b5c05c880294ceefcdc44ce21518f5e` exactly matched the registered request-file hash. The separately computed server canonical-payload SHA-256 is `122d6823d9c8fccea5678228dcb8d417ae0be5b8535e02c6a6da7d422c8b791c`. |
 | Evidence audit | 10 JSON artifacts parsed; collector before/after/plan identity, fixed clock, HTTP trace threads, bind counts, full plans, route-sample allowlist, secret/absolute-path/placeholder scan all passed. |
 | Hygiene | `git diff --check` exited 0. Pre-existing Task 2-4 scratch report modifications remained unstaged and unmodified by Task 14. |
+
+Final-review hardening commits `4825671` and `0a18346` cover forward compatibility at both sides of the outbox boundary. An unknown raw `event_type` is mapped to an unsupported read-side sentinel, marked DEAD on its first attempt with no receipt or projection mutation, and does not stop a following valid row in the same batch. `JdbcOperationalEventRecorder` rejects that sentinel before lock or SQL execution, so application producers cannot persist `UNKNOWN`. The focused projection package passed 26/26 tests and `OperationalEventRecorderTest` passed 6/6.
 
 ## Registered M30 measurement consumed by M31
 
@@ -108,6 +110,6 @@ The four SQL shapes are global catalog, fixed-store catalog, active events, and 
 
 ## Remaining limitations
 
-1. Vite emits a non-failing chunk-size advisory: the main minified JavaScript chunk is 592.84 kB (165.46 kB gzip).
+1. Vite emits a non-failing chunk-size advisory: the main minified JavaScript chunk is 592.83 kB (165.46 kB gzip).
 2. Dashboard queries have bounded statement counts and plan-shape evidence, but no dedicated dashboard load-test latency distribution. A daily rollup remains conditional on such measurement.
 3. The database outbox poller is the current transport. Kafka remains a documented replacement boundary, not an installed dependency or an evidenced immediate need.

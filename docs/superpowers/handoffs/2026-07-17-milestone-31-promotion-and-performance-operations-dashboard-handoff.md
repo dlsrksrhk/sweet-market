@@ -9,6 +9,7 @@ Delivered backend boundaries:
 - V15 operational outbox, projection generation/receipt, hourly store/campaign metrics, inventory pressure/failure, campaign audit, and performance-measurement schema with verified indexes.
 - Transactional campaign, coupon, purchase, order-status, and inventory operational events; normalized failure outcomes use the focused post-rollback recorder.
 - At-least-once database-outbox projection with handler receipts, bounded batches, exponential retry, DEAD isolation, payload-preserving retry, retention, cold-start bootstrap, and atomic generation rebuild/cutover.
+- Forward-compatible unknown stored event types are DEAD-isolated on their first attempt without stopping later valid rows; the read-side `UNKNOWN` sentinel cannot be produced through `JdbcOperationalEventRecorder`.
 - Store operations overview and five paged drill-down APIs with KST periods, ACTIVE-generation selection, store authorization, SQL filters, deterministic pages, bounded sizes, freshness, lag, and `trackingStartedAt`.
 - Administrator cross-store overview and four drill-down APIs, projection health/recovery, and measurement registration/list/detail APIs.
 - Validated performance snapshot registration with idempotent measurement UUID/hash handling and strict cache OFF/ON comparability.
@@ -51,14 +52,15 @@ The full evidence lives at `performance/results/m30-v1`. Preserve the artifacts 
 ## Verification snapshot
 
 - M31 focused backend: 103/103 passed.
-- Complete backend: 844/844 passed.
-- Complete web: 53/53 passed.
-- Production web build: passed.
+- Complete backend: 846/846 passed in 4m16s across 127 suites.
+- Complete web: 53/53 passed in 26.93s.
+- Production web build: 165 modules built in 1.70s; the existing 592.83 kB chunk advisory remains non-failing.
 - Node normalizer/trace parser: 24/24 passed.
 - PowerShell parser, evidence replay/audit, and `git diff --check`: passed.
 - Rendered browser QA: OUTSIDER, OWNER, MANAGER, and ADMIN desktop flows passed. Store/admin mobile roots remained `375/375`, and the desktop root remained `1265/1265`; the admin run list alone uses intentional internal horizontal scrolling.
 - Measurement run 4 rendered valid/comparable OFF/ON details and `performance/results/m30-v1`; projector health/rebuild/DEAD privacy controls rendered without any SQL execution control.
 - Browser QA exposed nullable cache counters blanking the ADMIN route. Commit `0f41e9c` added the render regression and displays missing counters as `측정값 없음`; the ADMIN desktop/mobile retest passed.
+- Final-review hardening commits `4825671` and `0a18346` isolate unknown stored types as attempt-1 DEAD rows with zero receipts/mutations while allowing the next valid row to process, and reject producer-side `UNKNOWN` recording. Focused projection tests passed 26/26 and recorder tests passed 6/6.
 
 The role walkthrough used test-only local database memberships for store 1 (member 2 OWNER, member 13 MANAGER) because the performance fixture contained no memberships. Those rows are not durable fixtures or schema changes.
 
