@@ -26,6 +26,9 @@ public class JdbcOperationalEventRecorder implements OperationalEventRecorder {
     @Override
     public void record(OperationalEvent event) {
         Objects.requireNonNull(event, "event must not be null");
+        if (event.eventType() == OperationalEventType.UNKNOWN) {
+            throw new IllegalArgumentException("UNKNOWN operational event type must not be recorded");
+        }
         acquireSharedTransactionLock();
         jdbcTemplate.update("""
                 INSERT INTO operational_event_outbox (

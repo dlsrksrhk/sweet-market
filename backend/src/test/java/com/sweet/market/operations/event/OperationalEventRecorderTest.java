@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -111,6 +112,29 @@ class OperationalEventRecorderTest extends IntegrationTestSupport {
         assertThat(storedPayload.equals(event.payload())).isTrue();
         assertThat(stored.get("delivery_state")).isEqualTo("PENDING");
         assertThat(stored.get("attempt_count")).isEqualTo(0);
+    }
+
+    @Test
+    void UNKNOWN_event_type은_outbox에_기록하지_않는다() {
+        OperationalEvent event = new OperationalEvent(
+                UUID.randomUUID(),
+                OperationalEventType.UNKNOWN,
+                1,
+                "purchase",
+                101L,
+                3L,
+                11L,
+                21L,
+                "purchase:101",
+                Instant.parse("2026-07-17T01:02:03Z"),
+                objectMapper.createObjectNode()
+        );
+
+        assertThatThrownBy(() -> recorder.record(event))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                .hasRootCauseMessage("UNKNOWN operational event type must not be recorded");
+
+        assertThat(count("operational_event_outbox")).isZero();
     }
 
     @Test

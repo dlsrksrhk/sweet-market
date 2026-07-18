@@ -219,6 +219,8 @@ class OperationalProjectionCoordinatorTest extends IntegrationTestSupport {
         assertThat(unknownDelivery.get("last_error")).asString()
                 .contains("UnsupportedOperationalEventSchemaException");
         assertThat(receiptCount(unknownEventId)).isZero();
+        assertThat(mutationCount("first-projection", unknownEventId)).isZero();
+        assertThat(mutationCount("second-projection", unknownEventId)).isZero();
         assertThat(eventType(unknownEventId)).isEqualTo("FUTURE_OPERATIONAL_EVENT");
 
         assertThat(delivery(validEventId).get("delivery_state")).isEqualTo("PROCESSED");
