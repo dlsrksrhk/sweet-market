@@ -3,21 +3,34 @@ package com.sweet.market.integration.security;
 import com.sweet.market.support.IntegrationTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.convention.TestBean;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.MvcResult;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -46,8 +59,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class SignedWebhookProbeApiTest extends IntegrationTestSupport {
 
+    private static final Instant NOW = Instant.ofEpochSecond(1_784_386_800L);
     private static final String PAYMENT_PATH = "/api/integrations/payment-gateway/v1/probes";
     private static final String DELIVERY_PATH = "/api/integrations/delivery-provider/v1/probes";
+    private static final String PAYMENT_PREFIX = "/api/integrations/payment-gateway/";
     private static final String PAYMENT_API_KEY = "payment-webhook-api-key";
     private static final String PAYMENT_KEY_ID = "payment-webhook-key-1";
     private static final String PAYMENT_SECRET = "payment-webhook-current-secret-32bytes-minimum";
@@ -56,6 +71,9 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
     private static final String DELIVERY_API_KEY = "delivery-webhook-api-key";
     private static final String DELIVERY_KEY_ID = "delivery-webhook-key-1";
     private static final String DELIVERY_SECRET = "delivery-webhook-current-secret-32bytes-minimum";
+
+    @TestBean(name = "externalIntegrationClock", methodName = "fixedExternalIntegrationClock")
+    private Clock externalIntegrationClock;
 
     @BeforeEach
     void replay_테이블을_비운다() {
@@ -75,14 +93,14 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
     @Test
     void 결제_gateway의_서명된_probe_webhook을_수신한다() throws Exception {
         mockMvc.perform(signedRequest(PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET,
-                        UUID.randomUUID(), Instant.now()))
+                        UUID.randomUUID(), NOW))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void 배송_provider의_서명된_probe_webhook을_수신한다() throws Exception {
         mockMvc.perform(signedRequest(DELIVERY_PATH, deliveryBody(), DELIVERY_API_KEY, DELIVERY_KEY_ID, DELIVERY_SECRET,
-                        UUID.randomUUID(), Instant.now()))
+                        UUID.randomUUID(), NOW))
                 .andExpect(status().isNoContent());
     }
 
@@ -91,7 +109,7 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
         UUID requestId = UUID.randomUUID();
 
         mockMvc.perform(signedRequest(PAYMENT_PATH, deliveryBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET,
-                        requestId, Instant.now()))
+                        requestId, NOW))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.*", hasSize(3)))
                 .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
@@ -101,12 +119,13 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
 
     @Test
     void source별_API_key와_keyId를_분리한다() throws Exception {
+        UUID requestId = UUID.randomUUID();
         mockMvc.perform(signedRequest(PAYMENT_PATH, paymentBody(), DELIVERY_API_KEY, DELIVERY_KEY_ID, DELIVERY_SECRET,
-                        UUID.randomUUID(), Instant.now()))
+                        requestId, NOW))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.*", hasSize(3)))
                 .andExpect(jsonPath("$.code").value("INTEGRATION_AUTHENTICATION_FAILED"))
-                .andExpect(jsonPath("$.requestId").value(nullValue()));
+                .andExpect(jsonPath("$.requestId").value(requestId.toString()));
 
         assertReplayCount(0);
     }
@@ -114,17 +133,17 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
     @Test
     void 현재키와_다음키를_rotation중_허용한다() throws Exception {
         mockMvc.perform(signedRequest(PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET,
-                        UUID.randomUUID(), Instant.now()))
+                        UUID.randomUUID(), NOW))
                 .andExpect(status().isNoContent());
         mockMvc.perform(signedRequest(PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_NEXT_KEY_ID, PAYMENT_NEXT_SECRET,
-                        UUID.randomUUID(), Instant.now()))
+                        UUID.randomUUID(), NOW))
                 .andExpect(status().isNoContent());
     }
 
     @Test
     void webhook_replay와_변조와_만료를_거부한다() throws Exception {
         UUID replayRequestId = UUID.randomUUID();
-        Instant now = Instant.now();
+        Instant now = NOW;
         MockHttpServletRequestBuilder valid = signedRequest(
                 PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET, replayRequestId, now);
 
@@ -151,11 +170,14 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
     @Test
     void 서명실패는_replay를_claim하지_않는다() throws Exception {
         UUID requestId = UUID.randomUUID();
-        Instant now = Instant.now();
+        Instant now = NOW;
 
         mockMvc.perform(signedRequest(PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID,
                                 "wrong-secret-32bytes-minimum", requestId, now))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.*", hasSize(3)))
+                .andExpect(jsonPath("$.code").value("INTEGRATION_AUTHENTICATION_FAILED"))
+                .andExpect(jsonPath("$.requestId").value(requestId.toString()));
         mockMvc.perform(signedRequest(PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID,
                         PAYMENT_SECRET, requestId, now))
                 .andExpect(status().isNoContent());
@@ -180,7 +202,7 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
     void 잘못된_correlation_UUID와_contentType을_replay전에_거부한다() throws Exception {
         UUID requestId = UUID.randomUUID();
         MockHttpServletRequestBuilder malformedCorrelation = signedRequest(
-                PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET, requestId, Instant.now());
+                PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET, requestId, NOW);
         malformedCorrelation.with(request -> {
             request.removeHeader("X-Correlation-Id");
             request.addHeader("X-Correlation-Id", "not-a-uuid");
@@ -189,9 +211,10 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
 
         mockMvc.perform(malformedCorrelation)
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"));
+                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
+                .andExpect(jsonPath("$.requestId").value(requestId.toString()));
         mockMvc.perform(signedRequest(PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET,
-                                UUID.randomUUID(), Instant.now())
+                                UUID.randomUUID(), NOW)
                         .contentType(MediaType.TEXT_PLAIN))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"));
@@ -213,7 +236,7 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
         String malformedBody = "{\"source\":\"PAYMENT_GATEWAY\",\"message\":";
 
         mockMvc.perform(signedRequest(PAYMENT_PATH, malformedBody, PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET,
-                        requestId, Instant.now()))
+                        requestId, NOW))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.*", hasSize(3)))
                 .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
@@ -227,7 +250,7 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
         String invalidBody = "{\"source\":\"PAYMENT_GATEWAY\",\"message\":\"\"}";
 
         mockMvc.perform(signedRequest(PAYMENT_PATH, invalidBody, PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET,
-                        requestId, Instant.now()))
+                        requestId, NOW))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.*", hasSize(3)))
                 .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
@@ -241,7 +264,7 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
         String body = "{\"source\":\"PAYMENT_GATEWAY\",\"message\":\"probe\",\"extra\":true}";
 
         mockMvc.perform(signedRequest(PAYMENT_PATH, body, PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET,
-                        requestId, Instant.now()))
+                        requestId, NOW))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.*", hasSize(3)))
                 .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
@@ -249,8 +272,186 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.requestId").value(requestId.toString()));
     }
 
+    @Test
+    void 정확히_과거와_미래_300초_timestamp를_허용한다() throws Exception {
+        mockMvc.perform(signedRequest(PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET,
+                        UUID.randomUUID(), NOW.minusSeconds(300)))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(signedRequest(PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET,
+                        UUID.randomUUID(), NOW.plusSeconds(300)))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 과거와_미래_301초_timestamp를_requestId와_함께_거부한다() throws Exception {
+        UUID pastRequestId = UUID.randomUUID();
+        UUID futureRequestId = UUID.randomUUID();
+
+        mockMvc.perform(signedRequest(PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET,
+                        pastRequestId, NOW.minusSeconds(301)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.*", hasSize(3)))
+                .andExpect(jsonPath("$.code").value("INTEGRATION_AUTHENTICATION_FAILED"))
+                .andExpect(jsonPath("$.requestId").value(pastRequestId.toString()));
+        mockMvc.perform(signedRequest(PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET,
+                        futureRequestId, NOW.plusSeconds(301)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.requestId").value(futureRequestId.toString()));
+
+        assertReplayCount(0);
+    }
+
+    @Test
+    void timestamp_overflow는_requestId가_있는_400으로_거부한다() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        MockHttpServletRequestBuilder overflow = signedRequest(
+                PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET, requestId, NOW);
+        overflow.with(request -> {
+            request.removeHeader("X-Timestamp");
+            request.addHeader("X-Timestamp", Long.toString(Long.MAX_VALUE));
+            return request;
+        });
+
+        mockMvc.perform(overflow)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.*", hasSize(3)))
+                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
+                .andExpect(jsonPath("$.requestId").value(requestId.toString()));
+
+        assertReplayCount(0);
+    }
+
+    @Test
+    void noncanonical_request_UUID_alias는_replay전에_거부한다() throws Exception {
+        String alias = "1-1-1-1-1";
+        UUID normalized = UUID.fromString(alias);
+        MockHttpServletRequestBuilder request = signedRequest(
+                PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET, normalized, NOW);
+        request.with(servletRequest -> {
+            servletRequest.removeHeader("X-Request-Id");
+            servletRequest.addHeader("X-Request-Id", alias);
+            return servletRequest;
+        });
+
+        mockMvc.perform(request)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
+                .andExpect(jsonPath("$.requestId").value(nullValue()));
+
+        assertReplayCount(0);
+    }
+
+    @Test
+    void malformed_signature_header는_parsed_requestId를_보존한다() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        MockHttpServletRequestBuilder request = signedRequest(
+                PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET, requestId, NOW);
+        request.with(servletRequest -> {
+            servletRequest.removeHeader("X-Signature");
+            servletRequest.addHeader("X-Signature", "not-a-signature");
+            return servletRequest;
+        });
+
+        mockMvc.perform(request)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
+                .andExpect(jsonPath("$.requestId").value(requestId.toString()));
+
+        assertReplayCount(0);
+    }
+
+    @Test
+    void raw_query_target을_서명에_포함한다() throws Exception {
+        String rawTarget = PAYMENT_PATH + "?probe=raw&mode=query";
+
+        mockMvc.perform(signedRequest(rawTarget, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID, PAYMENT_SECRET,
+                        UUID.randomUUID(), NOW))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void contentLength없이_일_MiB초과_chunked_body를_raw_read로_거부한다() throws Exception {
+        mockMvc.perform(post(PAYMENT_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Transfer-Encoding", "chunked")
+                        .content(new byte[1_048_577]))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(jsonPath("$.code").value("INTEGRATION_BODY_TOO_LARGE"))
+                .andExpect(jsonPath("$.requestId").value(nullValue()));
+    }
+
+    @Test
+    void 서명된_없는_route와_지원하지_않는_method는_정확한_envelope를_반환한다() throws Exception {
+        UUID notFoundRequestId = UUID.randomUUID();
+        String unknownPath = PAYMENT_PREFIX + "v1/not-defined";
+        mockMvc.perform(signedRequest(
+                        HttpMethod.POST, unknownPath, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID,
+                        PAYMENT_SECRET, notFoundRequestId, NOW))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.*", hasSize(3)))
+                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
+                .andExpect(jsonPath("$.message").value("Requested route was not found"))
+                .andExpect(jsonPath("$.requestId").value(notFoundRequestId.toString()));
+
+        UUID methodRequestId = UUID.randomUUID();
+        mockMvc.perform(signedRequest(
+                        HttpMethod.PUT, PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID,
+                        PAYMENT_SECRET, methodRequestId, NOW))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.*", hasSize(3)))
+                .andExpect(jsonPath("$.code").value("INTEGRATION_REQUEST_INVALID"))
+                .andExpect(jsonPath("$.message").value("Request method is not allowed"))
+                .andExpect(jsonPath("$.requestId").value(methodRequestId.toString()));
+    }
+
+    @Test
+    void 동시에_같은_replay를_claim하면_하나만_성공한다() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            List<Future<MvcResult>> futures = new ArrayList<>();
+            for (int attempt = 0; attempt < 2; attempt++) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    start.await();
+                    return mockMvc.perform(signedRequest(
+                                    PAYMENT_PATH, paymentBody(), PAYMENT_API_KEY, PAYMENT_KEY_ID,
+                                    PAYMENT_SECRET, requestId, NOW))
+                            .andReturn();
+                }));
+            }
+            ready.await();
+            start.countDown();
+
+            List<Integer> statuses = new ArrayList<>();
+            for (Future<MvcResult> future : futures) {
+                statuses.add(future.get().getResponse().getStatus());
+            }
+            Collections.sort(statuses);
+            org.assertj.core.api.Assertions.assertThat(statuses).containsExactly(204, 409);
+            assertReplayCount(1);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private MockHttpServletRequestBuilder signedRequest(
             String path,
+            String body,
+            String apiKey,
+            String keyId,
+            String secret,
+            UUID requestId,
+            Instant timestamp
+    ) throws Exception {
+        return signedRequest(HttpMethod.POST, path, body, apiKey, keyId, secret, requestId, timestamp);
+    }
+
+    private MockHttpServletRequestBuilder signedRequest(
+            HttpMethod method,
+            String rawTarget,
             String body,
             String apiKey,
             String keyId,
@@ -263,11 +464,11 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
                 MessageDigest.getInstance("SHA-256").digest(body.getBytes(StandardCharsets.UTF_8)));
         String canonical = String.join("\n",
                 "v1", keyId, Long.toString(timestamp.getEpochSecond()), requestId.toString(),
-                "POST", path, bodyHash);
+                method.name(), rawTarget, bodyHash);
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         String signature = HexFormat.of().formatHex(mac.doFinal(canonical.getBytes(StandardCharsets.UTF_8)));
-        return post(path)
+        return request(method, rawTarget)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body)
                 .header("X-Api-Key", apiKey)
@@ -294,5 +495,9 @@ class SignedWebhookProbeApiTest extends IntegrationTestSupport {
 
     private static org.assertj.core.api.AbstractIntegerAssert<?> assertThat(Integer value) {
         return org.assertj.core.api.Assertions.assertThat(value);
+    }
+
+    static Clock fixedExternalIntegrationClock() {
+        return Clock.fixed(NOW, ZoneOffset.UTC);
     }
 }

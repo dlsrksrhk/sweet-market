@@ -1,7 +1,10 @@
 package com.sweet.market.integration.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -14,25 +17,27 @@ class ExternalRequestSignerTest {
     private static final Instant TIMESTAMP = Instant.ofEpochSecond(1_784_386_800L);
 
     @Test
-    void 공개_vector와_동일한_외부요청_signature를_생성한다() {
+    void 공개_vector와_동일한_외부요청_signature를_소문자_method로도_생성한다() throws Exception {
+        HmacVector vector = new ObjectMapper().readValue(
+                Path.of("..", "contracts", "hmac-v1-test-vectors.json").toFile(), HmacVector.class);
         ExternalRequestSigner signer = new HmacExternalRequestSigner(properties(), new HmacCanonicalizer());
 
         SignedHeaders headers = signer.sign(
                 ExternalSystem.PAYMENT_GATEWAY,
-                "POST",
-                "/api/v1/probes",
-                REQUEST_ID,
-                TIMESTAMP,
-                "{\"message\":\"m32-contract-probe\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                vector.method().toLowerCase(java.util.Locale.ROOT),
+                vector.rawTarget(),
+                UUID.fromString(vector.requestId()),
+                Instant.ofEpochSecond(vector.timestamp()),
+                vector.bodyUtf8().getBytes(StandardCharsets.UTF_8),
                 "409b1a12-0dc7-4d67-839c-8f4750ba901a"
         );
 
         assertThat(headers).isEqualTo(new SignedHeaders(
-                "m32-test-api-key",
-                "m32-test-key-1",
-                REQUEST_ID,
-                1_784_386_800L,
-                "00c0d3767207c817239881c692fb37de931444242e18186c08a95c51114cd2ac",
+                vector.apiKey(),
+                vector.keyId(),
+                UUID.fromString(vector.requestId()),
+                vector.timestamp(),
+                vector.signature(),
                 "409b1a12-0dc7-4d67-839c-8f4750ba901a"
         ));
     }
@@ -77,5 +82,20 @@ class ExternalRequestSignerTest {
                                 "delivery-outbound-api-key", "delivery-outbound-key-1", "delivery-outbound-secret-32bytes-minimum")
                 )
         );
+    }
+
+    private record HmacVector(
+            String apiKey,
+            String keyId,
+            String secret,
+            long timestamp,
+            String requestId,
+            String method,
+            String rawTarget,
+            String bodyUtf8,
+            String bodySha256,
+            String canonical,
+            String signature
+    ) {
     }
 }

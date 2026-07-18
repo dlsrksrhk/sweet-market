@@ -17,12 +17,22 @@ import java.time.Duration;
 public record ExternalIntegrationProperties(
         boolean enabled,
         @NotNull Duration allowedClockSkew,
-        @Min(1) int maxBodyBytes,
+        @Min(1_048_576) @Max(1_048_576) int maxBodyBytes,
         @NotNull Duration replayRetention,
         @Min(1) @Max(1_000) int cleanupBatchSize,
         @Valid @NotNull Inbound inbound,
         @Valid @NotNull Outbound outbound
 ) {
+
+    @AssertTrue(message = "allowed clock skew must be exactly PT5M")
+    public boolean isAllowedClockSkewProtocolValue() {
+        return allowedClockSkew == null || Duration.ofMinutes(5).equals(allowedClockSkew);
+    }
+
+    @AssertTrue(message = "replay retention must be exactly PT10M")
+    public boolean isReplayRetentionProtocolValue() {
+        return replayRetention == null || Duration.ofMinutes(10).equals(replayRetention);
+    }
 
     public InboundCredential inboundCredential(ExternalSystem source) {
         return switch (source) {

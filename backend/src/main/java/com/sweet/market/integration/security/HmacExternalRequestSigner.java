@@ -1,6 +1,7 @@
 package com.sweet.market.integration.security;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -39,7 +40,8 @@ public final class HmacExternalRequestSigner implements ExternalRequestSigner {
                 properties.outboundCredential(destination);
         long epochSeconds = timestamp.getEpochSecond();
         String canonical = canonicalizer.canonicalize(
-                credential.currentKeyId(), epochSeconds, requestId, method, rawTarget, body);
+                credential.currentKeyId(), epochSeconds, requestId,
+                method.toUpperCase(Locale.ROOT), rawTarget, body);
         return new SignedHeaders(
                 credential.apiKey(),
                 credential.currentKeyId(),

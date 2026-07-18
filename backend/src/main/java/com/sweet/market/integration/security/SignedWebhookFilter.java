@@ -25,6 +25,10 @@ public final class SignedWebhookFilter extends OncePerRequestFilter {
 
     private static final String PAYMENT_PATH = "/api/integrations/payment-gateway/v1/probes";
     private static final String DELIVERY_PATH = "/api/integrations/delivery-provider/v1/probes";
+    private static final String PAYMENT_PREFIX = "/api/integrations/payment-gateway/";
+    private static final String DELIVERY_PREFIX = "/api/integrations/delivery-provider/";
+    private static final int PROTOCOL_MAX_BODY_BYTES = 1_048_576;
+    private static final int BOUNDED_READ_BYTES = 1_048_577;
     private static final Pattern EPOCH_SECONDS = Pattern.compile("^[0-9]+$");
     private static final Pattern LOWERCASE_SHA256 = Pattern.compile("^[0-9a-f]{64}$");
 
@@ -51,7 +55,7 @@ public final class SignedWebhookFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return !PAYMENT_PATH.equals(path) && !DELIVERY_PATH.equals(path);
+        return !path.startsWith(PAYMENT_PREFIX) && !path.startsWith(DELIVERY_PREFIX);
     }
 
     @Override
@@ -60,8 +64,8 @@ public final class SignedWebhookFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        byte[] body = request.getInputStream().readNBytes(properties.maxBodyBytes() + 1);
-        if (body.length > properties.maxBodyBytes()) {
+        byte[] body = request.getInputStream().readNBytes(BOUNDED_READ_BYTES);
+        if (body.length > PROTOCOL_MAX_BODY_BYTES) {
             writeError(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE,
                     "INTEGRATION_BODY_TOO_LARGE", "Request body is too large", null);
             return;
@@ -71,9 +75,9 @@ public final class SignedWebhookFilter extends OncePerRequestFilter {
         ParsedRequest parsed;
         try {
             parsed = parse(request);
-        } catch (IllegalArgumentException | DateTimeException exception) {
+        } catch (InvalidSignedRequestException exception) {
             writeError(response, HttpServletResponse.SC_BAD_REQUEST,
-                    "INTEGRATION_REQUEST_INVALID", "Signed request headers are invalid", null);
+                    "INTEGRATION_REQUEST_INVALID", "Signed request headers are invalid", exception.requestId());
             return;
         }
 
@@ -81,13 +85,13 @@ public final class SignedWebhookFilter extends OncePerRequestFilter {
                 properties.inboundCredential(source);
         String secret = resolveSecret(credential, parsed.apiKey(), parsed.keyId());
         if (secret == null) {
-            authenticationFailed(response);
+            authenticationFailed(response, parsed.requestId());
             return;
         }
 
         Instant receivedAt = clock.instant();
         if (outsideAllowedClockSkew(parsed.timestamp(), receivedAt)) {
-            authenticationFailed(response);
+            authenticationFailed(response, parsed.requestId());
             return;
         }
 
@@ -100,7 +104,7 @@ public final class SignedWebhookFilter extends OncePerRequestFilter {
                 body
         );
         if (!canonicalizer.matches(canonicalizer.sign(secret, canonical), parsed.signature())) {
-            authenticationFailed(response);
+            authenticationFailed(response, parsed.requestId());
             return;
         }
 
@@ -114,6 +118,17 @@ public final class SignedWebhookFilter extends OncePerRequestFilter {
             return;
         }
 
+        if (!PAYMENT_PATH.equals(request.getRequestURI()) && !DELIVERY_PATH.equals(request.getRequestURI())) {
+            writeError(response, HttpServletResponse.SC_NOT_FOUND,
+                    "INTEGRATION_REQUEST_INVALID", "Requested route was not found", parsed.requestId());
+            return;
+        }
+        if (!"POST".equals(request.getMethod())) {
+            writeError(response, HttpServletResponse.SC_METHOD_NOT_ALLOWED,
+                    "INTEGRATION_REQUEST_INVALID", "Request method is not allowed", parsed.requestId());
+            return;
+        }
+
         request.setAttribute(REQUEST_ID_ATTRIBUTE, parsed.requestId());
         request.setAttribute(CORRELATION_ID_ATTRIBUTE, parsed.correlationId());
         request.setAttribute(SOURCE_ATTRIBUTE, source);
@@ -121,24 +136,29 @@ public final class SignedWebhookFilter extends OncePerRequestFilter {
     }
 
     private ParsedRequest parse(HttpServletRequest request) {
-        String apiKey = requiredHeader(request, "X-Api-Key");
-        String keyId = requiredHeader(request, "X-Key-Id");
-        UUID requestId = canonicalUuid(requiredHeader(request, "X-Request-Id"));
-        String timestampValue = requiredHeader(request, "X-Timestamp");
-        if (!EPOCH_SECONDS.matcher(timestampValue).matches()) {
-            throw new IllegalArgumentException("Timestamp must contain epoch seconds");
+        UUID requestId = null;
+        try {
+            String apiKey = requiredHeader(request, "X-Api-Key");
+            String keyId = requiredHeader(request, "X-Key-Id");
+            requestId = canonicalUuid(requiredHeader(request, "X-Request-Id"));
+            String timestampValue = requiredHeader(request, "X-Timestamp");
+            if (!EPOCH_SECONDS.matcher(timestampValue).matches()) {
+                throw new IllegalArgumentException("Timestamp must contain epoch seconds");
+            }
+            Instant timestamp = Instant.ofEpochSecond(Long.parseLong(timestampValue));
+            String signature = requiredHeader(request, "X-Signature");
+            if (!LOWERCASE_SHA256.matcher(signature).matches()) {
+                throw new IllegalArgumentException("Signature must be lowercase SHA-256 hex");
+            }
+            UUID correlationId = canonicalUuid(requiredHeader(request, "X-Correlation-Id"));
+            MediaType contentType = MediaType.parseMediaType(requiredHeader(request, "Content-Type"));
+            if (!MediaType.APPLICATION_JSON.isCompatibleWith(contentType)) {
+                throw new IllegalArgumentException("Content-Type must be compatible with application/json");
+            }
+            return new ParsedRequest(apiKey, keyId, requestId, timestamp, signature, correlationId);
+        } catch (IllegalArgumentException | DateTimeException exception) {
+            throw new InvalidSignedRequestException(requestId, exception);
         }
-        Instant timestamp = Instant.ofEpochSecond(Long.parseLong(timestampValue));
-        String signature = requiredHeader(request, "X-Signature");
-        if (!LOWERCASE_SHA256.matcher(signature).matches()) {
-            throw new IllegalArgumentException("Signature must be lowercase SHA-256 hex");
-        }
-        UUID correlationId = canonicalUuid(requiredHeader(request, "X-Correlation-Id"));
-        MediaType contentType = MediaType.parseMediaType(requiredHeader(request, "Content-Type"));
-        if (!MediaType.APPLICATION_JSON.isCompatibleWith(contentType)) {
-            throw new IllegalArgumentException("Content-Type must be compatible with application/json");
-        }
-        return new ParsedRequest(apiKey, keyId, requestId, timestamp, signature, correlationId);
     }
 
     private String resolveSecret(
@@ -180,10 +200,10 @@ public final class SignedWebhookFilter extends OncePerRequestFilter {
     }
 
     private ExternalSystem sourceFor(String path) {
-        if (PAYMENT_PATH.equals(path)) {
+        if (path.startsWith(PAYMENT_PREFIX)) {
             return ExternalSystem.PAYMENT_GATEWAY;
         }
-        if (DELIVERY_PATH.equals(path)) {
+        if (path.startsWith(DELIVERY_PREFIX)) {
             return ExternalSystem.DELIVERY_PROVIDER;
         }
         throw new IllegalArgumentException("Unsupported signed webhook path");
@@ -196,9 +216,9 @@ public final class SignedWebhookFilter extends OncePerRequestFilter {
         return request.getRequestURI() + "?" + request.getQueryString();
     }
 
-    private void authenticationFailed(HttpServletResponse response) throws IOException {
+    private void authenticationFailed(HttpServletResponse response, UUID requestId) throws IOException {
         writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
-                "INTEGRATION_AUTHENTICATION_FAILED", "Request authentication failed", null);
+                "INTEGRATION_AUTHENTICATION_FAILED", "Request authentication failed", requestId);
     }
 
     private void writeError(
@@ -223,5 +243,18 @@ public final class SignedWebhookFilter extends OncePerRequestFilter {
             String signature,
             UUID correlationId
     ) {
+    }
+
+    private static final class InvalidSignedRequestException extends RuntimeException {
+        private final UUID requestId;
+
+        private InvalidSignedRequestException(UUID requestId, RuntimeException cause) {
+            super(cause);
+            this.requestId = requestId;
+        }
+
+        private UUID requestId() {
+            return requestId;
+        }
     }
 }
