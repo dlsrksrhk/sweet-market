@@ -85,6 +85,7 @@ export function PerformanceMeasurementPanel() {
 
 export function PerformanceMeasurementDetail({ measurement }: { measurement: PerformanceMeasurement }) {
   const endpoints = [...new Set(measurement.endpointMetrics.map((metric) => metric.endpoint))];
+  const comparisonAllowed = measurement.valid && measurement.comparable;
 
   return (
     <article className="performance-detail" aria-label={`성능 측정 실행 ${measurement.runId}`}>
@@ -102,12 +103,14 @@ export function PerformanceMeasurementDetail({ measurement }: { measurement: Per
         <Condition label="Scenario" value={measurement.scenarioVersion} />
         <Condition label="환경" value={`${measurement.environmentName} · ${measurement.hardwareDescription}`} />
         <Condition label="구간" value={`warm-up ${measurement.warmupSeconds}초 · 측정 ${measurement.measuredSeconds}초`} />
+        <Condition label="OFF 측정 시간" value={`${formatKstDateTime(measurement.offStartedAt)} ~ ${formatKstDateTime(measurement.offCompletedAt)}`} />
+        <Condition label="ON 측정 시간" value={`${formatKstDateTime(measurement.onStartedAt)} ~ ${formatKstDateTime(measurement.onCompletedAt)}`} />
       </dl>
       {endpoints.length === 0 ? <EmptyState title="endpoint 측정값이 없습니다" /> : (
         <div className="operations-table-scroll">
           <table className="operations-table performance-metric-table" aria-label="OFF ON endpoint 성능 비교">
             <thead><tr><th scope="col">Endpoint</th><th scope="col">p50 ms</th><th scope="col">p95 ms</th><th scope="col">처리량/s</th><th scope="col">오류율</th><th scope="col">JDBC</th><th scope="col">Cache hit/miss/eviction</th></tr></thead>
-            <tbody>{endpoints.map((endpoint) => <MetricRow key={endpoint} endpoint={endpoint} metrics={measurement.endpointMetrics} comparable={measurement.comparable} />)}</tbody>
+            <tbody>{endpoints.map((endpoint) => <MetricRow key={endpoint} endpoint={endpoint} metrics={measurement.endpointMetrics} comparable={comparisonAllowed} />)}</tbody>
           </table>
         </div>
       )}

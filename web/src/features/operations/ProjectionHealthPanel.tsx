@@ -12,7 +12,7 @@ import {
 
 const PAGE_SIZE = 20;
 
-export function ProjectionHealthPanel({ health }: { health: ProjectionHealth }) {
+export function ProjectionHealthPanel({ health }: { health: ProjectionHealth | null }) {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export function ProjectionHealthPanel({ health }: { health: ProjectionHealth }) 
           {rebuildMutation.isPending ? '재구축 중…' : '프로젝션 재구축'}
         </button>
       </div>
-      <ProjectionHealthSummary health={health} />
+      {health ? <ProjectionHealthSummary health={health} /> : <EmptyState title="프로젝터 상태를 확인할 수 없습니다" description="상태 요약과 별개로 DEAD event 복구 및 안전한 재구축 작업은 계속 사용할 수 있습니다." />}
       {message ? <p className="operations-success" role="status">{message}</p> : null}
       {retryMutation.error ? <ErrorState message={errorMessage(retryMutation.error, 'DEAD event 재시도에 실패했습니다.')} /> : null}
       {rebuildMutation.error ? <ErrorState message={errorMessage(rebuildMutation.error, '프로젝션 재구축에 실패했습니다.')} /> : null}
@@ -75,7 +75,7 @@ export function ProjectionHealthPanel({ health }: { health: ProjectionHealth }) 
                     <td data-label="시도">{event.attemptCount}회</td>
                     <td data-label="오류">{event.lastError ?? '기록 없음'}</td>
                     <td data-label="발생 시각">{formatKstDateTime(event.occurredAt)}</td>
-                    <td data-label="작업"><button type="button" disabled={retryMutation.isPending} onClick={() => retry(event.eventId)}>재시도</button></td>
+                    <td data-label="작업"><button type="button" disabled={retryMutation.isPending} onClick={() => retry(event.eventId)}>{retryMutation.isPending && retryMutation.variables === event.eventId ? '재시도 중…' : '재시도'}</button></td>
                   </tr>
                 ))}</tbody>
               </table>

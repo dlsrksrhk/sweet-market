@@ -3934,6 +3934,14 @@ a.wishlist-card-main:hover h2 {
   margin: 0;
 }
 
+.operations-provenance {
+  margin: 0;
+  color: #637282;
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
 .admin-dashboard-table td:first-child,
 .dead-event-table td:first-child {
   display: grid;

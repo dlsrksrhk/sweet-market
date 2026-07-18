@@ -27,6 +27,19 @@ describe('PerformanceMeasurementDetail', () => {
     expect(html).toContain('ON 10.00');
     expect(html).not.toContain('개선');
   });
+
+  it('유효하지않은_run은_비교가능표시가_있어도_개선판정을_하지_않고_OFF_ON_시간을_표시한다', () => {
+    const html = renderToStaticMarkup(
+      <PerformanceMeasurementDetail measurement={{ ...measurement, valid: false, comparable: true }} />,
+    );
+
+    expect(html).toContain('유효하지 않음');
+    expect(html).toContain('OFF 측정 시간');
+    expect(html).toContain('ON 측정 시간');
+    expect(html).toContain('2026. 7. 17.');
+    expect(html).not.toContain('개선');
+    expect(html).not.toContain('악화');
+  });
 });
 
 describe('ProjectionHealthSummary', () => {
