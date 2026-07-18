@@ -5,6 +5,11 @@ spring:
     url: jdbc:postgresql://${DELIVERY_PROVIDER_DB_HOST:localhost}:${DELIVERY_PROVIDER_DB_PORT:15434}/${DELIVERY_PROVIDER_DB_NAME:delivery_provider}
     username: ${DELIVERY_PROVIDER_DB_USERNAME:delivery_provider}
     password: ${DELIVERY_PROVIDER_DB_PASSWORD:delivery_provider}
+  flyway:
+    enabled: true
+  sql:
+    init:
+      mode: never
 
 server:
   port: ${DELIVERY_PROVIDER_PORT:8082}
