@@ -18,6 +18,10 @@ spring:
     deserialization:
       fail-on-unknown-properties: true
 
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%X{correlationId:-}] %logger{36} - %msg%n"
+
 gateway:
   integration-security:
     allowed-clock-skew: PT5M
