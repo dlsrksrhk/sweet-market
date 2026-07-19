@@ -122,6 +122,7 @@ if ($null -ne $boundary) {
     $functions = Get-FunctionNames $boundary
     $commands = Get-Commands $boundary
     Assert-True ($functions -contains 'Find-ProhibitedImports') 'boundary audit must define an import scanner'
+    Assert-True ($functions -contains 'ConvertTo-JavaImportView') 'boundary audit must define a line-preserving Java lexical masker'
     Assert-True ($functions -contains 'Get-ConfiguredDatabaseName') 'boundary audit must parse configured JDBC database names'
     Assert-True (@($commands | Where-Object { $_.GetCommandName() -eq 'Get-ChildItem' }).Count -gt 0) 'boundary audit must enumerate source files'
     Assert-True (@($commands | Where-Object { $_.GetCommandName() -eq 'Select-String' }).Count -gt 0) 'boundary audit must inspect imports with .NET regex matching'
@@ -179,6 +180,136 @@ if ($null -ne $boundary) {
         'import com.sweet.market.gatewayevil.Escape;'
     )) {
         Assert-True (-not [regex]::IsMatch($nonImport, $backendPattern)) 'backend boundary must ignore comments, strings, and prefixed non-simulator namespaces'
+    }
+
+    $scannerFunction = @($boundary.Ast.FindAll({
+        param($node)
+        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Find-ProhibitedImports'
+    }, $true) | Select-Object -First 1)
+    $maskerFunction = @($boundary.Ast.FindAll({
+        param($node)
+        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'ConvertTo-JavaImportView'
+    }, $true) | Select-Object -First 1)
+    Invoke-Expression $scannerFunction[0].Extent.Text
+    if ($maskerFunction.Count -eq 1) {
+        Invoke-Expression $maskerFunction[0].Extent.Text
+    }
+
+    $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) "m32-java-boundaries-$([Guid]::NewGuid().ToString('N'))"
+    $originalRepositoryRoot = $repositoryRoot
+    try {
+        $paymentFixtureRoot = Join-Path $fixtureRoot 'payment-fixtures'
+        $backendFixtureRoot = Join-Path $fixtureRoot 'backend-fixtures'
+        [void][IO.Directory]::CreateDirectory($paymentFixtureRoot)
+        [void][IO.Directory]::CreateDirectory($backendFixtureRoot)
+
+        $paymentFixtures = [ordered]@{
+            'Commented.java' = @'
+package fixture;
+/*
+import com.sweet.market.provider.hidden.CommentOnly;
+*/
+final class Commented {}
+'@
+            'TextBlock.java' = @'
+package fixture;
+final class TextBlock {
+    String sample = """
+import static com.sweet.market.provider.hidden.TextOnly.VALUE;
+""";
+    String normal = "/* import com.sweet.market.provider.hidden.StringOnly; */";
+    char quote = '"';
+}
+'@
+            'TrailingLine.java' = @'
+package fixture;
+import com.sweet.market.provider.actual.LineComment; // real prohibited import
+final class TrailingLine {}
+'@
+            'TrailingBlock.java' = @'
+package fixture;
+import static com.sweet.market.provider.actual.BlockComment.VALUE; /* real prohibited import */
+final class TrailingBlock {}
+'@
+            'PrefixCollision.java' = @'
+package fixture;
+import com.sweet.market.gatewayevil.Collision;
+final class PrefixCollision {}
+'@
+            'AllowedGateway.java' = @'
+package fixture;
+import com.sweet.market.gateway.probe.ProbeController;
+import static com.sweet.market.gateway.security.Headers.SIGNATURE;
+final class AllowedGateway {}
+'@
+        }
+        foreach ($fixture in $paymentFixtures.GetEnumerator()) {
+            [IO.File]::WriteAllText((Join-Path $paymentFixtureRoot $fixture.Key), $fixture.Value)
+        }
+
+        $backendFixtures = [ordered]@{
+            'BackendCommented.java' = @'
+package fixture;
+/*
+import com.sweet.market.gateway.hidden.CommentOnly;
+import static com.sweet.market.provider.hidden.CommentOnly.VALUE;
+*/
+final class BackendCommented {}
+'@
+            'BackendTextBlock.java' = @'
+package fixture;
+final class BackendTextBlock {
+    String sample = """
+import com.sweet.market.gateway.hidden.TextOnly;
+""";
+    String normal = "import com.sweet.market.provider.hidden.StringOnly;";
+    char slash = '/';
+}
+'@
+            'BackendGateway.java' = @'
+package fixture;
+import com.sweet.market.gateway.actual.GatewayType; // real prohibited import
+final class BackendGateway {}
+'@
+            'BackendProvider.java' = @'
+package fixture;
+import static com.sweet.market.provider.actual.ProviderType.VALUE; /* real prohibited import */
+final class BackendProvider {}
+'@
+            'BackendPrefix.java' = @'
+package fixture;
+import com.sweet.market.gatewayevil.NotSimulator;
+import com.sweet.market.providerfake.NotSimulatorEither;
+final class BackendPrefix {}
+'@
+        }
+        foreach ($fixture in $backendFixtures.GetEnumerator()) {
+            [IO.File]::WriteAllText((Join-Path $backendFixtureRoot $fixture.Key), $fixture.Value)
+        }
+
+        $repositoryRoot = $fixtureRoot
+        $findings = [Collections.Generic.List[object]]::new()
+        Find-ProhibitedImports 'payment-fixtures' $paymentPattern 'payment-fixture-rule'
+        $paymentFindingFiles = @($findings | ForEach-Object File | Sort-Object)
+        $expectedPaymentFiles = @('PrefixCollision.java', 'TrailingBlock.java', 'TrailingLine.java') | Sort-Object
+        Assert-True (($paymentFindingFiles -join "`n") -ceq ($expectedPaymentFiles -join "`n")) 'payment lexical audit must ignore comments/text/string/char content and detect real trailing-comment imports plus prefix collisions'
+        foreach ($finding in $findings) {
+            $lineProperty = $finding.PSObject.Properties['Line']
+            Assert-True ($null -ne $lineProperty -and $lineProperty.Value -eq 2) 'payment lexical findings must preserve original source line association'
+        }
+
+        $findings = [Collections.Generic.List[object]]::new()
+        Find-ProhibitedImports 'backend-fixtures' $backendPattern 'backend-fixture-rule'
+        $backendFindingFiles = @($findings | ForEach-Object File | Sort-Object)
+        $expectedBackendFiles = @('BackendGateway.java', 'BackendProvider.java') | Sort-Object
+        Assert-True (($backendFindingFiles -join "`n") -ceq ($expectedBackendFiles -join "`n")) 'backend lexical audit must ignore multiline lexical content, reject exact simulator imports with trailing comments, and allow prefix namespaces'
+        foreach ($finding in $findings) {
+            $lineProperty = $finding.PSObject.Properties['Line']
+            Assert-True ($null -ne $lineProperty -and $lineProperty.Value -eq 2) 'backend lexical findings must preserve original source line association'
+        }
+    } finally {
+        $repositoryRoot = $originalRepositoryRoot
+        Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 

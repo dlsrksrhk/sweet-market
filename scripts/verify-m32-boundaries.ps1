@@ -7,6 +7,139 @@ Set-StrictMode -Version Latest
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $findings = [System.Collections.Generic.List[object]]::new()
 
+function ConvertTo-JavaImportView {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Source
+    )
+
+    $view = [Text.StringBuilder]::new($Source.Length)
+    $state = 'Code'
+    $escaped = $false
+    $index = 0
+    while ($index -lt $Source.Length) {
+        $character = $Source[$index]
+        $next = if ($index + 1 -lt $Source.Length) { $Source[$index + 1] } else { [char]0 }
+        $hasTripleQuote = $index + 2 -lt $Source.Length -and
+            $character -eq '"' -and $next -eq '"' -and $Source[$index + 2] -eq '"'
+
+        if ($state -eq 'Code') {
+            if ($character -eq '/' -and $next -eq '/') {
+                [void]$view.Append('  ')
+                $state = 'LineComment'
+                $index += 2
+                continue
+            }
+            if ($character -eq '/' -and $next -eq '*') {
+                [void]$view.Append('  ')
+                $state = 'BlockComment'
+                $index += 2
+                continue
+            }
+            if ($hasTripleQuote) {
+                [void]$view.Append('   ')
+                $state = 'TextBlock'
+                $escaped = $false
+                $index += 3
+                continue
+            }
+            if ($character -eq '"') {
+                [void]$view.Append(' ')
+                $state = 'String'
+                $escaped = $false
+                $index++
+                continue
+            }
+            if ($character -eq "'") {
+                [void]$view.Append(' ')
+                $state = 'Char'
+                $escaped = $false
+                $index++
+                continue
+            }
+            [void]$view.Append($character)
+            $index++
+            continue
+        }
+
+        if ($state -eq 'LineComment') {
+            if ($character -eq "`r" -or $character -eq "`n") {
+                [void]$view.Append($character)
+                $state = 'Code'
+            } else {
+                [void]$view.Append(' ')
+            }
+            $index++
+            continue
+        }
+
+        if ($state -eq 'BlockComment') {
+            if ($character -eq '*' -and $next -eq '/') {
+                [void]$view.Append('  ')
+                $state = 'Code'
+                $index += 2
+                continue
+            }
+            if ($character -eq "`r" -or $character -eq "`n") {
+                [void]$view.Append($character)
+            } else {
+                [void]$view.Append(' ')
+            }
+            $index++
+            continue
+        }
+
+        if ($state -eq 'TextBlock') {
+            if ($escaped) {
+                [void]$view.Append($(if ($character -eq "`r" -or $character -eq "`n") { $character } else { ' ' }))
+                $escaped = $false
+                $index++
+                continue
+            }
+            if ($character -eq '\') {
+                [void]$view.Append(' ')
+                $escaped = $true
+                $index++
+                continue
+            }
+            if ($hasTripleQuote) {
+                [void]$view.Append('   ')
+                $state = 'Code'
+                $index += 3
+                continue
+            }
+            if ($character -eq "`r" -or $character -eq "`n") {
+                [void]$view.Append($character)
+            } else {
+                [void]$view.Append(' ')
+            }
+            $index++
+            continue
+        }
+
+        if ($character -eq "`r" -or $character -eq "`n") {
+            [void]$view.Append($character)
+            $state = 'Code'
+            $escaped = $false
+        } elseif ($escaped) {
+            [void]$view.Append(' ')
+            $escaped = $false
+        } elseif ($character -eq '\') {
+            [void]$view.Append(' ')
+            $escaped = $true
+        } elseif (($state -eq 'String' -and $character -eq '"') -or
+            ($state -eq 'Char' -and $character -eq "'")) {
+            [void]$view.Append(' ')
+            $state = 'Code'
+        } else {
+            [void]$view.Append(' ')
+        }
+        $index++
+    }
+    return $view.ToString()
+}
+
 function Find-ProhibitedImports {
     param(
         [Parameter(Mandatory)] [string]$RelativeSourceRoot,
@@ -15,13 +148,18 @@ function Find-ProhibitedImports {
     )
 
     $sourceRoot = Join-Path $repositoryRoot $RelativeSourceRoot
-    Get-ChildItem -LiteralPath $sourceRoot -Recurse -File -Filter '*.java' |
-        Select-String -Pattern $Pattern -CaseSensitive | ForEach-Object {
+    Get-ChildItem -LiteralPath $sourceRoot -Recurse -File -Filter '*.java' | ForEach-Object {
+        $sourceFile = $_
+        $importView = ConvertTo-JavaImportView ([IO.File]::ReadAllText($sourceFile.FullName))
+        foreach ($match in [regex]::Matches($importView, $Pattern)) {
+            $line = 1 + [regex]::Matches($importView.Substring(0, $match.Index), "`n").Count
             $findings.Add([pscustomobject]@{
                 Rule = $Rule
-                File = [IO.Path]::GetFileName($_.Path)
+                File = $sourceFile.Name
+                Line = $line
             })
         }
+    }
 }
 
 function Get-ConfiguredDatabaseName {
