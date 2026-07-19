@@ -140,6 +140,42 @@ function ConvertTo-JavaImportView {
     return $view.ToString()
 }
 
+function Get-JavaLogicalLines {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$Source
+    )
+
+    $lines = [Collections.Generic.List[object]]::new()
+    $lineStart = 0
+    $lineNumber = 1
+    $index = 0
+    while ($index -lt $Source.Length) {
+        $character = $Source[$index]
+        if ($character -ne "`r" -and $character -ne "`n") {
+            $index++
+            continue
+        }
+
+        $lines.Add([pscustomobject]@{
+            Text = $Source.Substring($lineStart, $index - $lineStart)
+            Number = $lineNumber
+        })
+        if ($character -eq "`r" -and $index + 1 -lt $Source.Length -and $Source[$index + 1] -eq "`n") {
+            $index++
+        }
+        $index++
+        $lineStart = $index
+        $lineNumber++
+    }
+    $lines.Add([pscustomobject]@{
+        Text = $Source.Substring($lineStart)
+        Number = $lineNumber
+    })
+    return $lines
+}
+
 function Find-ProhibitedImports {
     param(
         [Parameter(Mandatory)] [string]$RelativeSourceRoot,
@@ -151,12 +187,14 @@ function Find-ProhibitedImports {
     Get-ChildItem -LiteralPath $sourceRoot -Recurse -File -Filter '*.java' | ForEach-Object {
         $sourceFile = $_
         $importView = ConvertTo-JavaImportView ([IO.File]::ReadAllText($sourceFile.FullName))
-        foreach ($match in [regex]::Matches($importView, $Pattern)) {
-            $line = 1 + [regex]::Matches($importView.Substring(0, $match.Index), "`n").Count
+        foreach ($line in Get-JavaLogicalLines $importView) {
+            if (-not [regex]::IsMatch($line.Text, $Pattern)) {
+                continue
+            }
             $findings.Add([pscustomobject]@{
                 Rule = $Rule
                 File = $sourceFile.Name
-                Line = $line
+                Line = $line.Number
             })
         }
     }
@@ -184,9 +222,9 @@ function Get-ConfiguredDatabaseName {
     return $match.Groups[1].Value
 }
 
-Find-ProhibitedImports 'mock-payment-gateway\src' '(?m)^\s*import\s+(?:static\s+)?com\.sweet\.market\.(?!gateway(?:\.|;))[A-Za-z_$][\w$]*(?:\.[A-Za-z_$*][\w$*]*)*;\s*$' 'payment-gateway-package-boundary'
-Find-ProhibitedImports 'mock-delivery-provider\src' '(?m)^\s*import\s+(?:static\s+)?com\.sweet\.market\.(?!provider(?:\.|;))[A-Za-z_$][\w$]*(?:\.[A-Za-z_$*][\w$*]*)*;\s*$' 'delivery-provider-package-boundary'
-Find-ProhibitedImports 'backend\src' '(?m)^\s*import\s+(?:static\s+)?com\.sweet\.market\.(?:gateway(?:\.|;)|provider(?:\.|;))(?:[A-Za-z_$*][\w$]*(?:\.[A-Za-z_$*][\w$]*)*;)?\s*$' 'backend-simulator-package-boundary'
+Find-ProhibitedImports 'mock-payment-gateway\src' '^\s*import\s+(?:static\s+)?com\.sweet\.market\.(?!gateway(?:\.|;))[A-Za-z_$][\w$]*(?:\.[A-Za-z_$*][\w$*]*)*;\s*$' 'payment-gateway-package-boundary'
+Find-ProhibitedImports 'mock-delivery-provider\src' '^\s*import\s+(?:static\s+)?com\.sweet\.market\.(?!provider(?:\.|;))[A-Za-z_$][\w$]*(?:\.[A-Za-z_$*][\w$*]*)*;\s*$' 'delivery-provider-package-boundary'
+Find-ProhibitedImports 'backend\src' '^\s*import\s+(?:static\s+)?com\.sweet\.market\.(?:gateway(?:\.|;)|provider(?:\.|;))(?:[A-Za-z_$*][\w$]*(?:\.[A-Za-z_$*][\w$]*)*;)?\s*$' 'backend-simulator-package-boundary'
 
 $databases = @(
     [pscustomobject]@{
