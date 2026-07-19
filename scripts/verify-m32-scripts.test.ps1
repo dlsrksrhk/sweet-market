@@ -401,6 +401,136 @@ if ($null -ne $integration) {
         Assert-True (-not (Test-Path -LiteralPath "Env:$restoreTestName")) 'environment restoration must remove variables that were originally absent'
     }
 
+    $databaseFunction = @($integration.Ast.FindAll({
+        param($node)
+        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Assert-DatabaseIsolation'
+    }, $true) | Select-Object -First 1)
+    if ($databaseFunction.Count -eq 1) {
+        Invoke-Expression $databaseFunction[0].Extent.Text
+        $databaseConfiguration = [Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+        $databaseConfiguration['MARKET_DB_NAME'] = 'market'
+        $databaseConfiguration['PAYMENT_GATEWAY_DB_NAME'] = 'payment_gateway'
+        $databaseConfiguration['DELIVERY_PROVIDER_DB_NAME'] = 'delivery_provider'
+        $databaseConfiguration['MARKET_DB_PASSWORD'] = 'database-audit-secret-must-not-leak'
+        $databaseAuditRequirements = [ordered]@{
+            'market-postgres' = [pscustomobject]@{
+                Database = 'market'
+                Required = 'external_integration_request_replays'
+                Forbidden = @('integration_request_replays')
+            }
+            'payment-postgres' = [pscustomobject]@{
+                Database = 'payment_gateway'
+                Required = 'integration_request_replays'
+                Forbidden = @('external_integration_request_replays', 'members', 'products', 'orders', 'stores')
+            }
+            'delivery-postgres' = [pscustomobject]@{
+                Database = 'delivery_provider'
+                Required = 'integration_request_replays'
+                Forbidden = @('external_integration_request_replays', 'members', 'products', 'orders', 'stores')
+            }
+        }
+        $script:databaseAuditCalls = [Collections.Generic.List[object]]::new()
+        $script:databaseAuditFailureService = $null
+        $script:databaseAuditFailureTable = $null
+        $script:databaseAuditWrongDatabaseService = $null
+        $script:databaseAuditMalformedResultService = $null
+        function Invoke-Compose {
+            param(
+                [Parameter(Mandatory)] [string[]]$Arguments,
+                [switch]$Capture
+            )
+
+            $service = $Arguments[2]
+            $requirement = $databaseAuditRequirements[$service]
+            $forbiddenTablesAbsent = [ordered]@{}
+            foreach ($table in $requirement.Forbidden) {
+                $forbiddenTablesAbsent[$table] = -not (
+                    $script:databaseAuditFailureService -ceq $service -and
+                    $script:databaseAuditFailureTable -ceq $table
+                )
+            }
+            $result = [ordered]@{
+                database = if ($script:databaseAuditWrongDatabaseService -ceq $service) {
+                    'unexpected_database'
+                } else {
+                    $requirement.Database
+                }
+                requiredTableExists = -not (
+                    $script:databaseAuditFailureService -ceq $service -and
+                    $script:databaseAuditFailureTable -ceq $requirement.Required
+                )
+                forbiddenTablesAbsent = $forbiddenTablesAbsent
+            } | ConvertTo-Json -Compress
+            $script:databaseAuditCalls.Add([pscustomobject]@{
+                Arguments = $Arguments
+                Capture = $Capture.IsPresent
+            })
+            if ($script:databaseAuditMalformedResultService -ceq $service) {
+                return 'database-audit-secret-must-not-leak'
+            }
+            return $result
+        }
+
+        $successError = $null
+        try { Assert-DatabaseIsolation $databaseConfiguration } catch { $successError = $_ }
+        Assert-True ($null -eq $successError) 'database isolation must accept the owning database with its required table and no forbidden tables'
+        Assert-True ($script:databaseAuditCalls.Count -eq 3) 'database isolation must execute one runtime catalog audit per owning database'
+        foreach ($requirementEntry in $databaseAuditRequirements.GetEnumerator()) {
+            $service = $requirementEntry.Key
+            $requirement = $requirementEntry.Value
+            $call = @($script:databaseAuditCalls | Where-Object { $_.Arguments[2] -ceq $service } | Select-Object -First 1)
+            Assert-True ($call.Count -eq 1 -and $call[0].Capture) "database isolation must capture the runtime audit for $service"
+            if ($call.Count -eq 1) {
+                $query = $call[0].Arguments[-1]
+                Assert-True ($query.Contains('current_database()')) "database isolation must query current_database for $service"
+                Assert-True ($query.Contains("to_regclass('public.$($requirement.Required)')")) "database isolation must query the required table for $service"
+                foreach ($table in $requirement.Forbidden) {
+                    Assert-True ($query.Contains("to_regclass('public.$table')")) "database isolation must query forbidden table $table for $service"
+                }
+            }
+        }
+
+        $databaseAuditErrors = [Collections.Generic.List[string]]::new()
+        foreach ($requirementEntry in $databaseAuditRequirements.GetEnumerator()) {
+            $service = $requirementEntry.Key
+            $requirement = $requirementEntry.Value
+            foreach ($table in @($requirement.Required) + @($requirement.Forbidden)) {
+                $script:databaseAuditFailureService = $service
+                $script:databaseAuditFailureTable = $table
+                $failure = $null
+                try { Assert-DatabaseIsolation $databaseConfiguration } catch { $failure = $_ }
+                Assert-True ($null -ne $failure) "database isolation must reject invalid table ownership for $service/$table"
+                if ($null -ne $failure) {
+                    $databaseAuditErrors.Add($failure.Exception.Message)
+                }
+            }
+        }
+        $script:databaseAuditFailureService = $null
+        $script:databaseAuditFailureTable = $null
+
+        $script:databaseAuditWrongDatabaseService = 'market-postgres'
+        $identityFailure = $null
+        try { Assert-DatabaseIsolation $databaseConfiguration } catch { $identityFailure = $_ }
+        Assert-True ($null -ne $identityFailure) 'database isolation must reject a runtime database identity mismatch'
+        if ($null -ne $identityFailure) {
+            $databaseAuditErrors.Add($identityFailure.Exception.Message)
+        }
+        $script:databaseAuditWrongDatabaseService = $null
+
+        $script:databaseAuditMalformedResultService = 'market-postgres'
+        $malformedFailure = $null
+        try { Assert-DatabaseIsolation $databaseConfiguration } catch { $malformedFailure = $_ }
+        Assert-True ($null -ne $malformedFailure) 'database isolation must reject malformed runtime catalog output'
+        if ($null -ne $malformedFailure) {
+            $databaseAuditErrors.Add($malformedFailure.Exception.Message)
+            Assert-True (-not $malformedFailure.Exception.Message.Contains('database-audit-secret-must-not-leak')) 'malformed catalog failures must not expose raw database output'
+        }
+        $script:databaseAuditMalformedResultService = $null
+
+        Assert-True (-not (($databaseAuditErrors -join "`n").Contains($databaseConfiguration['MARKET_DB_PASSWORD']))) 'database isolation failures must not expose database credentials'
+        Assert-True (-not $databaseFunction[0].Extent.Text.Contains('Write-Output')) 'database isolation must not print raw database audit results'
+    }
+
     $parameters = @($integration.Ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
     Assert-True ($parameters.Count -eq 1 -and $parameters[0] -eq 'EnvFile') 'integration script command line must accept only -EnvFile'
     Assert-True (-not ($parameters -match '(?i)secret|password|api.?key|key.?id')) 'integration script must not accept credentials on the command line'

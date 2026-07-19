@@ -9,7 +9,7 @@ Delivered boundaries:
 - Three independently built and bootable Spring Boot applications on ports `8080`, `8081`, and `8082`.
 - Three service-owned PostgreSQL databases and Flyway histories on host ports `15432`, `15433`, and `15434`, plus the existing internal Redis dependency for Sweet Market.
 - Four OpenAPI 3.1.0 `v1` signed probe contracts and one public HMAC v1 test vector; no shared Java DTO, entity, repository, service, or security implementation module.
-- Independent API-key/HMAC verification, overlapping key rotation, plus-or-minus 300-second timestamp checking, UUID replay claims, ten-minute replay retention, bounded cleanup, constant-time signature comparison, and a 1,048,576-byte pre-Jackson body limit.
+- Independent API-key/HMAC verification, overlapping key rotation, plus-or-minus 300-second timestamp checking, UUID replay claims, ten-minute replay retention, bounded cleanup, constant-time signature comparison, a 1,048,576-byte pre-Jackson body limit, and Delivery Provider rejection of contract-unknown JSON properties.
 - Signed Sweet Market payment/delivery webhook-shaped probe intake and an outbound signer boundary for later integrations.
 - Correlation ID response/MDC propagation and strict lowercase W3C version-00 `traceparent` preservation in all three applications.
 - Seven-service Docker Compose topology, independent application images, health-gated startup, environment-only credentials, persistence checks, database-isolation audits, and guaranteed verifier teardown.
@@ -18,11 +18,11 @@ M32 does not replace the current Sweet Market payment or delivery ports with pro
 
 ## Verification snapshot
 
-- Fresh forced application suites: Gateway 31/31 tests across 7 suites, Delivery 23/23 across 7 suites, and Sweet Market 892/892 across 134 suites; zero failures, errors, or skips.
+- Fresh forced application suites: Gateway 31/31 tests across 7 suites, Delivery 24/24 across 7 suites, and Sweet Market 892/892 across 134 suites; zero failures, errors, or skips.
 - Web: 13 files and 62/62 tests passed; production build transformed 166 modules. The non-failing 595.71 kB Vite chunk advisory remains.
-- Contracts: 2/2 Node tests passed. PowerShell static verification passed 175 checks, and the independent Java/database boundary audit passed.
-- Complete live verifier: 19/19 ordered steps passed in 503.6 seconds. Positive results were Gateway 200, Delivery 200, payment webhook 204, and delivery webhook 204. Negative results were replay 409, post-signature mutation 401, 301-second expiry 401, and 1,048,577-byte chunked input 413.
-- Both simulator restarts retained their replay claims and returned 409 for pre-restart request IDs. Database ownership/foreign-table absence assertions passed.
+- Contracts: 2/2 Node tests passed. PowerShell static verification passed 216 checks, and the independent Java/database boundary audit passed.
+- Complete live verifier: 19/19 ordered steps passed in 528.7 seconds. Positive results were Gateway 200, Delivery 200, payment webhook 204, and delivery webhook 204. Negative results were replay 409, post-signature mutation 401, 301-second expiry 401, and 1,048,577-byte chunked input 413.
+- Both simulator restarts retained their replay claims and returned 409 for pre-restart request IDs. The live catalog audit proved that Payment and Delivery own `integration_request_replays` while excluding `external_integration_request_replays`, `members`, `products`, `orders`, and `stores`; Market owns `external_integration_request_replays` while excluding `integration_request_replays`.
 - Compose logs and committed M32 artifacts contained no configured credential value, authorization value, private absolute path, unfinished placeholder marker, or raw runtime log artifact.
 - Independent post-run topology count was zero. `.env.integration` remained ignored and untracked.
 
@@ -72,3 +72,4 @@ The live verifier is the topology owner. It must finish through its `finally` cl
 - No durable business webhook sender or business callback processing.
 - No Kafka.
 - No observability backend; correlation and trace-context preservation are only the propagation foundation.
+- Non-blocking review follow-up: Spring environment overrides can enlarge simulator integration-security limits beyond the fixed M32 contract. Current Compose values and defaults comply; follow-up should align exact simulator validation with the backend without changing or completing M33 scope.

@@ -84,6 +84,18 @@ class ProviderSignedProbeApiTest extends ProviderIntegrationTestSupport {
     }
 
     @Test
+    void 계약에_없는_JSON_field는_거부한다() throws Exception {
+        String body = "{\"message\":\"delivery-contract-probe\",\"extra\":\"unexpected\"}";
+        UUID requestId = UUID.randomUUID();
+
+        mockMvc.perform(signedPost("/api/v1/probes", body, requestId, UUID.randomUUID(),
+                        NOW, CURRENT_KEY_ID, CURRENT_SECRET, MediaType.APPLICATION_JSON_VALUE))
+                .andExpect(status().isBadRequest())
+                .andExpect(integrationError(
+                        "INTEGRATION_REQUEST_INVALID", "Integration request is invalid", requestId));
+    }
+
+    @Test
     void rotation_중_두_keyId를_허용한다() throws Exception {
         mockMvc.perform(signedPost("/api/v1/probes", BODY, UUID.randomUUID(), UUID.randomUUID(),
                         NOW, CURRENT_KEY_ID, CURRENT_SECRET, MediaType.APPLICATION_JSON_VALUE))

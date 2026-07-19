@@ -276,22 +276,56 @@ function Assert-ProbeEcho {
 function Assert-DatabaseIsolation {
     param([Parameter(Mandatory)] [Collections.Generic.Dictionary[string, string]]$Configuration)
 
-    $expected = [ordered]@{
-        'market-postgres' = $Configuration['MARKET_DB_NAME']
-        'payment-postgres' = $Configuration['PAYMENT_GATEWAY_DB_NAME']
-        'delivery-postgres' = $Configuration['DELIVERY_PROVIDER_DB_NAME']
+    $audits = [ordered]@{
+        'market-postgres' = [pscustomobject]@{
+            Database = $Configuration['MARKET_DB_NAME']
+            Required = 'external_integration_request_replays'
+            Forbidden = @('integration_request_replays')
+        }
+        'payment-postgres' = [pscustomobject]@{
+            Database = $Configuration['PAYMENT_GATEWAY_DB_NAME']
+            Required = 'integration_request_replays'
+            Forbidden = @('external_integration_request_replays', 'members', 'products', 'orders', 'stores')
+        }
+        'delivery-postgres' = [pscustomobject]@{
+            Database = $Configuration['DELIVERY_PROVIDER_DB_NAME']
+            Required = 'integration_request_replays'
+            Forbidden = @('external_integration_request_replays', 'members', 'products', 'orders', 'stores')
+        }
     }
-    $duplicates = @($expected.Values | Group-Object | Where-Object { $_.Count -gt 1 })
+    $duplicates = @($audits.Values.Database | Group-Object | Where-Object { $_.Count -gt 1 })
     if ($duplicates.Count -gt 0) {
         throw 'database isolation audit found duplicate configured database names'
     }
-    foreach ($service in $expected.Keys) {
-        $actual = Invoke-Compose -Arguments @(
-            'exec', '-T', $service, 'sh', '-c',
-            'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select current_database()"'
-        ) -Capture
-        if (($actual -join '').Trim() -cne $expected[$service]) {
+    foreach ($service in $audits.Keys) {
+        $audit = $audits[$service]
+        $forbiddenChecks = @($audit.Forbidden | ForEach-Object {
+            "'$_', to_regclass('public.$_') IS NULL"
+        })
+        $query = "SELECT json_build_object(" +
+            "'database', current_database(), " +
+            "'requiredTableExists', to_regclass('public.$($audit.Required)') IS NOT NULL, " +
+            "'forbiddenTablesAbsent', json_build_object($($forbiddenChecks -join ', ')))::text"
+        $command = 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "{0}"' -f $query
+        $rawResult = @(Invoke-Compose -Arguments @(
+            'exec', '-T', $service, 'sh', '-c', $command
+        ) -Capture)
+        try {
+            $result = (($rawResult -join "`n").Trim() | ConvertFrom-Json -ErrorAction Stop)
+        } catch {
+            throw "database isolation audit returned invalid catalog data for service $service"
+        }
+        if ([string]$result.database -cne $audit.Database) {
             throw "database isolation audit failed for service $service"
+        }
+        if ($result.requiredTableExists -isnot [bool] -or -not $result.requiredTableExists) {
+            throw "database isolation audit found missing required table for service $service"
+        }
+        foreach ($table in $audit.Forbidden) {
+            $property = $result.forbiddenTablesAbsent.PSObject.Properties[$table]
+            if ($null -eq $property -or $property.Value -isnot [bool] -or -not $property.Value) {
+                throw "database isolation audit found forbidden table $table for service $service"
+            }
         }
     }
 }

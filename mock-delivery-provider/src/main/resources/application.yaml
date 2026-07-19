@@ -10,6 +10,9 @@ spring:
   sql:
     init:
       mode: never
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
 
 server:
   port: ${DELIVERY_PROVIDER_PORT:8082}

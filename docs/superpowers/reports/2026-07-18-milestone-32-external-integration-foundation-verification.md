@@ -4,7 +4,7 @@
 
 M32 passes the three fresh forced application suites, complete web regression and production build, public-contract checks, PowerShell static and boundary suites, and the complete live Docker Compose verifier. The live verifier exercised four signed positive probes and replay, mutation, expiry, and raw-body-limit negatives over ports `8080`-`8082`; restarted both simulators; re-proved replay persistence and database isolation; scanned Compose logs for configured credentials; and removed the topology in `finally`.
 
-The verified implementation revision is `c02256da6f88e574cb551a2a414be8ede94258fe`, based on merge base `1a6ea43daf8b74337eadcf626991a9b9b447a3c8`. Test and runtime evidence was generated on 2026-07-19 in the `Asia/Seoul` time zone. Durations below are local verification timings, not production performance claims.
+The post-review verification was executed against the complete change set containing this report, based on merge base `1a6ea43daf8b74337eadcf626991a9b9b447a3c8`. Test and runtime evidence was generated on 2026-07-19 in the `Asia/Seoul` time zone. Durations below are local verification timings, not production performance claims.
 
 ## Environment and application versions
 
@@ -30,20 +30,20 @@ The verified implementation revision is `c02256da6f88e574cb551a2a414be8ede94258f
 JDK 21 was active for every command and the backend process received a valid configured `JWT_SECRET`. No credential value was printed or recorded.
 
 ```powershell
-.\backend\gradlew.bat -p mock-payment-gateway cleanTest test --no-daemon
-.\backend\gradlew.bat -p mock-delivery-provider cleanTest test --no-daemon
-.\backend\gradlew.bat -p backend cleanTest test --no-daemon
+.\backend\gradlew.bat -p mock-payment-gateway clean test --no-daemon
+.\backend\gradlew.bat -p mock-delivery-provider clean test --no-daemon
+.\backend\gradlew.bat -p backend clean test --no-daemon
 ```
 
-Every `TEST-*.xml` produced by each fresh `cleanTest` run was parsed. Duration is the sum of the XML `testsuite.time` values; build wall time is the observed command time.
+Every `TEST-*.xml` produced by the exact live verifier's fresh `clean test` runs was parsed. Duration is the sum of the XML `testsuite.time` values; build wall time is the corresponding observed live-step time.
 
 | Build | XML suites | Tests | Failures | Errors | Skips | XML duration | Build wall time |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Mock Payment Gateway | 7 | 31 | 0 | 0 | 0 | 2.153 s | 44.8 s |
-| Mock Delivery Provider | 7 | 23 | 0 | 0 | 0 | 1.590 s | 30.5 s |
-| Sweet Market backend | 134 | 892 | 0 | 0 | 0 | 210.363 s | 335.3 s |
+| Mock Payment Gateway | 7 | 31 | 0 | 0 | 0 | 1.948 s | 34.5 s |
+| Mock Delivery Provider | 7 | 24 | 0 | 0 | 0 | 1.344 s | 31.6 s |
+| Sweet Market backend | 134 | 892 | 0 | 0 | 0 | 209.990 s | 348.0 s |
 
-The later full live verifier independently ran `clean test --no-daemon` for all three applications again before starting Compose.
+These are the fresh application suites the full live verifier completed before starting Compose.
 
 ## Web and protocol verification
 
@@ -66,8 +66,8 @@ pwsh -NoProfile -File scripts/verify-m32-integration.ps1 -EnvFile .env.integrati
 | Web tests | 13 files, 62/62 tests passed; Vitest duration 32.95 s |
 | Production web build | TypeScript checks passed; Vite transformed 166 modules and built in 1.99 s |
 | Node contracts | 2/2 tests passed; 0 failures, skips, or cancellations; 74.3272 ms |
-| PowerShell script suite | 175 checks passed |
-| Complete live verifier | 19/19 ordered steps passed; command wall time 503.6 s |
+| PowerShell script suite | 216 checks passed |
+| Complete live verifier | 19/19 ordered steps passed; command wall time 528.7 s |
 
 The production build retains one non-failing Vite advisory: the minified JavaScript chunk is 595.71 kB, above the default 500 kB warning threshold; gzip size is 166.06 kB.
 
@@ -98,23 +98,23 @@ The verifier buffers build and runtime output, prints sanitized step names and t
 | Live step | Verified observation | Time |
 | --- | --- | ---: |
 | Node contract tests | Passed before application startup | 0.2 s |
-| PowerShell parser/static tests | All executable-flow/static checks passed | 2.4 s |
-| Boundary audit | Java import and database-name boundaries passed | 13.3 s |
-| Payment Gateway complete tests | Clean standalone build passed | 35.0 s |
-| Delivery Provider complete tests | Clean standalone build passed | 31.8 s |
-| Sweet Market complete backend tests | Clean complete regression passed | 379.6 s |
-| Compose config and build | Render and three application images passed | 2.4 s |
-| Compose up and health | Three applications reached health before the bounded deadline | 18.1 s |
+| PowerShell parser/static tests | All executable-flow/static checks passed | 2.6 s |
+| Boundary audit | Java import and database-name boundaries passed | 10.4 s |
+| Payment Gateway complete tests | Clean standalone build passed | 34.5 s |
+| Delivery Provider complete tests | Clean standalone build passed | 31.6 s |
+| Sweet Market complete backend tests | Clean complete regression passed | 348.0 s |
+| Compose config and build | Render and three application images passed | 57.2 s |
+| Compose up and health | Three applications reached health before the bounded deadline | 21.4 s |
 | Signed Payment Gateway probe | HTTP 200; exact `mock-payment-gateway` service, message, request ID, and correlation ID echo | 0.2 s |
-| Signed Delivery Provider probe | HTTP 200; exact `mock-delivery-provider` service, message, request ID, and correlation ID echo | 0.0 s |
+| Signed Delivery Provider probe | HTTP 200; exact `mock-delivery-provider` service, message, request ID, and correlation ID echo | 0.1 s |
 | Signed payment webhook probe | HTTP 204 on the payment webhook v1 path | 0.1 s |
 | Signed delivery webhook probe | HTTP 204 on the delivery webhook v1 path | 0.0 s |
 | Replay negative | Reused Payment Gateway request ID returned HTTP 409 | 0.0 s |
 | Mutated-body negative | Body changed after signing returned HTTP 401 | 0.0 s |
 | Expired-timestamp negative | Delivery request 301 seconds old returned HTTP 401 | 0.0 s |
 | Chunked oversize negative | 1,048,577-byte chunked Sweet Market webhook returned HTTP 413 | 0.0 s |
-| Simulator restart replay persistence | Both simulators restarted healthy and continued returning HTTP 409 for their pre-restart request IDs | 15.6 s |
-| Database isolation audit | All ownership and foreign-table absence assertions passed | 0.6 s |
+| Simulator restart replay persistence | Both simulators restarted healthy and continued returning HTTP 409 for their pre-restart request IDs | 16.3 s |
+| Database isolation audit | All ownership and foreign-table absence assertions passed | 0.7 s |
 | Compose logs secret scan | No configured API key, HMAC credential, or database password value appeared | 0.3 s |
 
 An independent post-run `docker compose --env-file .env.integration -f docker-compose.integration.yml ps --all --quiet` query returned zero containers. `.env.integration` remained ignored and untracked.
@@ -128,7 +128,7 @@ An independent post-run `docker compose --env-file .env.integration -f docker-co
 | `mock-delivery-provider` | 8082 | `delivery-postgres` / `delivery_provider` | 15434 | independent Provider image |
 | `redis` | not published | internal Redis store | not applicable | `redis:7-alpine` |
 
-Each PostgreSQL service uses `postgres:17-alpine`, its own database/user/password inputs, Flyway history, and named volume. Payment and delivery retain only their own `integration_request_replays` table and exclude representative Sweet Market tables. Market retains `external_integration_request_replays` and excludes the simulator replay table. The restart proof demonstrates that both provider replay ledgers survive application-container restart; it is not a claim about payment or shipment business-state persistence, because M32 has no such behavior.
+Each PostgreSQL service uses `postgres:17-alpine`, its own database/user/password inputs, Flyway history, and named volume. The live audit queries each owning database with `current_database()` and `to_regclass`. Payment and delivery must own `integration_request_replays` and must not contain `external_integration_request_replays`, `members`, `products`, `orders`, or `stores`; Market must own `external_integration_request_replays` and must not contain simulator table `integration_request_replays`. The restart proof demonstrates that both provider replay ledgers survive application-container restart; it is not a claim about payment or shipment business-state persistence, because M32 has no such behavior.
 
 ## Correlation and trace-context evidence
 
@@ -145,8 +145,9 @@ git status --short
 ```
 
 - The independent boundary command passed after the live run. It lexically masks Java comments, strings, chars, and text blocks; handles CR, LF, and CRLF logical lines; rejects cross-application Java imports; and verifies three distinct configured database names.
+- The Delivery Provider configures Jackson to reject unknown request properties. A signed regression over the raw body containing valid `message` plus unknown `extra` receives HTTP 400 with the exact three-field `IntegrationError` response and authenticated request ID.
 - The live verifier's in-memory log scan found no configured secret or password value and persisted no raw runtime log.
-- A value-aware scan compared 16 non-empty `.env.integration` secret, password, and API-key values with 814 tracked or newly created text artifacts without printing those values; it found zero matches.
+- A value-aware scan compared 16 non-empty `.env.integration` secret, password, and API-key values with 933 tracked text artifacts without printing those values; it found zero matches.
 - A structural scan found no credential assignments in committed runtime configuration, no authorization-header values, no private absolute paths, no unfinished placeholder markers, and no committed raw Gradle, npm, Docker, HTTP, or application log artifact.
 - `git diff --check` passed. Before documentation edits, `git status --short` was empty.
 
@@ -157,3 +158,4 @@ git status --short
 3. Kafka is not installed or implied. The existing database-outbox boundary remains authoritative until M39 produces evidence for a transport decision.
 4. Correlation and `traceparent` propagation exist, but no OpenTelemetry Collector, trace store, metrics backend, dashboard, or central log backend exists yet; those remain M38 scope.
 5. The Vite 595.71 kB chunk-size advisory is non-failing and remains visible for later web optimization.
+6. Non-blocking review follow-up: simulator integration-security properties can still be enlarged through Spring environment overrides even though the M32 contract fixes limits such as 300-second skew, 1,048,576-byte body size, ten-minute replay retention, and 1,000-row cleanup batches. Current Compose values and application defaults comply; a later hardening change should align exact simulator property validation with the backend without expanding M33 scope.
