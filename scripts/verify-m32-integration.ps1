@@ -212,13 +212,12 @@ function Invoke-ChunkedOversizeRequest {
 function Invoke-Compose {
     param(
         [Parameter(Mandatory)] [string[]]$Arguments,
-        [switch]$Capture,
-        [switch]$IgnoreExitCode
+        [switch]$Capture
     )
 
     $output = @(& docker compose -f $composeFile @Arguments 2>&1)
     $exitCode = $LASTEXITCODE
-    if ($exitCode -ne 0 -and -not $IgnoreExitCode) {
+    if ($exitCode -ne 0) {
         throw "docker compose $($Arguments[0]) failed with exit code $exitCode"
     }
     if ($Capture) {
@@ -330,19 +329,48 @@ function Invoke-GradleChecked {
     }
 }
 
-$script:environmentValues = Read-EnvironmentFile $resolvedEnvFile
-$configuration = Get-RequiredConfiguration $script:environmentValues
+function Restore-ProcessEnvironment {
+    param(
+        [Parameter(Mandatory)] [hashtable]$OriginalEnvironment,
+        [Parameter(Mandatory)] [string[]]$Names,
+        [AllowNull()] [string]$OriginalJavaHome,
+        [AllowNull()] [string]$OriginalPath
+    )
+
+    $valuesToRestore = @{}
+    foreach ($name in $Names) {
+        $valuesToRestore[$name] = $OriginalEnvironment[$name]
+    }
+    $valuesToRestore['JAVA_HOME'] = $OriginalJavaHome
+    $valuesToRestore['PATH'] = $OriginalPath
+    foreach ($entry in $valuesToRestore.GetEnumerator()) {
+        if ($null -eq $entry.Value) {
+            Remove-Item -LiteralPath "Env:$($entry.Key)" -ErrorAction SilentlyContinue
+        } else {
+            [Environment]::SetEnvironmentVariable(
+                $entry.Key, $entry.Value, [EnvironmentVariableTarget]::Process)
+        }
+    }
+}
+
 $originalEnvironment = @{}
 foreach ($name in $requiredVariables) {
     $originalEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, [EnvironmentVariableTarget]::Process)
-    [Environment]::SetEnvironmentVariable($name, $configuration[$name], [EnvironmentVariableTarget]::Process)
 }
 $originalJavaHome = [Environment]::GetEnvironmentVariable('JAVA_HOME', [EnvironmentVariableTarget]::Process)
 $originalPath = [Environment]::GetEnvironmentVariable('PATH', [EnvironmentVariableTarget]::Process)
-[Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\java\jdk-21', [EnvironmentVariableTarget]::Process)
-[Environment]::SetEnvironmentVariable('PATH', "C:\java\jdk-21\bin;$originalPath", [EnvironmentVariableTarget]::Process)
+$primaryError = $null
+$cleanupError = $null
 
 try {
+    $script:environmentValues = Read-EnvironmentFile $resolvedEnvFile
+    $configuration = Get-RequiredConfiguration $script:environmentValues
+    foreach ($name in $requiredVariables) {
+        [Environment]::SetEnvironmentVariable($name, $configuration[$name], [EnvironmentVariableTarget]::Process)
+    }
+    [Environment]::SetEnvironmentVariable('JAVA_HOME', 'C:\java\jdk-21', [EnvironmentVariableTarget]::Process)
+    [Environment]::SetEnvironmentVariable('PATH', "C:\java\jdk-21\bin;$originalPath", [EnvironmentVariableTarget]::Process)
+
     Push-Location $repositoryRoot
     try {
         Invoke-CheckedStep 'Node contract tests' {
@@ -507,14 +535,40 @@ try {
     } finally {
         Pop-Location
     }
+} catch {
+    $primaryError = $_
 } finally {
     try {
-        Invoke-Compose -Arguments @('down', '--remove-orphans') -IgnoreExitCode
-    } finally {
         foreach ($name in $requiredVariables) {
-            [Environment]::SetEnvironmentVariable($name, $originalEnvironment[$name], [EnvironmentVariableTarget]::Process)
+            $currentValue = [Environment]::GetEnvironmentVariable($name, [EnvironmentVariableTarget]::Process)
+            if ([string]::IsNullOrWhiteSpace($currentValue)) {
+                [Environment]::SetEnvironmentVariable(
+                    $name, 'm32-cleanup-placeholder', [EnvironmentVariableTarget]::Process)
+            }
         }
-        [Environment]::SetEnvironmentVariable('JAVA_HOME', $originalJavaHome, [EnvironmentVariableTarget]::Process)
-        [Environment]::SetEnvironmentVariable('PATH', $originalPath, [EnvironmentVariableTarget]::Process)
+        Invoke-Compose -Arguments @('down', '--remove-orphans')
+    } catch {
+        $cleanupError = $_
+    } finally {
+        try {
+            Restore-ProcessEnvironment -OriginalEnvironment $originalEnvironment -Names $requiredVariables `
+                -OriginalJavaHome $originalJavaHome -OriginalPath $originalPath
+        } catch {
+            if ($null -eq $cleanupError) {
+                $cleanupError = $_
+            } else {
+                Write-Error 'M32 verification environment restoration also failed.' -ErrorAction Continue
+            }
+        }
     }
+}
+
+if ($null -ne $primaryError) {
+    if ($null -ne $cleanupError) {
+        Write-Error 'M32 verification cleanup also failed.' -ErrorAction Continue
+    }
+    throw $primaryError
+}
+if ($null -ne $cleanupError) {
+    throw 'M32 verification cleanup failed.'
 }

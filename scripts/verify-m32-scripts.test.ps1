@@ -69,6 +69,35 @@ function Get-FunctionNames {
     }, $true) | ForEach-Object Name)
 }
 
+function Get-CommandParameterValueText {
+    param(
+        [Parameter(Mandatory)] [Management.Automation.Language.CommandAst]$Command,
+        [Parameter(Mandatory)] [string]$Name
+    )
+
+    for ($index = 0; $index -lt $Command.CommandElements.Count; $index++) {
+        $element = $Command.CommandElements[$index]
+        if ($element -is [Management.Automation.Language.CommandParameterAst] -and
+            $element.ParameterName -eq $Name -and $index + 1 -lt $Command.CommandElements.Count) {
+            return $Command.CommandElements[$index + 1].Extent.Text
+        }
+    }
+    return $null
+}
+
+function Test-HasFunctionAncestor {
+    param([Parameter(Mandatory)] [Management.Automation.Language.Ast]$Node)
+
+    $parent = $Node.Parent
+    while ($null -ne $parent) {
+        if ($parent -is [Management.Automation.Language.FunctionDefinitionAst]) {
+            return $true
+        }
+        $parent = $parent.Parent
+    }
+    return $false
+}
+
 function Assert-OrderedPatterns {
     param(
         [Parameter(Mandatory)] [string]$Text,
@@ -96,13 +125,61 @@ if ($null -ne $boundary) {
     Assert-True ($functions -contains 'Get-ConfiguredDatabaseName') 'boundary audit must parse configured JDBC database names'
     Assert-True (@($commands | Where-Object { $_.GetCommandName() -eq 'Get-ChildItem' }).Count -gt 0) 'boundary audit must enumerate source files'
     Assert-True (@($commands | Where-Object { $_.GetCommandName() -eq 'Select-String' }).Count -gt 0) 'boundary audit must inspect imports with .NET regex matching'
-    Assert-Match $boundary.Source "import com\\\.sweet\\\.market\\\.(?!gateway)" 'payment gateway boundary regex is missing'
-    Assert-Match $boundary.Source "import com\\\.sweet\\\.market\\\.(?!provider)" 'delivery provider boundary regex is missing'
-    Assert-True ($boundary.Source.Contains("'com\.sweet\.market\.(gateway|provider)'")) 'backend simulator-import boundary regex is missing'
+    Assert-Match $boundary.Source '\(\?:static\\s\+\)\?' 'boundary regexes must support optional static imports'
+    Assert-Match $boundary.Source '\^\\s\*import\\s\+' 'boundary regexes must be anchored to Java import statements'
+    Assert-Match $boundary.Source 'gateway\(\?:\\\.\|;\)' 'gateway namespace matching must require a dot or semicolon delimiter'
+    Assert-Match $boundary.Source 'provider\(\?:\\\.\|;\)' 'provider namespace matching must require a dot or semicolon delimiter'
     Assert-Match $boundary.Source 'application\.yaml' 'boundary audit must inspect application YAML files'
     Assert-Match $boundary.Source '(?s)Group-Object.+Count\s+-gt\s+1' 'boundary audit must fail duplicate database names'
     Assert-Match $boundary.Source '(?s)(Name|rule).*(Path|file)' 'boundary findings must identify only rule and file information'
     Assert-True (-not [regex]::IsMatch($boundary.Source, '(?i)Write-(Host|Output).*(password|secret|api.?key)')) 'boundary audit output must not print credentials'
+
+    $boundaryCalls = @($commands | Where-Object { $_.GetCommandName() -eq 'Find-ProhibitedImports' })
+    $paymentCall = $boundaryCalls | Where-Object { $_.CommandElements[1].SafeGetValue() -eq 'mock-payment-gateway\src' } | Select-Object -First 1
+    $providerCall = $boundaryCalls | Where-Object { $_.CommandElements[1].SafeGetValue() -eq 'mock-delivery-provider\src' } | Select-Object -First 1
+    $backendCall = $boundaryCalls | Where-Object { $_.CommandElements[1].SafeGetValue() -eq 'backend\src' } | Select-Object -First 1
+    $paymentPattern = [string]$paymentCall.CommandElements[2].SafeGetValue()
+    $providerPattern = [string]$providerCall.CommandElements[2].SafeGetValue()
+    $backendPattern = [string]$backendCall.CommandElements[2].SafeGetValue()
+
+    foreach ($allowedImport in @(
+        'import com.sweet.market.gateway.probe.ProbeController;',
+        'import static com.sweet.market.gateway.security.Headers.SIGNATURE;'
+    )) {
+        Assert-True (-not [regex]::IsMatch($allowedImport, $paymentPattern)) 'payment boundary must allow only its exact gateway namespace'
+    }
+    foreach ($prohibitedImport in @(
+        'import com.sweet.market.gatewayevil.Escape;',
+        'import static com.sweet.market.provider.security.Headers.SIGNATURE;'
+    )) {
+        Assert-True ([regex]::IsMatch($prohibitedImport, $paymentPattern)) 'payment boundary must reject prefixed or static foreign namespaces'
+    }
+    foreach ($allowedImport in @(
+        'import com.sweet.market.provider.probe.ProbeController;',
+        'import static com.sweet.market.provider.security.Headers.SIGNATURE;'
+    )) {
+        Assert-True (-not [regex]::IsMatch($allowedImport, $providerPattern)) 'provider boundary must allow only its exact provider namespace'
+    }
+    foreach ($prohibitedImport in @(
+        'import com.sweet.market.providerfake.Escape;',
+        'import static com.sweet.market.gateway.security.Headers.SIGNATURE;'
+    )) {
+        Assert-True ([regex]::IsMatch($prohibitedImport, $providerPattern)) 'provider boundary must reject prefixed or static foreign namespaces'
+    }
+    foreach ($prohibitedImport in @(
+        'import com.sweet.market.gateway.probe.ProbeController;',
+        'import static com.sweet.market.provider.security.Headers.SIGNATURE;'
+    )) {
+        Assert-True ([regex]::IsMatch($prohibitedImport, $backendPattern)) 'backend boundary must reject exact simulator namespaces including static imports'
+    }
+    foreach ($nonImport in @(
+        '// import com.sweet.market.gateway.probe.ProbeController;',
+        '/* import com.sweet.market.provider.probe.ProbeController; */',
+        'String sample = "import com.sweet.market.gateway.probe.ProbeController;";',
+        'import com.sweet.market.gatewayevil.Escape;'
+    )) {
+        Assert-True (-not [regex]::IsMatch($nonImport, $backendPattern)) 'backend boundary must ignore comments, strings, and prefixed non-simulator namespaces'
+    }
 }
 
 if ($null -ne $integration) {
@@ -111,10 +188,27 @@ if ($null -ne $integration) {
     $requiredFunctions = @(
         'Read-EnvironmentFile', 'Get-RequiredConfiguration', 'New-SignedHeaders',
         'Invoke-SignedRequest', 'Wait-ComposeHealth', 'Invoke-ChunkedOversizeRequest',
-        'Assert-DatabaseIsolation', 'Assert-LogsContainNoSecrets', 'Invoke-Compose'
+        'Assert-DatabaseIsolation', 'Assert-LogsContainNoSecrets', 'Invoke-Compose',
+        'Restore-ProcessEnvironment'
     )
     foreach ($name in $requiredFunctions) {
         Assert-True ($functions -contains $name) "integration script must define $name"
+    }
+    $restoreFunction = @($integration.Ast.FindAll({
+        param($node)
+        $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Restore-ProcessEnvironment'
+    }, $true) | Select-Object -First 1)
+    if ($restoreFunction.Count -eq 1) {
+        Invoke-Expression $restoreFunction[0].Extent.Text
+        $restoreTestName = 'M32_ABSENT_RESTORE_TEST'
+        Remove-Item -LiteralPath "Env:$restoreTestName" -ErrorAction SilentlyContinue
+        $restoreRequiredVariables = @($restoreTestName)
+        $restoreSnapshot = @{ $restoreTestName = $null }
+        [Environment]::SetEnvironmentVariable($restoreTestName, 'temporary-placeholder', [EnvironmentVariableTarget]::Process)
+        Restore-ProcessEnvironment -OriginalEnvironment $restoreSnapshot -Names $restoreRequiredVariables `
+            -OriginalJavaHome ([Environment]::GetEnvironmentVariable('JAVA_HOME', 'Process')) `
+            -OriginalPath ([Environment]::GetEnvironmentVariable('PATH', 'Process'))
+        Assert-True (-not (Test-Path -LiteralPath "Env:$restoreTestName")) 'environment restoration must remove variables that were originally absent'
     }
 
     $parameters = @($integration.Ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
@@ -209,6 +303,30 @@ if ($null -ne $integration) {
         $node -is [Management.Automation.Language.TryStatementAst] -and $null -ne $node.Finally
     }, $true))
     Assert-True ($finallyBlocks.Count -gt 0) 'integration script must guarantee cleanup with finally'
+    $cleanupTry = @($finallyBlocks | Where-Object { $_.Finally.Extent.Text.Contains("'down'") } | Select-Object -First 1)
+    Assert-True ($cleanupTry.Count -eq 1) 'the executable outer cleanup scope must contain compose down'
+    $readEnvironmentCalls = @($commands | Where-Object {
+        $_.GetCommandName() -eq 'Read-EnvironmentFile' -and -not (Test-HasFunctionAncestor $_)
+    })
+    Assert-True ($readEnvironmentCalls.Count -eq 1 -and
+        $readEnvironmentCalls[0].Extent.StartOffset -gt $cleanupTry[0].Body.Extent.StartOffset -and
+        $readEnvironmentCalls[0].Extent.EndOffset -lt $cleanupTry[0].Body.Extent.EndOffset) 'environment parsing must execute inside the outer cleanup try body'
+    $processEnvironmentMutations = @($integration.Ast.FindAll({
+        param($node)
+        $node -is [Management.Automation.Language.InvokeMemberExpressionAst] -and
+            $node.Member.Value -eq 'SetEnvironmentVariable' -and -not (Test-HasFunctionAncestor $node)
+    }, $true))
+    foreach ($mutation in $processEnvironmentMutations) {
+        Assert-True ($mutation.Extent.StartOffset -gt $cleanupTry[0].Extent.StartOffset -and
+            $mutation.Extent.EndOffset -lt $cleanupTry[0].Extent.EndOffset) 'process environment mutations must execute inside the outer cleanup scope'
+    }
+    $snapshotAssignment = @($integration.Ast.FindAll({
+        param($node)
+        $node -is [Management.Automation.Language.AssignmentStatementAst] -and
+            $node.Left.Extent.Text -eq '$originalEnvironment'
+    }, $true) | Select-Object -First 1)
+    Assert-True ($snapshotAssignment.Count -eq 1 -and
+        $snapshotAssignment[0].Extent.StartOffset -lt $cleanupTry[0].Extent.StartOffset) 'environment snapshot storage must be created before the cleanup scope mutates anything'
     Assert-Match $integration.Source '(?s)finally\s*\{.+Invoke-Compose.+''down''' 'finally cleanup must invoke docker compose down'
     Assert-Match $integration.Source '(?s)Wait-ComposeHealth.+Deadline|deadline.+Wait-ComposeHealth' 'health polling must use a bounded deadline'
     Assert-True (-not [regex]::IsMatch($integration.Source, '(?i)while\s*\(\s*\$true\s*\)')) 'health polling must not use an unbounded loop'
@@ -245,6 +363,57 @@ if ($null -ne $integration) {
     }
     Assert-OrderedPatterns $integration.Source $orderedSteps
 
+    $executableSteps = @($commands | Where-Object {
+        $_.GetCommandName() -eq 'Invoke-CheckedStep' -and -not (Test-HasFunctionAncestor $_)
+    } | Sort-Object { $_.Extent.StartOffset })
+    $actualStepNames = @($executableSteps | ForEach-Object { [string]$_.CommandElements[1].SafeGetValue() })
+    Assert-True ($actualStepNames.Count -eq $orderedSteps.Count) 'the executable main flow must contain exactly the required checked steps'
+    Assert-True (($actualStepNames -join "`n") -ceq (($orderedSteps.Keys) -join "`n")) 'the executable main flow must use the exact required step order'
+
+    $stepByName = @{}
+    foreach ($step in $executableSteps) {
+        $stepByName[[string]$step.CommandElements[1].SafeGetValue()] = $step
+    }
+    $replayRequest = @($stepByName['replay negative'].FindAll({
+        param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Invoke-SignedRequest'
+    }, $true))
+    Assert-True ($replayRequest.Count -eq 1) 'replay negative must execute exactly one signed request'
+    Assert-True ((Get-CommandParameterValueText $replayRequest[0] 'ExpectedStatus') -eq '409') 'replay negative must assert HTTP 409 on its executable request'
+    Assert-True ((Get-CommandParameterValueText $replayRequest[0] 'RequestId') -eq '$paymentRequestId') 'replay negative must reuse the original payment request ID'
+    Assert-True ((Get-CommandParameterValueText $replayRequest[0] 'Body') -eq '$paymentBody') 'replay negative must reuse the original payment body bytes'
+    Assert-True ((Get-CommandParameterValueText $replayRequest[0] 'Timestamp') -eq '$paymentTimestamp') 'replay negative must reuse the original payment timestamp'
+
+    $mutatedRequest = @($stepByName['mutated body negative'].FindAll({
+        param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Invoke-SignedRequest'
+    }, $true))
+    Assert-True ($mutatedRequest.Count -eq 1) 'mutated-body negative must execute exactly one signed request'
+    Assert-True ((Get-CommandParameterValueText $mutatedRequest[0] 'ExpectedStatus') -eq '401') 'mutated-body negative must assert HTTP 401'
+    Assert-True ((Get-CommandParameterValueText $mutatedRequest[0] 'Body') -eq '$mutatedBody') 'mutated-body negative must send the mutated bytes'
+    Assert-True ((Get-CommandParameterValueText $mutatedRequest[0] 'SigningBody') -eq '$signedBody') 'mutated-body negative must sign different original bytes'
+
+    $expiredRequest = @($stepByName['expired timestamp negative'].FindAll({
+        param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Invoke-SignedRequest'
+    }, $true))
+    Assert-True ($expiredRequest.Count -eq 1) 'expired negative must execute exactly one signed request'
+    Assert-True ((Get-CommandParameterValueText $expiredRequest[0] 'ExpectedStatus') -eq '401') 'expired negative must assert HTTP 401'
+    Assert-True ((Get-CommandParameterValueText $expiredRequest[0] 'Timestamp') -match 'AddSeconds\(-301\)') 'expired negative must send a timestamp 301 seconds old'
+
+    $oversizeCalls = @($stepByName['chunked oversize negative'].FindAll({
+        param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Invoke-ChunkedOversizeRequest'
+    }, $true))
+    Assert-True ($oversizeCalls.Count -eq 1) 'oversize negative must execute the chunked 1 MiB plus one request helper'
+
+    $restartRequests = @($stepByName['simulator restart replay persistence'].FindAll({
+        param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Invoke-SignedRequest'
+    }, $true))
+    Assert-True ($restartRequests.Count -eq 2) 'restart persistence must execute one replay request per simulator'
+    Assert-True ((Get-CommandParameterValueText $restartRequests[0] 'ExpectedStatus') -eq '409' -and
+        (Get-CommandParameterValueText $restartRequests[1] 'ExpectedStatus') -eq '409') 'restart replay requests must both assert HTTP 409'
+    Assert-True ((Get-CommandParameterValueText $restartRequests[0] 'RequestId') -eq '$paymentRequestId' -and
+        (Get-CommandParameterValueText $restartRequests[1] 'RequestId') -eq '$deliveryRequestId') 'restart replay requests must reuse both original request IDs'
+    Assert-True ((Get-CommandParameterValueText $restartRequests[0] 'Body') -eq '$paymentBody' -and
+        (Get-CommandParameterValueText $restartRequests[1] 'Body') -eq '$deliveryBody') 'restart replay requests must reuse both original bodies'
+
     foreach ($status in @(200, 204, 409, 401)) {
         Assert-Match $integration.Source "ExpectedStatus\s+$status\b" "integration flow must assert HTTP $status"
     }
@@ -257,6 +426,56 @@ if ($null -ne $integration) {
         Assert-True ($echoFunction[0].Extent.Text.Contains("Response.Json.$field")) "successful simulator probes must validate exact $field"
     }
     Assert-Match $integration.Source '(?s)Assert-LogsContainNoSecrets.+Get-RequiredConfiguration' 'log scan must compare output against configured credentials without printing them'
+
+    $behaviorRoot = Join-Path ([IO.Path]::GetTempPath()) "m32-script-behavior-$([Guid]::NewGuid().ToString('N'))"
+    $mockBin = Join-Path $behaviorRoot 'bin'
+    $invalidEnvPath = Join-Path $behaviorRoot 'invalid.env'
+    $dockerCallLog = Join-Path $behaviorRoot 'docker-calls.log'
+    $downHarnessPath = Join-Path $behaviorRoot 'down-failure.ps1'
+    $originalBehaviorPath = [Environment]::GetEnvironmentVariable('PATH', [EnvironmentVariableTarget]::Process)
+    $originalCallLog = [Environment]::GetEnvironmentVariable('M32_DOCKER_CALL_LOG', [EnvironmentVariableTarget]::Process)
+    $originalMockExit = [Environment]::GetEnvironmentVariable('M32_MOCK_DOCKER_EXIT', [EnvironmentVariableTarget]::Process)
+    try {
+        [void][IO.Directory]::CreateDirectory($mockBin)
+        $dockerMock = @'
+@echo off
+echo %*>>"%M32_DOCKER_CALL_LOG%"
+exit /b %M32_MOCK_DOCKER_EXIT%
+'@
+        [IO.File]::WriteAllText((Join-Path $mockBin 'docker.cmd'), $dockerMock)
+        [IO.File]::WriteAllText($invalidEnvPath, "JWT_SECRET=first`nJWT_SECRET=duplicate`n")
+        [Environment]::SetEnvironmentVariable('PATH', "$mockBin;$originalBehaviorPath", [EnvironmentVariableTarget]::Process)
+        [Environment]::SetEnvironmentVariable('M32_DOCKER_CALL_LOG', $dockerCallLog, [EnvironmentVariableTarget]::Process)
+        [Environment]::SetEnvironmentVariable('M32_MOCK_DOCKER_EXIT', '0', [EnvironmentVariableTarget]::Process)
+        $invalidOutput = @(& pwsh -NoProfile -File $integrationPath -EnvFile $invalidEnvPath 2>&1)
+        $invalidExit = $LASTEXITCODE
+        $dockerCalls = if (Test-Path -LiteralPath $dockerCallLog) { [IO.File]::ReadAllText($dockerCallLog) } else { '' }
+        Assert-True ($invalidExit -ne 0) 'invalid environment input must exit nonzero'
+        Assert-True ((($invalidOutput | ForEach-Object ToString) -join "`n").Contains('duplicate environment name')) 'invalid input must preserve its primary validation failure after cleanup'
+        Assert-True ($dockerCalls -match '(?m)\bcompose\b.*\bdown\b') 'invalid environment input must still invoke docker compose down'
+
+        $downCommand = @($cleanupTry[0].Finally.FindAll({
+            param($node) $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Invoke-Compose'
+        }, $true) | Select-Object -First 1)
+        $composeFunction = @($integration.Ast.FindAll({
+            param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-Compose'
+        }, $true) | Select-Object -First 1)
+        $harness = @"
+`$ErrorActionPreference = 'Stop'
+`$composeFile = 'mock-compose.yml'
+$($composeFunction[0].Extent.Text)
+function docker { `$global:LASTEXITCODE = 7 }
+$($downCommand[0].Extent.Text)
+"@
+        [IO.File]::WriteAllText($downHarnessPath, $harness)
+        & pwsh -NoProfile -File $downHarnessPath *> $null
+        Assert-True ($LASTEXITCODE -ne 0) 'docker compose down exit 7 must make the cleanup harness exit nonzero'
+    } finally {
+        [Environment]::SetEnvironmentVariable('PATH', $originalBehaviorPath, [EnvironmentVariableTarget]::Process)
+        [Environment]::SetEnvironmentVariable('M32_DOCKER_CALL_LOG', $originalCallLog, [EnvironmentVariableTarget]::Process)
+        [Environment]::SetEnvironmentVariable('M32_MOCK_DOCKER_EXIT', $originalMockExit, [EnvironmentVariableTarget]::Process)
+        Remove-Item -LiteralPath $behaviorRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 if ($script:Failures.Count -gt 0) {

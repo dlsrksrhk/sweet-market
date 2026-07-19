@@ -46,9 +46,9 @@ function Get-ConfiguredDatabaseName {
     return $match.Groups[1].Value
 }
 
-Find-ProhibitedImports 'mock-payment-gateway\src' 'import com\.sweet\.market\.(?!gateway)' 'payment-gateway-package-boundary'
-Find-ProhibitedImports 'mock-delivery-provider\src' 'import com\.sweet\.market\.(?!provider)' 'delivery-provider-package-boundary'
-Find-ProhibitedImports 'backend\src' 'com\.sweet\.market\.(gateway|provider)' 'backend-simulator-package-boundary'
+Find-ProhibitedImports 'mock-payment-gateway\src' '(?m)^\s*import\s+(?:static\s+)?com\.sweet\.market\.(?!gateway(?:\.|;))[A-Za-z_$][\w$]*(?:\.[A-Za-z_$*][\w$*]*)*;\s*$' 'payment-gateway-package-boundary'
+Find-ProhibitedImports 'mock-delivery-provider\src' '(?m)^\s*import\s+(?:static\s+)?com\.sweet\.market\.(?!provider(?:\.|;))[A-Za-z_$][\w$]*(?:\.[A-Za-z_$*][\w$*]*)*;\s*$' 'delivery-provider-package-boundary'
+Find-ProhibitedImports 'backend\src' '(?m)^\s*import\s+(?:static\s+)?com\.sweet\.market\.(?:gateway(?:\.|;)|provider(?:\.|;))(?:[A-Za-z_$*][\w$]*(?:\.[A-Za-z_$*][\w$]*)*;)?\s*$' 'backend-simulator-package-boundary'
 
 $databases = @(
     [pscustomobject]@{
