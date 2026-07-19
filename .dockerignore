@@ -1,0 +1,11 @@
+.git
+.worktrees
+.superpowers
+.idea
+.env.integration
+**/.gradle
+**/build
+**/node_modules
+**/.local
+**/uploads
+web/dist

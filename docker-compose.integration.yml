@@ -1,0 +1,175 @@
+name: sweet-market-integration
+
+services:
+  market:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.integration
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://market-postgres:5432/${MARKET_DB_NAME:?set in .env.integration}
+      DB_USERNAME: ${MARKET_DB_USERNAME:?set in .env.integration}
+      DB_PASSWORD: ${MARKET_DB_PASSWORD:?set in .env.integration}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      JWT_SECRET: ${JWT_SECRET:?set in .env.integration}
+      EXTERNAL_INTEGRATIONS_ENABLED: "true"
+      MARKET_PAYMENT_GATEWAY_API_KEY: ${MARKET_PAYMENT_GATEWAY_API_KEY:?set in .env.integration}
+      MARKET_PAYMENT_GATEWAY_HMAC_KEY_ID: ${MARKET_PAYMENT_GATEWAY_HMAC_KEY_ID:?set in .env.integration}
+      MARKET_PAYMENT_GATEWAY_HMAC_SECRET: ${MARKET_PAYMENT_GATEWAY_HMAC_SECRET:?set in .env.integration}
+      MARKET_PAYMENT_GATEWAY_HMAC_NEXT_KEY_ID: ${MARKET_PAYMENT_GATEWAY_HMAC_NEXT_KEY_ID:?set in .env.integration}
+      MARKET_PAYMENT_GATEWAY_HMAC_NEXT_SECRET: ${MARKET_PAYMENT_GATEWAY_HMAC_NEXT_SECRET:?set in .env.integration}
+      MARKET_PAYMENT_WEBHOOK_API_KEY: ${PAYMENT_GATEWAY_WEBHOOK_API_KEY:?set in .env.integration}
+      MARKET_PAYMENT_WEBHOOK_CURRENT_KEY_ID: ${PAYMENT_GATEWAY_WEBHOOK_CURRENT_KEY_ID:?set in .env.integration}
+      MARKET_PAYMENT_WEBHOOK_CURRENT_SECRET: ${PAYMENT_GATEWAY_WEBHOOK_CURRENT_SECRET:?set in .env.integration}
+      MARKET_PAYMENT_WEBHOOK_NEXT_KEY_ID: ${PAYMENT_GATEWAY_WEBHOOK_NEXT_KEY_ID:?set in .env.integration}
+      MARKET_PAYMENT_WEBHOOK_NEXT_SECRET: ${PAYMENT_GATEWAY_WEBHOOK_NEXT_SECRET:?set in .env.integration}
+      MARKET_DELIVERY_PROVIDER_API_KEY: ${MARKET_DELIVERY_PROVIDER_API_KEY:?set in .env.integration}
+      MARKET_DELIVERY_PROVIDER_HMAC_KEY_ID: ${MARKET_DELIVERY_PROVIDER_HMAC_KEY_ID:?set in .env.integration}
+      MARKET_DELIVERY_PROVIDER_HMAC_SECRET: ${MARKET_DELIVERY_PROVIDER_HMAC_SECRET:?set in .env.integration}
+      MARKET_DELIVERY_PROVIDER_HMAC_NEXT_KEY_ID: ${MARKET_DELIVERY_PROVIDER_HMAC_NEXT_KEY_ID:?set in .env.integration}
+      MARKET_DELIVERY_PROVIDER_HMAC_NEXT_SECRET: ${MARKET_DELIVERY_PROVIDER_HMAC_NEXT_SECRET:?set in .env.integration}
+      MARKET_DELIVERY_WEBHOOK_API_KEY: ${DELIVERY_PROVIDER_WEBHOOK_API_KEY:?set in .env.integration}
+      MARKET_DELIVERY_WEBHOOK_CURRENT_KEY_ID: ${DELIVERY_PROVIDER_WEBHOOK_CURRENT_KEY_ID:?set in .env.integration}
+      MARKET_DELIVERY_WEBHOOK_CURRENT_SECRET: ${DELIVERY_PROVIDER_WEBHOOK_CURRENT_SECRET:?set in .env.integration}
+      MARKET_DELIVERY_WEBHOOK_NEXT_KEY_ID: ${DELIVERY_PROVIDER_WEBHOOK_NEXT_KEY_ID:?set in .env.integration}
+      MARKET_DELIVERY_WEBHOOK_NEXT_SECRET: ${DELIVERY_PROVIDER_WEBHOOK_NEXT_SECRET:?set in .env.integration}
+    depends_on:
+      market-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  mock-payment-gateway:
+    build:
+      context: .
+      dockerfile: mock-payment-gateway/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      PAYMENT_GATEWAY_PORT: "8081"
+      PAYMENT_GATEWAY_DB_HOST: payment-postgres
+      PAYMENT_GATEWAY_DB_PORT: "5432"
+      PAYMENT_GATEWAY_DB_NAME: ${PAYMENT_GATEWAY_DB_NAME:?set in .env.integration}
+      PAYMENT_GATEWAY_DB_USERNAME: ${PAYMENT_GATEWAY_DB_USERNAME:?set in .env.integration}
+      PAYMENT_GATEWAY_DB_PASSWORD: ${PAYMENT_GATEWAY_DB_PASSWORD:?set in .env.integration}
+      PAYMENT_GATEWAY_MERCHANT_API_KEY: ${MARKET_PAYMENT_GATEWAY_API_KEY:?set in .env.integration}
+      PAYMENT_GATEWAY_HMAC_CURRENT_KEY_ID: ${MARKET_PAYMENT_GATEWAY_HMAC_KEY_ID:?set in .env.integration}
+      PAYMENT_GATEWAY_HMAC_CURRENT_SECRET: ${MARKET_PAYMENT_GATEWAY_HMAC_SECRET:?set in .env.integration}
+      PAYMENT_GATEWAY_HMAC_NEXT_KEY_ID: ${MARKET_PAYMENT_GATEWAY_HMAC_NEXT_KEY_ID:?set in .env.integration}
+      PAYMENT_GATEWAY_HMAC_NEXT_SECRET: ${MARKET_PAYMENT_GATEWAY_HMAC_NEXT_SECRET:?set in .env.integration}
+      PAYMENT_GATEWAY_WEBHOOK_API_KEY: ${PAYMENT_GATEWAY_WEBHOOK_API_KEY:?set in .env.integration}
+      PAYMENT_GATEWAY_WEBHOOK_CURRENT_KEY_ID: ${PAYMENT_GATEWAY_WEBHOOK_CURRENT_KEY_ID:?set in .env.integration}
+      PAYMENT_GATEWAY_WEBHOOK_CURRENT_SECRET: ${PAYMENT_GATEWAY_WEBHOOK_CURRENT_SECRET:?set in .env.integration}
+      PAYMENT_GATEWAY_WEBHOOK_NEXT_KEY_ID: ${PAYMENT_GATEWAY_WEBHOOK_NEXT_KEY_ID:?set in .env.integration}
+      PAYMENT_GATEWAY_WEBHOOK_NEXT_SECRET: ${PAYMENT_GATEWAY_WEBHOOK_NEXT_SECRET:?set in .env.integration}
+    depends_on:
+      payment-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8081/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  mock-delivery-provider:
+    build:
+      context: .
+      dockerfile: mock-delivery-provider/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      DELIVERY_PROVIDER_PORT: "8082"
+      DELIVERY_PROVIDER_DB_HOST: delivery-postgres
+      DELIVERY_PROVIDER_DB_PORT: "5432"
+      DELIVERY_PROVIDER_DB_NAME: ${DELIVERY_PROVIDER_DB_NAME:?set in .env.integration}
+      DELIVERY_PROVIDER_DB_USERNAME: ${DELIVERY_PROVIDER_DB_USERNAME:?set in .env.integration}
+      DELIVERY_PROVIDER_DB_PASSWORD: ${DELIVERY_PROVIDER_DB_PASSWORD:?set in .env.integration}
+      DELIVERY_PROVIDER_MERCHANT_API_KEY: ${MARKET_DELIVERY_PROVIDER_API_KEY:?set in .env.integration}
+      DELIVERY_PROVIDER_HMAC_CURRENT_KEY_ID: ${MARKET_DELIVERY_PROVIDER_HMAC_KEY_ID:?set in .env.integration}
+      DELIVERY_PROVIDER_HMAC_CURRENT_SECRET: ${MARKET_DELIVERY_PROVIDER_HMAC_SECRET:?set in .env.integration}
+      DELIVERY_PROVIDER_HMAC_NEXT_KEY_ID: ${MARKET_DELIVERY_PROVIDER_HMAC_NEXT_KEY_ID:?set in .env.integration}
+      DELIVERY_PROVIDER_HMAC_NEXT_SECRET: ${MARKET_DELIVERY_PROVIDER_HMAC_NEXT_SECRET:?set in .env.integration}
+      DELIVERY_PROVIDER_WEBHOOK_API_KEY: ${DELIVERY_PROVIDER_WEBHOOK_API_KEY:?set in .env.integration}
+      DELIVERY_PROVIDER_WEBHOOK_CURRENT_KEY_ID: ${DELIVERY_PROVIDER_WEBHOOK_CURRENT_KEY_ID:?set in .env.integration}
+      DELIVERY_PROVIDER_WEBHOOK_CURRENT_SECRET: ${DELIVERY_PROVIDER_WEBHOOK_CURRENT_SECRET:?set in .env.integration}
+      DELIVERY_PROVIDER_WEBHOOK_NEXT_KEY_ID: ${DELIVERY_PROVIDER_WEBHOOK_NEXT_KEY_ID:?set in .env.integration}
+      DELIVERY_PROVIDER_WEBHOOK_NEXT_SECRET: ${DELIVERY_PROVIDER_WEBHOOK_NEXT_SECRET:?set in .env.integration}
+    depends_on:
+      delivery-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8082/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+
+  market-postgres:
+    image: postgres:17-alpine
+    ports:
+      - "15432:5432"
+    environment:
+      POSTGRES_DB: ${MARKET_DB_NAME:?set in .env.integration}
+      POSTGRES_USER: ${MARKET_DB_USERNAME:?set in .env.integration}
+      POSTGRES_PASSWORD: ${MARKET_DB_PASSWORD:?set in .env.integration}
+    volumes:
+      - market-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  payment-postgres:
+    image: postgres:17-alpine
+    ports:
+      - "15433:5432"
+    environment:
+      POSTGRES_DB: ${PAYMENT_GATEWAY_DB_NAME:?set in .env.integration}
+      POSTGRES_USER: ${PAYMENT_GATEWAY_DB_USERNAME:?set in .env.integration}
+      POSTGRES_PASSWORD: ${PAYMENT_GATEWAY_DB_PASSWORD:?set in .env.integration}
+    volumes:
+      - payment-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  delivery-postgres:
+    image: postgres:17-alpine
+    ports:
+      - "15434:5432"
+    environment:
+      POSTGRES_DB: ${DELIVERY_PROVIDER_DB_NAME:?set in .env.integration}
+      POSTGRES_USER: ${DELIVERY_PROVIDER_DB_USERNAME:?set in .env.integration}
+      POSTGRES_PASSWORD: ${DELIVERY_PROVIDER_DB_PASSWORD:?set in .env.integration}
+    volumes:
+      - delivery-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  market-postgres-data:
+  payment-postgres-data:
+  delivery-postgres-data:

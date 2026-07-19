@@ -3,3 +3,6 @@
 .superpowers/
 web/node_modules/
 web/dist/
+.env.integration
+mock-payment-gateway/build/
+mock-delivery-provider/build/

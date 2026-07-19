@@ -28,6 +28,16 @@ class SecurityApiTest extends IntegrationTestSupport {
     private static final String TEST_JWT_SECRET = "sweet-market-test-secret-key-32bytes-minimum";
 
     @Test
+    void actuator_health는_인증없이_접근하고_보호된_API는_계속_차단한다() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/members/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_FAILED"));
+    }
+
+    @Test
     void JWT가_없으면_내_정보_API에_접근할_수_없다() throws Exception {
         mockMvc.perform(get("/api/members/me"))
                 .andExpect(status().isUnauthorized())

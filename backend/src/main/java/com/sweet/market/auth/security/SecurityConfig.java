@@ -48,6 +48,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/stores/me").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/stores/*", "/api/stores/*/products", "/api/stores/*/catalog/products").permitAll()
                         .requestMatchers(HttpMethod.GET, "/uploads/products/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
