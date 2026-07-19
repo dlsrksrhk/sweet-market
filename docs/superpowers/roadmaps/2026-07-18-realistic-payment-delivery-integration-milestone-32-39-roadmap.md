@@ -126,6 +126,8 @@ Each operation records a stable idempotency key, internal and external identifie
 
 ## Milestone 32: External Integration Foundation
 
+**Status:** Complete. See the [M32 verification record](../reports/2026-07-18-milestone-32-external-integration-foundation-verification.md) and [M32 handoff](../handoffs/2026-07-18-milestone-32-external-integration-foundation-handoff.md).
+
 ### Product Goal
 
 Create a reproducible local topology where Sweet Market and two external simulators start independently and communicate only through authenticated public contracts.
