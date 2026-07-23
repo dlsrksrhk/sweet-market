@@ -6,12 +6,12 @@ import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.coupon.domain.*;
 import com.sweet.market.coupon.repository.CouponReservationRepository;
 import com.sweet.market.coupon.repository.MemberCouponRepository;
-import com.sweet.market.order.domain.Order;
 import com.sweet.market.operations.coupon.CouponOutcomeEventFactory;
 import com.sweet.market.operations.coupon.CouponOutcomeReason;
 import com.sweet.market.operations.event.OperationalEvent;
 import com.sweet.market.operations.event.OperationalEventRecorder;
 import com.sweet.market.operations.event.OperationalFailureRecorder;
+import com.sweet.market.order.domain.Order;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.promotion.application.PromotionPrice;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -228,8 +228,7 @@ public class CouponRedemptionService {
             case MEMBER_COUPON_NOT_ISSUED -> CouponOutcomeReason.UNAVAILABLE;
             case MEMBER_COUPON_EXPIRED -> CouponOutcomeReason.EXPIRED;
             case MEMBER_COUPON_TARGET_MISMATCH -> CouponOutcomeReason.SCOPE_MISMATCH;
-            case MEMBER_COUPON_PROMOTION_STACKING_NOT_ALLOWED ->
-                    CouponOutcomeReason.COMBINATION_NOT_ALLOWED;
+            case MEMBER_COUPON_PROMOTION_STACKING_NOT_ALLOWED -> CouponOutcomeReason.COMBINATION_NOT_ALLOWED;
             case MEMBER_COUPON_ALREADY_RESERVED -> CouponOutcomeReason.RESERVATION_CONFLICT;
             default -> null;
         };

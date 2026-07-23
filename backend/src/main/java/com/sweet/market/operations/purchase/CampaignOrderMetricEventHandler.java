@@ -137,9 +137,9 @@ public class CampaignOrderMetricEventHandler implements OperationalEventHandler 
 
     private CampaignOwner couponOwner(long campaignId) {
         var owners = jdbcTemplate.query("""
-                SELECT owner_type, COALESCE(store_id, 0) AS owner_store_id
-                FROM coupon_campaigns WHERE id = :campaignId
-                """, Map.of("campaignId", campaignId),
+                        SELECT owner_type, COALESCE(store_id, 0) AS owner_store_id
+                        FROM coupon_campaigns WHERE id = :campaignId
+                        """, Map.of("campaignId", campaignId),
                 (resultSet, rowNumber) -> new CampaignOwner(
                         resultSet.getString("owner_type"), resultSet.getLong("owner_store_id")));
         return owners.isEmpty() ? new CampaignOwner("PLATFORM", 0L) : owners.getFirst();
@@ -157,12 +157,14 @@ public class CampaignOrderMetricEventHandler implements OperationalEventHandler 
         return "CONFIRMED".equals(status) || "CANCELED".equals(status) || "REFUNDED".equals(status);
     }
 
-    private record CampaignOwner(String type, long storeId) { }
+    private record CampaignOwner(String type, long storeId) {
+    }
 
     private record Amounts(
             long orderSuccess,
             long purchaseFailure,
             long promotionApplied, long promotionRealized, long promotionCanceled, long promotionRefunded,
             long couponApplied, long couponRealized, long couponCanceled, long couponRefunded
-    ) { }
+    ) {
+    }
 }

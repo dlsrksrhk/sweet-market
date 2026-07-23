@@ -1,10 +1,6 @@
 package com.sweet.market.discovery.experiment;
 
-import com.sweet.market.coupon.domain.CouponCampaign;
-import com.sweet.market.coupon.domain.CouponCampaignOwnerType;
-import com.sweet.market.coupon.domain.CouponDiscountType;
-import com.sweet.market.coupon.domain.CouponScope;
-import com.sweet.market.coupon.domain.CouponValidityType;
+import com.sweet.market.coupon.domain.*;
 import com.sweet.market.inventory.domain.Inventory;
 import com.sweet.market.member.domain.Member;
 import com.sweet.market.product.domain.Product;
@@ -16,9 +12,9 @@ import com.sweet.market.promotion.domain.PromotionScope;
 import com.sweet.market.store.domain.Store;
 import jakarta.persistence.EntityManager;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;

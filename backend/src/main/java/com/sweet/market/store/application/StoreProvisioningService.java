@@ -7,8 +7,8 @@ import com.sweet.market.store.domain.StoreMembership;
 import com.sweet.market.store.domain.StoreStatus;
 import com.sweet.market.store.repository.StoreMembershipRepository;
 import com.sweet.market.store.repository.StoreRepository;
-import org.springframework.stereotype.Service;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service

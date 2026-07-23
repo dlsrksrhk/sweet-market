@@ -10,18 +10,18 @@ import com.sweet.market.inventory.domain.InventoryChangeType;
 import com.sweet.market.inventory.domain.InventoryDomainError;
 import com.sweet.market.inventory.repository.InventoryAdjustmentRepository;
 import com.sweet.market.inventory.repository.InventoryRepository;
+import com.sweet.market.operations.event.OperationalEventRecorder;
+import com.sweet.market.operations.inventory.InventoryOutcomeEventFactory;
 import com.sweet.market.order.domain.Order;
 import com.sweet.market.order.domain.OrderStatus;
 import com.sweet.market.order.repository.OrderRepository;
-import com.sweet.market.operations.event.OperationalEventRecorder;
-import com.sweet.market.operations.inventory.InventoryOutcomeEventFactory;
 import com.sweet.market.product.domain.Product;
 import com.sweet.market.store.application.StoreAccessService;
 import org.hibernate.StaleObjectStateException;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -72,7 +72,8 @@ public class InventoryService {
     ) {
         this(inventoryRepository, inventoryAdjustmentRepository, storeAccessService,
                 inventoryAdjustmentTransactionService, orderRepository, eventPublisher,
-                event -> { }, null);
+                event -> {
+                }, null);
     }
 
     public InventoryService(
@@ -83,7 +84,8 @@ public class InventoryService {
             OrderRepository orderRepository
     ) {
         this(inventoryRepository, inventoryAdjustmentRepository, storeAccessService, inventoryAdjustmentTransactionService,
-                orderRepository, event -> { });
+                orderRepository, event -> {
+                });
     }
 
     public void initialize(Product product, int initialTotalQuantity, Long memberId) {

@@ -78,7 +78,8 @@ public class LocalExperimentJdbcMetricsConfig {
 
     private static boolean isExecution(Method method) {
         return switch (method.getName()) {
-            case "execute", "executeQuery", "executeUpdate", "executeLargeUpdate", "executeBatch", "executeLargeBatch" -> true;
+            case "execute", "executeQuery", "executeUpdate", "executeLargeUpdate", "executeBatch",
+                 "executeLargeBatch" -> true;
             default -> false;
         };
     }

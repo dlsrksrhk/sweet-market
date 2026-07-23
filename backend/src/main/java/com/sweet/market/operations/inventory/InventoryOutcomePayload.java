@@ -7,4 +7,5 @@ public record InventoryOutcomePayload(
         String salesPolicy,
         Integer availableQuantity,
         boolean soldOut
-) { }
+) {
+}

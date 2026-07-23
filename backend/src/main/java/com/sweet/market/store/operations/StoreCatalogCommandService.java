@@ -9,8 +9,8 @@ import com.sweet.market.product.domain.ProductDomainError;
 import com.sweet.market.product.domain.ProductStatus;
 import com.sweet.market.product.repository.ProductRepository;
 import com.sweet.market.store.application.StoreAccessService;
-import org.springframework.stereotype.Service;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;

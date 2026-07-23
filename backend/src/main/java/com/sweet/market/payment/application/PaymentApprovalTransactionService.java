@@ -6,10 +6,10 @@ import com.sweet.market.common.error.ErrorCode;
 import com.sweet.market.coupon.application.CouponRedemptionService;
 import com.sweet.market.coupon.domain.CouponReservation;
 import com.sweet.market.coupon.repository.MemberCouponRepository;
-import com.sweet.market.order.domain.Order;
-import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.operations.event.OperationalEventRecorder;
 import com.sweet.market.operations.purchase.PurchaseOutcomeEventFactory;
+import com.sweet.market.order.domain.Order;
+import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.payment.api.PaymentResponse;
 import com.sweet.market.payment.domain.Payment;
 import com.sweet.market.payment.repository.PaymentRepository;
@@ -85,8 +85,8 @@ public class PaymentApprovalTransactionService {
         Order order = target.order();
         Long couponCampaignId = order.getMemberCouponId() == null ? null
                 : memberCouponRepository.findById(order.getMemberCouponId())
-                        .map(memberCoupon -> memberCoupon.getCampaign().getId())
-                        .orElse(null);
+                .map(memberCoupon -> memberCoupon.getCampaign().getId())
+                .orElse(null);
         operationalEventRecorder.record(purchaseOutcomeEventFactory.orderStatusChanged(
                 "PAID", order.getId(), order.getProduct().getStore().getId(), order.getProduct().getId(),
                 order.getPromotionCampaignId(), couponCampaignId,

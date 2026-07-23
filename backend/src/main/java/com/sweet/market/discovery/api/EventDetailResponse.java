@@ -1,7 +1,7 @@
 package com.sweet.market.discovery.api;
 
-import com.sweet.market.discovery.domain.DiscoveryEventType;
 import com.sweet.market.catalog.api.CatalogProductCardResponse;
+import com.sweet.market.discovery.domain.DiscoveryEventType;
 
 import java.time.Instant;
 import java.util.List;

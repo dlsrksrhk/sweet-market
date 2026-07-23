@@ -3,13 +3,13 @@ package com.sweet.market.payment.application;
 import com.sweet.market.common.domain.error.DomainException;
 import com.sweet.market.common.error.BusinessException;
 import com.sweet.market.common.error.ErrorCode;
-import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.coupon.repository.MemberCouponRepository;
-import com.sweet.market.order.domain.Order;
-import com.sweet.market.order.repository.OrderRepository;
+import com.sweet.market.inventory.application.InventoryService;
 import com.sweet.market.operations.event.OperationalEventRecorder;
 import com.sweet.market.operations.inventory.InventoryOutcomeEventFactory;
 import com.sweet.market.operations.purchase.PurchaseOutcomeEventFactory;
+import com.sweet.market.order.domain.Order;
+import com.sweet.market.order.repository.OrderRepository;
 import com.sweet.market.payment.api.PaymentResponse;
 import com.sweet.market.payment.domain.Payment;
 import com.sweet.market.payment.domain.PaymentStatus;
@@ -104,8 +104,8 @@ public class PaymentService {
     private void recordCanceled(Order order, Instant occurredAt) {
         Long couponCampaignId = order.getMemberCouponId() == null ? null
                 : memberCouponRepository.findById(order.getMemberCouponId())
-                        .map(memberCoupon -> memberCoupon.getCampaign().getId())
-                        .orElse(null);
+                .map(memberCoupon -> memberCoupon.getCampaign().getId())
+                .orElse(null);
         operationalEventRecorder.record(purchaseOutcomeEventFactory.orderStatusChanged(
                 "CANCELED", order.getId(), order.getProduct().getStore().getId(), order.getProduct().getId(),
                 order.getPromotionCampaignId(), couponCampaignId,

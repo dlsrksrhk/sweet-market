@@ -70,7 +70,8 @@ public class PromotionCampaignService {
             StoreAccessService storeAccessService,
             Clock clock
     ) {
-        this(promotionCampaignRepository, productRepository, storeAccessService, clock, event -> { });
+        this(promotionCampaignRepository, productRepository, storeAccessService, clock, event -> {
+        });
     }
 
     PromotionCampaignService(
@@ -81,7 +82,8 @@ public class PromotionCampaignService {
             ApplicationEventPublisher eventPublisher
     ) {
         this(promotionCampaignRepository, productRepository, storeAccessService, clock, eventPublisher,
-                event -> { }, new CampaignCommandEventFactory(new ObjectMapper()));
+                event -> {
+                }, new CampaignCommandEventFactory(new ObjectMapper()));
     }
 
     PromotionCampaignService(

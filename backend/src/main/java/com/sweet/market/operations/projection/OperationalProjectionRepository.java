@@ -13,18 +13,10 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
+import java.sql.*;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.OptionalLong;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Supplier;
 
 @Repository
@@ -94,40 +86,40 @@ public class OperationalProjectionRepository {
             long throughOutboxId
     ) {
         return jdbcTemplate.query("""
-                SELECT id, event_id, event_type, schema_version, aggregate_type,
-                       aggregate_id, aggregate_version, store_id, campaign_id,
-                       partition_key, occurred_at, payload::text AS payload, attempt_count
-                FROM operational_event_outbox
-                WHERE id <= :throughOutboxId
-                  AND occurred_at >= :trackingStartedAt
-                  AND (
-                      event_type = 'CAMPAIGN_COMMAND_COMPLETED'
-                      OR (event_type = 'COUPON_CLAIM_OUTCOME'
-                          AND payload ->> 'result' = 'FAILURE')
-                      OR event_type = 'COUPON_REDEMPTION_OUTCOME'
-                      OR (event_type = 'PURCHASE_OUTCOME'
-                          AND payload ->> 'result' = 'FAILURE')
-                      OR (event_type = 'ORDER_STATUS_CHANGED'
-                          AND payload ->> 'result' IN ('CANCELED', 'REFUNDED'))
-                      OR (event_type = 'INVENTORY_OUTCOME'
-                          AND payload ->> 'action' IN ('RESERVATION_FAILED', 'SOLD_OUT'))
-                  )
-                ORDER BY id
-                """, new MapSqlParameterSource()
-                .addValue("throughOutboxId", throughOutboxId)
-                .addValue("trackingStartedAt", Timestamp.from(trackingStartedAt)),
+                        SELECT id, event_id, event_type, schema_version, aggregate_type,
+                               aggregate_id, aggregate_version, store_id, campaign_id,
+                               partition_key, occurred_at, payload::text AS payload, attempt_count
+                        FROM operational_event_outbox
+                        WHERE id <= :throughOutboxId
+                          AND occurred_at >= :trackingStartedAt
+                          AND (
+                              event_type = 'CAMPAIGN_COMMAND_COMPLETED'
+                              OR (event_type = 'COUPON_CLAIM_OUTCOME'
+                                  AND payload ->> 'result' = 'FAILURE')
+                              OR event_type = 'COUPON_REDEMPTION_OUTCOME'
+                              OR (event_type = 'PURCHASE_OUTCOME'
+                                  AND payload ->> 'result' = 'FAILURE')
+                              OR (event_type = 'ORDER_STATUS_CHANGED'
+                                  AND payload ->> 'result' IN ('CANCELED', 'REFUNDED'))
+                              OR (event_type = 'INVENTORY_OUTCOME'
+                                  AND payload ->> 'action' IN ('RESERVATION_FAILED', 'SOLD_OUT'))
+                          )
+                        ORDER BY id
+                        """, new MapSqlParameterSource()
+                        .addValue("throughOutboxId", throughOutboxId)
+                        .addValue("trackingStartedAt", Timestamp.from(trackingStartedAt)),
                 (resultSet, rowNumber) -> envelope(resultSet));
     }
 
     public List<OperationalEventEnvelopeRow> findEventsAfterOutboxId(long outboxId) {
         return jdbcTemplate.query("""
-                SELECT id, event_id, event_type, schema_version, aggregate_type,
-                       aggregate_id, aggregate_version, store_id, campaign_id,
-                       partition_key, occurred_at, payload::text AS payload, attempt_count
-                FROM operational_event_outbox
-                WHERE id > :outboxId
-                ORDER BY id
-                """, Map.of("outboxId", outboxId),
+                        SELECT id, event_id, event_type, schema_version, aggregate_type,
+                               aggregate_id, aggregate_version, store_id, campaign_id,
+                               partition_key, occurred_at, payload::text AS payload, attempt_count
+                        FROM operational_event_outbox
+                        WHERE id > :outboxId
+                        ORDER BY id
+                        """, Map.of("outboxId", outboxId),
                 (resultSet, rowNumber) -> envelope(resultSet));
     }
 
@@ -136,25 +128,25 @@ public class OperationalProjectionRepository {
             long throughOutboxId
     ) {
         return jdbcTemplate.query("""
-                SELECT outbox.id, outbox.event_id, outbox.event_type,
-                       outbox.schema_version, outbox.aggregate_type,
-                       outbox.aggregate_id, outbox.aggregate_version,
-                       outbox.store_id, outbox.campaign_id, outbox.partition_key,
-                       outbox.occurred_at, outbox.payload::text AS payload,
-                       outbox.attempt_count
-                FROM operational_event_outbox outbox
-                WHERE outbox.id <= :throughOutboxId
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM projection_event_receipts receipt
-                      WHERE receipt.generation_id = :generationId
-                        AND receipt.projection_name = 'bootstrap-outbox-visibility'
-                        AND receipt.event_id = outbox.event_id
-                  )
-                ORDER BY outbox.id
-                """, new MapSqlParameterSource()
-                .addValue("generationId", generationId)
-                .addValue("throughOutboxId", throughOutboxId),
+                        SELECT outbox.id, outbox.event_id, outbox.event_type,
+                               outbox.schema_version, outbox.aggregate_type,
+                               outbox.aggregate_id, outbox.aggregate_version,
+                               outbox.store_id, outbox.campaign_id, outbox.partition_key,
+                               outbox.occurred_at, outbox.payload::text AS payload,
+                               outbox.attempt_count
+                        FROM operational_event_outbox outbox
+                        WHERE outbox.id <= :throughOutboxId
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM projection_event_receipts receipt
+                              WHERE receipt.generation_id = :generationId
+                                AND receipt.projection_name = 'bootstrap-outbox-visibility'
+                                AND receipt.event_id = outbox.event_id
+                          )
+                        ORDER BY outbox.id
+                        """, new MapSqlParameterSource()
+                        .addValue("generationId", generationId)
+                        .addValue("throughOutboxId", throughOutboxId),
                 (resultSet, rowNumber) -> envelope(resultSet));
     }
 
@@ -290,16 +282,16 @@ public class OperationalProjectionRepository {
 
     public List<OperationalEventEnvelopeRow> lockNextBatch(Instant now, int batchSize) {
         return jdbcTemplate.query("""
-                SELECT id, event_id, event_type, schema_version, aggregate_type,
-                       aggregate_id, aggregate_version, store_id, campaign_id,
-                       partition_key, occurred_at, payload::text AS payload, attempt_count
-                FROM operational_event_outbox
-                WHERE delivery_state IN ('PENDING', 'RETRY')
-                  AND next_attempt_at <= :now
-                ORDER BY id
-                FOR UPDATE SKIP LOCKED
-                LIMIT :batchSize
-                """, new MapSqlParameterSource()
+                        SELECT id, event_id, event_type, schema_version, aggregate_type,
+                               aggregate_id, aggregate_version, store_id, campaign_id,
+                               partition_key, occurred_at, payload::text AS payload, attempt_count
+                        FROM operational_event_outbox
+                        WHERE delivery_state IN ('PENDING', 'RETRY')
+                          AND next_attempt_at <= :now
+                        ORDER BY id
+                        FOR UPDATE SKIP LOCKED
+                        LIMIT :batchSize
+                        """, new MapSqlParameterSource()
                         .addValue("now", Timestamp.from(now))
                         .addValue("batchSize", batchSize),
                 (resultSet, rowNumber) -> envelope(resultSet));
@@ -307,14 +299,14 @@ public class OperationalProjectionRepository {
 
     public boolean hasReceipt(long generationId, String projectionName, UUID eventId) {
         Boolean exists = jdbcTemplate.queryForObject("""
-                SELECT EXISTS (
-                    SELECT 1
-                    FROM projection_event_receipts
-                    WHERE generation_id = :generationId
-                      AND projection_name = :projectionName
-                      AND event_id = :eventId
-                )
-                """, new MapSqlParameterSource()
+                        SELECT EXISTS (
+                            SELECT 1
+                            FROM projection_event_receipts
+                            WHERE generation_id = :generationId
+                              AND projection_name = :projectionName
+                              AND event_id = :eventId
+                        )
+                        """, new MapSqlParameterSource()
                         .addValue("generationId", generationId)
                         .addValue("projectionName", projectionName)
                         .addValue("eventId", eventId),
@@ -328,10 +320,10 @@ public class OperationalProjectionRepository {
                     generation_id, projection_name, event_id, processed_at
                 ) VALUES (:generationId, :projectionName, :eventId, :processedAt)
                 """, new MapSqlParameterSource()
-                        .addValue("generationId", generationId)
-                        .addValue("projectionName", projectionName)
-                        .addValue("eventId", eventId)
-                        .addValue("processedAt", Timestamp.from(processedAt)));
+                .addValue("generationId", generationId)
+                .addValue("projectionName", projectionName)
+                .addValue("eventId", eventId)
+                .addValue("processedAt", Timestamp.from(processedAt)));
     }
 
     public void markProcessed(UUID eventId, Instant processedAt) {
@@ -340,8 +332,8 @@ public class OperationalProjectionRepository {
                 SET delivery_state = 'PROCESSED', processed_at = :processedAt, last_error = NULL
                 WHERE event_id = :eventId
                 """, new MapSqlParameterSource()
-                        .addValue("eventId", eventId)
-                        .addValue("processedAt", Timestamp.from(processedAt)));
+                .addValue("eventId", eventId)
+                .addValue("processedAt", Timestamp.from(processedAt)));
     }
 
     public void markFailed(
@@ -360,11 +352,11 @@ public class OperationalProjectionRepository {
                     processed_at = NULL
                 WHERE event_id = :eventId
                 """, new MapSqlParameterSource()
-                        .addValue("eventId", eventId)
-                        .addValue("deliveryState", deliveryState)
-                        .addValue("attemptCount", attemptCount)
-                        .addValue("nextAttemptAt", Timestamp.from(nextAttemptAt))
-                        .addValue("lastError", errorSummary));
+                .addValue("eventId", eventId)
+                .addValue("deliveryState", deliveryState)
+                .addValue("attemptCount", attemptCount)
+                .addValue("nextAttemptAt", Timestamp.from(nextAttemptAt))
+                .addValue("lastError", errorSummary));
     }
 
     public int deleteProcessedBefore(Instant cutoff) {

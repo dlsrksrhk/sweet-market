@@ -10,4 +10,5 @@ public record PurchaseOutcomePayload(
         Long couponCampaignId,
         long promotionDiscountAmount,
         long couponDiscountAmount
-) { }
+) {
+}

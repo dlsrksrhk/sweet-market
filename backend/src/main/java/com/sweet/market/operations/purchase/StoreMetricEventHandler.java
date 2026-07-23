@@ -144,5 +144,6 @@ public class StoreMetricEventHandler implements OperationalEventHandler {
             long orderSuccess, long purchaseFailure, long reservationFailure,
             long promotionApplied, long promotionRealized, long promotionCanceled, long promotionRefunded,
             long couponApplied, long couponRealized, long couponCanceled, long couponRefunded
-    ) { }
+    ) {
+    }
 }
